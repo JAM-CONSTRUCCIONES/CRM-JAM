@@ -61,6 +61,16 @@ const AppLayout = () => {
 
         <Content style={{ padding: screens.lg ? 28 : 16, minHeight: '100vh' }}>
           <Outlet />
+          <div style={{
+            textAlign: 'center', padding: '24px 0 8px',
+            fontSize: 13, color: '#9ca3af',
+          }}>
+            Hecho por{' '}
+            <a href="https://methodicatechnology.com/" target="_blank" rel="noopener noreferrer"
+              style={{ color: '#6b7280', fontWeight: 600, textDecoration: 'none' }}>
+              Methodica Technology &amp; Co
+            </a>
+          </div>
         </Content>
       </Layout>
 

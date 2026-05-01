@@ -256,6 +256,14 @@ export default function LoginPage() {
               <button style={s.link} type="button" onClick={() => { setError(''); setStep('login'); }}>← Volver al login</button>
             </form>
           )}
+
+          {/* Footer */}
+          <p style={s.footer}>
+            Hecho por{' '}
+            <a href="https://methodicatechnology.com/" target="_blank" rel="noopener noreferrer" style={s.footerBrand}>
+              Methodica Technology &amp; Co
+            </a>
+          </p>
         </div>
       </div>
     </div>
@@ -361,5 +369,12 @@ const s: Record<string, React.CSSProperties> = {
     position: 'absolute', right: 10, background: 'none', border: 'none',
     cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1,
     color: '#6b7280', display: 'flex', alignItems: 'center',
+  },
+  footer: {
+    marginTop: 32, textAlign: 'center' as const,
+    fontSize: 13, color: '#9ca3af',
+  },
+  footerBrand: {
+    color: '#6b7280', fontWeight: 600, textDecoration: 'none',
   },
 };

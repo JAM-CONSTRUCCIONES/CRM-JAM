@@ -55,6 +55,8 @@ export interface AnalyticsData {
   top_unidades: TopUnidad[];
   conversion_por_inmobiliaria: ConversionInmo[];
   demograficos: Demograficos;
+  ventas_por_piso: Record<string, number>;
+  ventas_por_metraje: Record<string, number>;
 }
 
 export const getAnalytics = (proyectoId: string): Promise<AnalyticsData> =>

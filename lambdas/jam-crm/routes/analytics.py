@@ -21,7 +21,7 @@ def _parse_dt(ts: str):
         return None
 
 
-def _diff_hours(t1, t2) -> float | None:
+def _diff_hours(t1, t2):
     if t1 and t2:
         return abs((t2 - t1).total_seconds()) / 3600
     return None
@@ -55,11 +55,19 @@ def get_analytics(event):
 
     # ── Métricas de unidades ───────────────────────────────────────────────
     unidad_stats = {'disponible': 0, 'bloqueada': 0, 'no_disponible': 0, 'vendida': 0, 'desvinculada': 0, 'total': 0}
+    # Índice unidad_id → datos de unidad (para cruzar con procesos)
+    unidad_map: dict = {}
     for u in unidades:
         estado = u.get('estado', 'disponible')
         unidad_stats['total'] += 1
         if estado in unidad_stats:
             unidad_stats[estado] += 1
+        uid = u.get('unidad_id') or u.get('sk', '').replace('UNIDAD#', '')
+        if uid:
+            unidad_map[uid] = {
+                'piso': str(u.get('piso', '')).strip() if u.get('piso') is not None else '',
+                'metraje': u.get('metraje'),
+            }
 
     # ── Métricas de clientes ───────────────────────────────────────────────
     cliente_stats = {'total': len(clientes), 'exclusividad_activa': 0, 'exclusividad_vencida': 0}
@@ -106,6 +114,9 @@ def get_analytics(event):
     tiempos_res_sep: list = []
     # Unidades más demandadas (cuántos procesos tiene cada unidad)
     demanda_unidades: dict = {}
+    # Ventas (separacion/inicial) por piso y por metraje
+    ventas_por_piso: dict = {}
+    ventas_por_metraje: dict = {}
 
     for p in procesos:
         estado = p.get('estado', 'captacion')
@@ -132,6 +143,20 @@ def get_analytics(event):
             demanda_unidades[uid]['procesos'] += 1
             if estado in ('separacion', 'inicial'):
                 demanda_unidades[uid]['vendida'] = True
+
+        # Ventas por piso y metraje (solo procesos vendidos: separacion o inicial)
+        if estado in ('separacion', 'inicial') and uid and uid in unidad_map:
+            info = unidad_map[uid]
+            piso = info['piso']
+            if piso:
+                ventas_por_piso[piso] = ventas_por_piso.get(piso, 0) + 1
+            metraje = info['metraje']
+            if metraje is not None:
+                try:
+                    m_key = str(float(metraje))
+                    ventas_por_metraje[m_key] = ventas_por_metraje.get(m_key, 0) + 1
+                except (ValueError, TypeError):
+                    pass
 
         # Cierres mensuales y velocidad desde historial
         historial = p.get('historial', [])
@@ -222,6 +247,8 @@ def get_analytics(event):
             'pais_residencia': demograficos['pais_residencia'],
             'nacionalidad': demograficos['nacionalidad'],
         },
+        'ventas_por_piso': dict(sorted(ventas_por_piso.items(), key=lambda x: (x[0].isdigit(), x[0]))),
+        'ventas_por_metraje': dict(sorted(ventas_por_metraje.items(), key=lambda x: float(x[0]))),
     })
 
 

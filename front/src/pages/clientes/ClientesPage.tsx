@@ -20,21 +20,11 @@ import { useAuthContext } from '../../context/AuthContext';
 import type { Cliente, Proyecto, Proceso } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
+import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL } from '../../constants/estados';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { useBreakpoint } = Grid;
-
-const ESTADO_COLOR: Record<string, string> = {
-  captacion: 'blue', reserva: 'orange',
-  separacion: 'purple', inicial: 'cyan', desvinculado: 'red',
-};
-const ESTADO_LABEL: Record<string, string> = {
-  captacion: 'Captación', reserva: 'Reserva',
-  separacion: 'Separación', inicial: 'Inicial', desvinculado: 'Desvinculado',
-};
-
-// Agrupa lista de clientes por cédula
 interface ClienteAgrupado {
   cedula: string;
   nombres: string;
@@ -195,7 +185,7 @@ const ClientesPage = () => {
     try {
       await cambiarEstatus(estatusCliente.cedula, estatusModal.proyecto_id, estatusModal.unidad_id,
         { estatus, inmobiliaria_id: estatusModal.inmobiliaria_id, notificar });
-      message.success(`Estatus actualizado a ${ESTADO_LABEL[estatus] ?? estatus}`);
+      message.success(`Estatus actualizado a ${ESTADO_PROCESO_LABEL[estatus] ?? estatus}`);
       setEstatusModal(null); setEstatusCliente(null);
       if (drawerCedula) abrirDetalleCedula(drawerCedula);
       cargar(proyectoFiltro, inmoFiltro);
@@ -517,7 +507,7 @@ const ClientesPage = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Space size={4}>
                           <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
-                          <Tag color={ESTADO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_LABEL[p.estado] ?? p.estado}</Tag>
+                          <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
                         </Space>
                         <Space size={0}>
                           <Button size="small" type="link" icon={<SwapOutlined />}
@@ -585,7 +575,7 @@ const ClientesPage = () => {
                   <div key={p.sk} style={{ padding: '10px 14px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 8 }}>
                     <Space>
                       <Tag color="geekblue">{p.unidad_nombre || p.unidad_id}</Tag>
-                      <Tag color={ESTADO_COLOR[p.estado]}>{ESTADO_LABEL[p.estado] ?? p.estado}</Tag>
+                      <Tag color={ESTADO_PROCESO_COLOR[p.estado]}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
                     </Space>
                   </div>
                 ))}

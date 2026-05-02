@@ -4,7 +4,7 @@ import boto3
 import os
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
-from utils.response import ok, created, bad_request, not_found
+from utils.response import ok, created, bad_request, not_found, conflict
 from utils.helpers import now
 
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
@@ -96,6 +96,15 @@ def actualizar(proyecto_id, event):
 
 
 def eliminar(proyecto_id):
+    # Verificar si el proyecto tiene unidades antes de desactivar
+    resultado = inventario.query(
+        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
+        Limit=1,
+        ProjectionExpression='pk',
+    )
+    if resultado.get('Items'):
+        return conflict('No se puede eliminar el proyecto porque tiene unidades registradas. Elimina primero todas las unidades.')
+
     try:
         inventario.update_item(
             Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'},
@@ -103,11 +112,34 @@ def eliminar(proyecto_id):
             ConditionExpression='attribute_exists(pk)',
             ExpressionAttributeValues={':false': False}
         )
-        return ok({'message': 'Proyecto desactivado'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
             return not_found('Proyecto no encontrado')
         raise
+
+    # Desvincular el proyecto de todas las inmobiliarias que lo tengan asignado
+    try:
+        usuarios_table_name = os.environ.get('USUARIOS_TABLE')
+        if usuarios_table_name:
+            usuarios_table = boto3.resource('dynamodb').Table(usuarios_table_name)
+            inmos = usuarios_table.query(
+                IndexName='gsi-tipo',
+                KeyConditionExpression=Key('tipo').eq('INMOBILIARIA'),
+            )
+            for inmo in inmos.get('Items', []):
+                proyectos_asignados = inmo.get('proyectos', [])
+                if proyecto_id in proyectos_asignados:
+                    nuevos = [p for p in proyectos_asignados if p != proyecto_id]
+                    usuarios_table.update_item(
+                        Key={'pk': inmo['pk'], 'sk': 'METADATA'},
+                        UpdateExpression='SET proyectos = :p',
+                        ExpressionAttributeValues={':p': nuevos},
+                    )
+    except Exception as e:
+        import logging
+        logging.getLogger().warning(f'Error desvinculando proyecto de inmobiliarias: {e}')
+
+    return ok({'message': 'Proyecto desactivado y desvinculado de inmobiliarias'})
 
 
 

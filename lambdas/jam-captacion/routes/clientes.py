@@ -348,9 +348,15 @@ def listar_admin(event):
             kwargs['FilterExpression'] = Attr('inmobiliaria_id').eq(inmobiliaria_id)
         result = clientes.query(**kwargs)
     elif inmobiliaria_id:
+        # Normalizar: quitar prefijo si viene con él
+        inmo_id_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
         kwargs['IndexName'] = 'gsi-inmobiliaria-clientes'
-        kwargs['KeyConditionExpression'] = Key('inmobiliaria_id').eq(inmobiliaria_id)
+        kwargs['KeyConditionExpression'] = Key('inmobiliaria_id').eq(inmo_id_clean)
         result = clientes.query(**kwargs)
+        # Si no hay resultados, intentar con prefijo (registros legacy)
+        if not result.get('Items'):
+            kwargs['KeyConditionExpression'] = Key('inmobiliaria_id').eq(f'INMOBILIARIA#{inmo_id_clean}')
+            result = clientes.query(**kwargs)
     else:
         result = clientes.scan(**kwargs)
 

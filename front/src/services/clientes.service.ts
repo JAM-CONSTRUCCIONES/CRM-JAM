@@ -29,8 +29,13 @@ export const getClientes = (proyectoId?: string): Promise<Cliente[]> => {
 };
 
 export const getClientesAdmin = (params?: { proyecto_id?: string; inmobiliaria_id?: string; next_token?: string; limit?: number }): Promise<{ items: Cliente[]; next_token?: string }> => {
-  const qs = params ? '?' + new URLSearchParams(
-    Object.entries({ ...params, limit: params.limit?.toString() ?? '50' })
+  // El campo inmobiliaria_id en DynamoDB se guarda sin el prefijo INMOBILIARIA#
+  const normalizedParams = params ? {
+    ...params,
+    inmobiliaria_id: params.inmobiliaria_id?.replace('INMOBILIARIA#', ''),
+  } : params;
+  const qs = normalizedParams ? '?' + new URLSearchParams(
+    Object.entries({ ...normalizedParams, limit: normalizedParams.limit?.toString() ?? '50' })
       .filter(([, v]) => v) as [string, string][]
   ).toString() : '';
   return apiGet<{ items: Cliente[]; next_token?: string }>(`/admin/clientes${qs}`);

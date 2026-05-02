@@ -10,10 +10,8 @@ import ClientesPage from './pages/clientes/ClientesPage';
 import InmobiliariasPage from './pages/inmobiliarias/InmobiliariasPage';
 import UsuariosSistemaPage from './pages/sistema/UsuariosSistemaPage';
 import ReportesPage from './pages/reportes/ReportesPage';
-import BloqueosPage from './pages/bloqueos/BloqueosPage';
 import ProcesosPage from './pages/procesos/ProcesosPage';
 import CapturaPage from './pages/captura/CapturaPage';
-
 import MfaSetupPage from './pages/auth/MfaSetupPage';
 import MigracionPage from './pages/migracion/MigracionPage';
 
@@ -57,14 +55,6 @@ const App = () => (
             element={
               <ProtectedRoute roles={['admin']}>
                 <InmobiliariasPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="bloqueos"
-            element={
-              <ProtectedRoute roles={['admin']}>
-                <BloqueosPage />
               </ProtectedRoute>
             }
           />

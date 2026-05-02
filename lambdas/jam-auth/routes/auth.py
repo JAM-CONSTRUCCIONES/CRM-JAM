@@ -88,10 +88,17 @@ def confirm_mfa(event):
         })
     except ClientError as e:
         code = e.response['Error']['Code']
+        msg = e.response['Error'].get('Message', '')
         if code == 'CodeMismatchException':
             return _build(401, {'message': 'Código incorrecto'})
         if code == 'ExpiredCodeException':
-            return _build(401, {'message': 'Código expirado'})
+            return _build(401, {'message': 'Código expirado. Vuelve a iniciar sesión.'})
+        if code == 'NotAuthorizedException':
+            if 'session' in msg.lower() or 'expired' in msg.lower():
+                return _build(401, {'message': 'La sesión expiró. Vuelve a iniciar sesión.'})
+            return _build(401, {'message': 'No autorizado'})
+        if code == 'TooManyRequestsException':
+            return _build(429, {'message': 'Demasiados intentos. Espera unos minutos.'})
         return _build(500, {'message': f'Error MFA: {code}'})
 
 

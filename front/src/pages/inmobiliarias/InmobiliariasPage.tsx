@@ -6,8 +6,9 @@ import {
 import {
   PlusOutlined, EditOutlined, StopOutlined, CheckOutlined,
   DeleteOutlined, UserOutlined, TeamOutlined, MailOutlined, ReloadOutlined,
-  LinkOutlined,
+  LinkOutlined, EyeOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import {
   getInmobiliarias, crearInmobiliaria, actualizarInmobiliaria,
   deshabilitarInmobiliaria, habilitarInmobiliaria, eliminarInmobiliaria,
@@ -31,6 +32,7 @@ const inmoColor = (nombre: string) => {
 };
 
 const InmobiliariasPage = () => {
+  const navigate = useNavigate();
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -97,7 +99,14 @@ const InmobiliariasPage = () => {
     try {
       await eliminarInmobiliaria(inmo.pk); message.success('Inmobiliaria eliminada');
       await cargar();
-    } catch { message.error('Error al eliminar'); }
+    } catch (err: any) {
+      try {
+        const body = await err?.response?.body?.json?.();
+        message.error(body?.message ?? 'Error al eliminar');
+      } catch {
+        message.error('Error al eliminar');
+      }
+    }
   };
 
   const abrirUsuarios = async (inmo: Inmobiliaria) => {
@@ -246,23 +255,40 @@ const InmobiliariasPage = () => {
                       <TeamOutlined style={{ color: '#aaa', fontSize: 13 }} />
                       <Text type="secondary" style={{ fontSize: 12 }}>Ver usuarios</Text>
                     </div>
-                    <Tooltip title="Copiar enlace de registro para clientes">
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={<LinkOutlined />}
-                        onClick={e => {
-                          e.stopPropagation();
-                          const id = inmo.pk.replace('INMOBILIARIA#', '');
-                          const url = `${window.location.origin}/captura?inmo=${id}`;
-                          navigator.clipboard.writeText(url);
-                          message.success('Enlace copiado');
-                        }}
-                        style={{ fontSize: 12, color: '#1677ff' }}
-                      >
-                        Copiar enlace
-                      </Button>
-                    </Tooltip>
+                    <Space size={4} onClick={e => e.stopPropagation()}>
+                      <Tooltip title="Ver inventario como esta inmobiliaria">
+                        <Button
+                          size="small"
+                          type="text"
+                          icon={<EyeOutlined />}
+                          onClick={e => {
+                            e.stopPropagation();
+                            const id = inmo.pk.replace('INMOBILIARIA#', '');
+                            navigate(`/inventario?preview_inmo=${id}`);
+                          }}
+                          style={{ fontSize: 12, color: '#722ed1' }}
+                        >
+                          Ver como inmo
+                        </Button>
+                      </Tooltip>
+                      <Tooltip title="Copiar enlace de registro para clientes">
+                        <Button
+                          size="small"
+                          type="text"
+                          icon={<LinkOutlined />}
+                          onClick={e => {
+                            e.stopPropagation();
+                            const id = inmo.pk.replace('INMOBILIARIA#', '');
+                            const url = `${window.location.origin}/captura?inmo=${id}`;
+                            navigator.clipboard.writeText(url);
+                            message.success('Enlace copiado');
+                          }}
+                          style={{ fontSize: 12, color: '#1677ff' }}
+                        >
+                          Copiar enlace
+                        </Button>
+                      </Tooltip>
+                    </Space>
                   </div>
                 </div>
               </div>

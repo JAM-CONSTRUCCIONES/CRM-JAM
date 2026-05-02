@@ -62,8 +62,10 @@ const BloqueosPage = () => {
       const ahora = Date.now();
       const enriquecidos = b.items.map(item => ({
         ...item,
-        tiempo_restante: item.tiempo_restante ??
-          Math.max(0, Math.floor((new Date(item.fecha_liberacion).getTime() - ahora) / 1000)),
+        // Siempre recalcular desde fecha_liberacion para que refleje el tiempo real
+        tiempo_restante: Math.max(0, Math.floor(
+          (new Date(item.fecha_liberacion).getTime() - ahora) / 1000
+        )),
       }));
       setBloqueos(enriquecidos);
       setProyectos(p);

@@ -2,7 +2,9 @@
 import uuid
 import boto3
 import os
+import json
 from decimal import Decimal, InvalidOperation
+from datetime import datetime, timezone, timedelta
 from utils.helpers import now
 
 dynamodb     = boto3.resource('dynamodb')
@@ -11,6 +13,19 @@ usuarios_t   = dynamodb.Table(os.environ['USUARIOS_TABLE'])
 clientes_t   = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 procesos_t   = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 historial_t  = dynamodb.Table(os.environ['HISTORIAL_TABLE'])
+
+# Cliente para schedules y SQS
+scheduler = boto3.client('scheduler')
+sqs = boto3.client('sqs')
+
+# Variables de entorno
+LAMBDA_ARN = os.environ.get('BLOQUEOS_LAMBDA_ARN', '')
+SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
+SQS_URL = os.environ.get('SQS_URL', '')
+
+# Duración de bloqueo en migración (24 horas)
+HORAS_BLOQUEO_MIGRACION = 24
+HORAS_ALERTA_MIGRACION = 19  # alerta 5 horas antes del vencimiento
 
 
 def escribir_migracion(proyecto_id, filas):
@@ -54,6 +69,8 @@ def escribir_migracion(proyecto_id, filas):
 
         if fila.get('estado') == 'bloqueada' and inmo_id:
             _escribir_historial(proyecto_id, fila, inmo_id, cedula, ahora)
+            _crear_schedules_bloqueo(fila, proyecto_id)
+            _enviar_notificacion_bloqueo(fila, proyecto_id, inmo_id, cedula, id_unidad)
 
         stats['unidades_cargadas'] += 1
 
@@ -122,10 +139,30 @@ def _escribir_unidad(proyecto_id, id_unidad, fila, inmo_id, ahora):
         'actualizado_en': ahora,
     }
 
-    for campo in ('tipo', 'piso', 'comentario', 'fecha_bloqueo',
-                  'fecha_liberacion', 'cliente_nombre_excel', 'manzana'):
+    # Para campos opcionales que no requieren cálculo especial
+    for campo in ('tipo', 'piso', 'comentario', 'cliente_nombre_excel', 'manzana'):
         if fila.get(campo) is not None:
             item[campo] = fila[campo]
+
+    # Manejar fecha_bloqueo y fecha_liberacion con reglas de 24 horas
+    # SIEMPRE usar fecha actual para bloqueos (ignorar fechas del Excel)
+    if fila.get('estado') == 'bloqueada':
+        dt_bloqueo = datetime.fromisoformat(ahora.replace('Z', '+00:00'))
+        item['fecha_bloqueo'] = ahora
+        
+        # Calcular fecha_liberacion: +24 horas desde ahora
+        dt_liberacion = dt_bloqueo + timedelta(hours=HORAS_BLOQUEO_MIGRACION)
+        item['fecha_liberacion'] = dt_liberacion.isoformat()
+        
+        # Guardar las fechas calculadas en la fila para usar en historial y schedules
+        fila['_fecha_bloqueo_calculada'] = ahora
+        fila['_fecha_liberacion_calculada'] = dt_liberacion.isoformat()
+    else:
+        # Para estados no bloqueados, mantener las fechas del Excel si existen
+        if fila.get('fecha_bloqueo') is not None:
+            item['fecha_bloqueo'] = fila['fecha_bloqueo']
+        if fila.get('fecha_liberacion') is not None:
+            item['fecha_liberacion'] = fila['fecha_liberacion']
 
     for campo_num in ('num_cuartos', 'num_banos', 'parqueos', 'metraje_terraza',
                       'metraje_patio', 'precio_reserva', 'precio_separacion',
@@ -188,18 +225,27 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
 
 
 def _escribir_historial(proyecto_id, fila, inmo_id, cedula, ahora):
+    """
+    Escribe historial de bloqueo aplicando reglas de 24 horas.
+    Usa las fechas calculadas en _escribir_unidad para mantener consistencia.
+    """
     unidad_id = fila.get('_unidad_id', '')
     id_unidad = fila['id_unidad']
+    
+    # Usar las fechas calculadas en _escribir_unidad
+    ts_bloqueo = fila.get('_fecha_bloqueo_calculada', ahora)
+    ts_liberacion = fila.get('_fecha_liberacion_calculada', '')
+    
     historial_t.put_item(Item={
         'pk':                f'UNIDAD#{unidad_id}',
-        'sk':                f'BLOQUEO#{fila.get("fecha_bloqueo") or ahora}',
+        'sk':                f'BLOQUEO#{ts_bloqueo}',
         'proyecto_id':       proyecto_id,
         'unidad_id':         unidad_id,
         'unidad_nombre':     id_unidad,
         'inmobiliaria_id':   inmo_id,
         'inmobiliaria_nombre': fila.get('inmobiliaria_nombre_sugerido') or '',
-        'fecha_bloqueo':     fila.get('fecha_bloqueo') or ahora,
-        'fecha_liberacion':  fila.get('fecha_liberacion') or '',
+        'fecha_bloqueo':     ts_bloqueo,
+        'fecha_liberacion':  ts_liberacion,
         'motivo_liberacion': None,
         'cliente_cedula':    cedula or '',
         'origen':            'migracion',
@@ -219,3 +265,101 @@ def _agregar_proyecto_a_inmo(inmo_id, proyecto_id):
             )
     except Exception:
         pass
+
+
+def _schedule_name(unidad_id, suffix):
+    """EventBridge Scheduler no permite '/' ni '#' en nombres"""
+    safe = unidad_id.replace('/', '-').replace('#', '-')
+    return f"bloqueo-{safe}-{suffix}"
+
+
+def _crear_schedules_bloqueo(fila, proyecto_id):
+    """
+    Crea schedules de EventBridge para liberación automática y alerta.
+    Similar a bloqueos.py pero con duración de 24h.
+    """
+    if not LAMBDA_ARN or not SCHEDULER_ROLE_ARN:
+        print(f'_crear_schedules_bloqueo: LAMBDA_ARN o SCHEDULER_ROLE_ARN no configurados, omitiendo schedules')
+        return
+    
+    unidad_id = fila.get('_unidad_id', '')
+    if not unidad_id:
+        return
+    
+    ts_liberacion = fila.get('_fecha_liberacion_calculada', '')
+    ts_bloqueo = fila.get('_fecha_bloqueo_calculada', '')
+    
+    if not ts_liberacion or not ts_bloqueo:
+        return
+    
+    # Calcular timestamp de alerta (5 horas antes de liberación)
+    try:
+        dt_bloqueo = datetime.fromisoformat(ts_bloqueo.replace('Z', '+00:00'))
+        dt_alerta = dt_bloqueo + timedelta(hours=HORAS_ALERTA_MIGRACION)
+        ts_alerta = dt_alerta.isoformat()[:19]  # formato para EventBridge: YYYY-MM-DDTHH:MM:SS
+    except Exception:
+        return
+    
+    ts_liberacion_eb = ts_liberacion[:19]  # formato para EventBridge
+    
+    payload_base = {'unidad_id': unidad_id, 'proyecto_id': proyecto_id}
+    
+    for suffix, at_time, accion in [
+        ('alerta', ts_alerta, 'alerta_vencimiento'),
+        ('liberacion', ts_liberacion_eb, 'liberar_automatico'),
+    ]:
+        try:
+            scheduler.create_schedule(
+                Name=_schedule_name(unidad_id, suffix),
+                ScheduleExpression=f"at({at_time})",
+                ScheduleExpressionTimezone='UTC',
+                FlexibleTimeWindow={'Mode': 'OFF'},
+                Target={
+                    'Arn': LAMBDA_ARN,
+                    'RoleArn': SCHEDULER_ROLE_ARN,
+                    'Input': json.dumps({**payload_base, 'accion': accion}),
+                },
+                ActionAfterCompletion='DELETE',
+            )
+            print(f'Schedule creado: {_schedule_name(unidad_id, suffix)} at {at_time}')
+        except Exception as e:
+            print(f'_crear_schedules_bloqueo error ({suffix}): {type(e).__name__}: {e}')
+
+
+def _enviar_notificacion_bloqueo(fila, proyecto_id, inmo_id, cedula, id_unidad):
+    """
+    Envía notificación SQS de bloqueo registrado.
+    Similar a bloqueos.py.
+    """
+    if not SQS_URL:
+        print(f'_enviar_notificacion_bloqueo: SQS_URL no configurado, omitiendo notificación')
+        return
+    
+    unidad_id = fila.get('_unidad_id', '')
+    ts_bloqueo = fila.get('_fecha_bloqueo_calculada', '')
+    ts_liberacion = fila.get('_fecha_liberacion_calculada', '')
+    
+    if not unidad_id:
+        return
+    
+    try:
+        sqs.send_message(
+            QueueUrl=SQS_URL,
+            MessageBody=json.dumps({
+                'evento': 'bloqueo_registrado',
+                'proyecto_id': proyecto_id,
+                'inmobiliaria_id': inmo_id,
+                'metadata': {
+                    'unidad_id': unidad_id,
+                    'unidad_nombre': id_unidad,
+                    'fecha_bloqueo': ts_bloqueo,
+                    'fecha_liberacion': ts_liberacion,
+                    'cliente_cedula': cedula or '',
+                    'horas': HORAS_BLOQUEO_MIGRACION,
+                    'origen': 'migracion',
+                },
+            }),
+        )
+        print(f'Notificación SQS enviada para bloqueo de unidad {id_unidad}')
+    except Exception as e:
+        print(f'_enviar_notificacion_bloqueo error: {type(e).__name__}: {e}')

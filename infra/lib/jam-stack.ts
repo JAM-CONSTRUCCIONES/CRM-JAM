@@ -259,6 +259,14 @@ export class JamStack extends cdk.Stack {
 
     // ─── SQS jam-notificaciones-queue ────────────────────────────────────────
 
+    // Agregar PROCESOS_TABLE a jam-proyectos ahora que procesosTable está declarada
+    proyectosLambda.addEnvironment('PROCESOS_TABLE', procesosTable.tableName);
+    procesosTable.grantReadData(proyectosLambda);
+
+    // Agregar CLIENTES_TABLE a jam-auth ahora que clientesTable está declarada
+    authLambda.addEnvironment('CLIENTES_TABLE', clientesTable.tableName);
+    clientesTable.grantReadData(authLambda);
+
     const notificacionesDlq = new sqs.Queue(this, 'JamNotificacionesDlq', {
       queueName: 'jam-notificaciones-dlq',
       retentionPeriod: cdk.Duration.days(14),

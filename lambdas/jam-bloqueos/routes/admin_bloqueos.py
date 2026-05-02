@@ -65,6 +65,26 @@ def liberar(proyecto_id, unidad_id, event):
     admin_nombre = _get_nombre_usuario(admin_id)
     inmobiliaria_id = unidad.get('bloqueado_por')
     fecha_bloqueo = unidad.get('fecha_bloqueo', '')
+    cliente_cedula = unidad.get('cliente_cedula', '')
+
+    # Fix #2: advertir si el proceso ya avanzó más allá de captacion
+    # (el admin puede forzar con ?forzar=true)
+    qs = event.get('queryStringParameters') or {}
+    forzar = qs.get('forzar', 'false').lower() == 'true'
+
+    if cliente_cedula and inmobiliaria_id and not forzar:
+        procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
+        if procesos_table_name:
+            procesos = dynamodb.Table(procesos_table_name)
+            proc = procesos.get_item(
+                Key={'pk': f'PROCESO#{cliente_cedula}#{inmobiliaria_id}',
+                     'sk': f'UNIDAD#{unidad_id}'}
+            ).get('Item')
+            if proc and proc.get('estado') not in ('captacion', 'desvinculado', None):
+                return conflict(
+                    f'El proceso de venta está en estado "{proc.get("estado")}". '
+                    f'Usa ?forzar=true para liberar de todas formas.'
+                )
 
     # Liberar en inventario
     inventario.update_item(
@@ -105,17 +125,16 @@ def extender(proyecto_id, unidad_id, event):
         return bad_request('proyecto_id requerido (query param)')
 
     body = json.loads(event.get('body') or '{}')
-    horas_restantes = body.get('horas_restantes')  # Tiempo restante total que quiere
+    # Acepta tanto horas_restantes (tiempo total desde ahora) como horas_extra (tiempo adicional)
+    horas_restantes = body.get('horas_restantes')
+    horas_extra = body.get('horas_extra')
     justificacion = body.get('justificacion', '')
 
-    if horas_restantes is None:
-        return bad_request('horas_restantes es requerido')
-    
+    if horas_restantes is None and horas_extra is None:
+        return bad_request('horas_restantes o horas_extra es requerido')
+
     if not justificacion:
         return bad_request('justificacion es requerida')
-
-    if horas_restantes < 0.02:  # Mínimo ~1 minuto
-        return bad_request('El tiempo restante debe ser al menos 1 minuto (0.02 horas)')
 
     unidad = _get_unidad_bloqueada(proyecto_id, unidad_id)
     if not unidad:
@@ -127,13 +146,34 @@ def extender(proyecto_id, unidad_id, event):
 
     fecha_bloqueo = unidad.get('fecha_bloqueo', '')
     ahora = datetime.now(timezone.utc)
-    
-    # Calcular nueva fecha de liberación basada en tiempo restante
-    nueva_dt_lib = ahora + timedelta(hours=horas_restantes)
+
+    if horas_restantes is not None:
+        # Tiempo total restante desde ahora
+        horas = float(horas_restantes)
+        if horas < 0.02:
+            return bad_request('El tiempo restante debe ser al menos 1 minuto (0.02 horas)')
+        nueva_dt_lib = ahora + timedelta(hours=horas)
+    else:
+        # Tiempo adicional sobre la fecha actual de liberación
+        horas = float(horas_extra)
+        if horas <= 0:
+            return bad_request('horas_extra debe ser mayor a 0')
+        fecha_lib_actual = unidad.get('fecha_liberacion', ahora.isoformat())
+        try:
+            dt_lib_actual = datetime.fromisoformat(fecha_lib_actual.replace('Z', '+00:00'))
+            if dt_lib_actual.tzinfo is None:
+                dt_lib_actual = dt_lib_actual.replace(tzinfo=timezone.utc)
+        except Exception:
+            dt_lib_actual = ahora
+        nueva_dt_lib = dt_lib_actual + timedelta(hours=horas)
+        # Calcular horas_restantes para el historial
+        horas_restantes = (nueva_dt_lib - ahora).total_seconds() / 3600
+
     nueva_lib = nueva_dt_lib.isoformat()
-    
-    # Alerta 5 horas antes, pero si el tiempo restante es menor a 5h, poner alerta en 1 minuto
-    if horas_restantes <= 5:
+
+    # Alerta 5 horas antes; si queda menos de 5h, alerta en 1 minuto
+    tiempo_restante_h = (nueva_dt_lib - ahora).total_seconds() / 3600
+    if tiempo_restante_h <= 5:
         nueva_alerta_dt = ahora + timedelta(minutes=1)
     else:
         nueva_alerta_dt = nueva_dt_lib - timedelta(hours=5)
@@ -145,16 +185,16 @@ def extender(proyecto_id, unidad_id, event):
         ExpressionAttributeValues={':lib': nueva_lib},
     )
 
-    # Reemplazar schedules
+    # Reemplazar ambos schedules (alerta + liberacion)
     sched.eliminar_schedules(unidad_id)
     sched.crear_schedules(unidad_id, proyecto_id, nueva_lib[:19], nueva_alerta[:19])
 
     # Registrar modificación en historial
     extension = {
-        'horas_restantes': horas_restantes,
+        'horas_restantes': round(horas_restantes, 2),
         'justificacion': justificacion,
         'modificado_por': admin_nombre,
-        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'timestamp': ahora.isoformat(),
         'nueva_fecha_liberacion': nueva_lib,
     }
     try:
@@ -172,5 +212,5 @@ def extender(proyecto_id, unidad_id, event):
         'nueva_fecha_liberacion': nueva_lib,
         'modificado_por': admin_id,
         'justificacion': justificacion,
-        'horas_restantes': horas_restantes,
+        'horas_restantes': round(horas_restantes, 2),
     })

@@ -190,10 +190,19 @@ export function useInventario() {
       message.success('Unidad eliminada');
       await cargarUnidades();
     } catch (err: any) {
-      const body = err?.response?.body;
+      const status = err?.response?.status ?? err?.response?.statusCode;
       let msg = 'Error al eliminar unidad';
-      if (body) { try { msg = (typeof body === 'string' ? JSON.parse(body) : body)?.message || msg; } catch { /* ok */ } }
-      message.error(msg);
+      try {
+        const body = typeof err?.response?.body === 'string'
+          ? JSON.parse(err.response.body)
+          : await err?.response?.body?.json?.();
+        msg = body?.message || body?.error || msg;
+      } catch { /* usar msg por defecto */ }
+      if (status === 409 || status === 400) {
+        message.warning(msg);
+      } else {
+        message.error(msg);
+      }
     }
   };
 

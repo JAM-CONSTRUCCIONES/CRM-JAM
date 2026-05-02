@@ -23,14 +23,14 @@ interface Props {
   inmoNombre: (id: string) => string;
   onEditar: (u: Unidad) => void;
   onEliminar: (u: Unidad) => void;
-  onBloquear: (u: Unidad) => void;
+  onBloquear?: (u: Unidad) => void;
 }
 
 // ── Card móvil ────────────────────────────────────────────────────────────────
 const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear }: {
   u: Unidad; etapas: Etapa[]; isAdmin: boolean; isInmobiliaria: boolean; canEdit?: boolean;
   inmoNombre: (id: string) => string;
-  onEditar: (u: Unidad) => void; onEliminar: (u: Unidad) => void; onBloquear: (u: Unidad) => void;
+  onEditar: (u: Unidad) => void; onEliminar: (u: Unidad) => void; onBloquear?: (u: Unidad) => void;
 }) => {
   const cfg = ESTADO_UNIDAD_CONFIG[u.estado] ?? { label: u.estado, tagColor: 'default' };
   const etapa = etapas.find(e => e.etapa_id === u.etapa_id);
@@ -123,7 +123,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
 
         {/* Bloquear button (inmobiliaria) */}
         {isInmobiliaria && u.estado === 'disponible' && (
-          <Button size="small" icon={<LockOutlined />} type="primary" ghost block onClick={() => onBloquear(u)}>
+          <Button size="small" icon={<LockOutlined />} type="primary" ghost block onClick={() => onBloquear?.(u)}>
             Bloquear unidad
           </Button>
         )}
@@ -233,7 +233,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
       title: '', key: 'bloqueo', width: 120,
       render: (_: any, u: Unidad) => {
         if (u.estado !== 'disponible') return null;
-        return <Button size="small" icon={<LockOutlined />} type="primary" ghost onClick={() => onBloquear(u)}>Bloquear</Button>;
+        return <Button size="small" icon={<LockOutlined />} type="primary" ghost onClick={() => onBloquear?.(u)}>Bloquear</Button>;
       },
     }] : []),
   ];

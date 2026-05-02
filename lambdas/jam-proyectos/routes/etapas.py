@@ -24,6 +24,15 @@ def crear(proyecto_id, event):
     if not nombre:
         return bad_request('nombre requerido')
 
+    # Validar que el proyecto existe y está activo (#6)
+    proyecto = inventario.get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    ).get('Item')
+    if not proyecto:
+        return not_found('Proyecto no encontrado')
+    if not proyecto.get('activo', True):
+        return bad_request('No se pueden agregar etapas a un proyecto desactivado')
+
     etapa_id = str(uuid.uuid4())[:8].upper()
     item = {
         'pk': f'PROYECTO#{proyecto_id}',

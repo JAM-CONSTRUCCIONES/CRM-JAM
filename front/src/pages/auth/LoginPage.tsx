@@ -68,7 +68,15 @@ export default function LoginPage() {
       await confirmMfaCode(mfaCode);
       await refetch();
       navigate('/dashboard');
-    } catch { setErr('Código incorrecto o expirado'); }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('expiró')) {
+        setErr('La sesión expiró. Vuelve a ingresar tus credenciales.');
+        setStep('login');
+      } else {
+        setErr('Código incorrecto o expirado');
+      }
+    }
   };
 
   const handleSetup = async (e: React.FormEvent) => {

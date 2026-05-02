@@ -193,15 +193,17 @@ def desvincular_unidad(unidad_id: str, cliente_cedula: str, inmobiliaria_id: str
 
     try:
         item = procesos.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
-        if not item or item.get('estado') != 'captacion':
-            return  # Solo desvincular si sigue en captacion (no avanzó)
+        # Fix #3: desvincular en cualquier estado activo, no solo captacion
+        if not item or item.get('estado') in ('desvinculado', 'vendida'):
+            return  # Ya está cerrado, no tocar
 
+        estado_actual = item.get('estado', 'captacion')
         ts_ahora = datetime.now(timezone.utc).isoformat()
         entrada_historial = {
-            'estatus_anterior': 'captacion',
+            'estatus_anterior': estado_actual,
             'estatus_nuevo': 'desvinculado',
             'ejecutado_por': 'sistema',
-            'ejecutado_por_nombre': 'Liberación automática (48h)',
+            'ejecutado_por_nombre': 'Liberación de bloqueo',
             'notificacion_enviada': False,
             'timestamp': ts_ahora,
         }
@@ -211,7 +213,10 @@ def desvincular_unidad(unidad_id: str, cliente_cedula: str, inmobiliaria_id: str
 
         procesos.update_item(
             Key={'pk': pk, 'sk': sk},
-            UpdateExpression='SET estado = :d, actualizado_en = :ts, historial = :h',
+            UpdateExpression=(
+                'SET estado = :d, actualizado_en = :ts, historial = :h'
+                ' REMOVE alerta_separacion_vencida'  # Fix #7: limpiar flag de alerta
+            ),
             ExpressionAttributeValues={
                 ':d': 'desvinculado',
                 ':ts': ts_ahora,

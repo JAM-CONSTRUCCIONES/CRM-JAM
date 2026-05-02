@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
-import { Button, Modal, Form, Input, Space, Tooltip, Row, Col, Popconfirm, Upload, Select, Typography, Grid } from 'antd';
-import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, Space, Tooltip, Row, Col, Popconfirm, Upload, Select, Typography, Grid, Alert } from 'antd';
+import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined, EyeOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
 import { useInventario } from '../../hooks/useInventario';
 import TablaUnidades from '../../components/inventario/TablaUnidades';
@@ -13,6 +13,7 @@ import { bloquearUnidad } from '../../services/bloqueos.service';
 import { buscarClientePorCedula } from '../../services/clientes.service';
 import type { Cliente, Unidad } from '../../types';
 import { message } from 'antd';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -22,6 +23,25 @@ const InventarioPage = () => {
   const inv = useInventario();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // Modo preview: ver como inmobiliaria
+  const previewInmoId = searchParams.get('preview_inmo');
+  const previewInmoNombre = previewInmoId
+    ? inv.inmobiliarias.find(i => i.pk.replace('INMOBILIARIA#', '') === previewInmoId)?.nombre ?? previewInmoId
+    : null;
+  const isPreview = !!previewInmoId;
+  // En preview: comportarse como inmobiliaria (sin acciones de edición)
+  const canEditEffective = isPreview ? false : inv.canEdit;
+  const isInmobiliariaEffective = isPreview ? true : inv.isInmobiliaria;
+  // Filtrar proyectos asignados a la inmobiliaria en preview
+  const proyectosPreview = isPreview
+    ? inv.proyectos.filter(p => {
+        const inmo = inv.inmobiliarias.find(i => i.pk.replace('INMOBILIARIA#', '') === previewInmoId);
+        return inmo?.proyectos?.includes(p.proyecto_id);
+      })
+    : inv.proyectos;
 
   // Estado local solo para bloqueo (no pertenece al hook de inventario)
   const [modalBloqueo, setModalBloqueo] = useState(false);
@@ -78,6 +98,26 @@ const InventarioPage = () => {
 
   return (
     <div>
+      {/* Banner modo preview */}
+      {isPreview && (
+        <Alert
+          type="info"
+          icon={<EyeOutlined />}
+          showIcon
+          style={{ marginBottom: 16, borderRadius: 10 }}
+          message={
+            <span>
+              Viendo como inmobiliaria: <strong>{previewInmoNombre}</strong> — solo lectura
+            </span>
+          }
+          action={
+            <Button size="small" onClick={() => navigate('/inmobiliarias')}>
+              Salir del preview
+            </Button>
+          }
+        />
+      )}
+
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -95,12 +135,12 @@ const InventarioPage = () => {
                 <Button icon={<ReloadOutlined />} onClick={() => inv.cargarUnidades()} loading={inv.loading} />
               </Tooltip>
             )}
-            {inv.canEdit && inv.vista === 'proyectos' && (
+            {canEditEffective && inv.vista === 'proyectos' && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => { inv.setModoProyecto('crear'); inv.setProyectoEditando(null); setImagenFile(null); formProyecto.resetFields(); inv.setModalProyecto(true); }}>
                 {isMobile ? 'Nuevo' : 'Nuevo proyecto'}
               </Button>
             )}
-            {inv.canEdit && inv.vista === 'unidades' && (
+            {canEditEffective && inv.vista === 'unidades' && (
               <>
                 <Button icon={<SettingOutlined />} onClick={() => inv.setDrawerEtapas(true)}>
                   {isMobile ? '' : 'Etapas'}
@@ -117,7 +157,7 @@ const InventarioPage = () => {
       {/* Vista proyectos */}
       {inv.vista === 'proyectos' && (
         <Row gutter={[20, 20]}>
-          {inv.proyectos.map(p => (
+          {proyectosPreview.map(p => (
             <Col key={p.proyecto_id} xs={24} sm={12} md={8} lg={6}>
               <div style={{ borderRadius: 16, overflow: 'hidden', cursor: 'pointer', background: '#fff', border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'box-shadow 0.2s, transform 0.2s' }}
                 onClick={() => inv.seleccionarProyecto(p.proyecto_id)}
@@ -126,12 +166,29 @@ const InventarioPage = () => {
               >
                 <div style={{ height: 160, background: p.imagen_url ? undefined : projectGradient(p.nombre), display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
                   {p.imagen_url ? <img src={p.imagen_url} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <AppstoreOutlined style={{ fontSize: 48, color: 'rgba(255,255,255,0.5)' }} />}
-                  {inv.canEdit && (
+                  {canEditEffective && (
                     <div style={{ position: 'absolute', top: 10, right: 10 }} onClick={e => e.stopPropagation()}>
                       <Space>
                         <Button size="small" type="text" icon={<EditOutlined />} style={{ color: '#fff', background: 'rgba(0,0,0,0.25)', borderRadius: 6 }}
                           onClick={() => { inv.setModoProyecto('editar'); inv.setProyectoEditando(p); setImagenFile(null); formProyecto.setFieldsValue({ nombre: p.nombre, descripcion: p.descripcion }); inv.setModalProyecto(true); }} />
-                        <Popconfirm title="¿Desactivar proyecto?" okText="Sí" cancelText="No" onConfirm={async () => { await eliminarProyecto(p.proyecto_id); inv.cargarProyectos(); }}>
+                        <Popconfirm title="¿Desactivar proyecto?" okText="Sí" cancelText="No" onConfirm={async () => {
+                            try {
+                              await eliminarProyecto(p.proyecto_id);
+                              inv.cargarProyectos();
+                            } catch (err: any) {
+                              const status = err?.response?.status ?? err?.response?.statusCode;
+                              if (status === 409) {
+                                try {
+                                  const body = await err?.response?.body?.json?.();
+                                  message.error(body?.message || 'El proyecto tiene unidades registradas y no puede eliminarse.');
+                                } catch {
+                                  message.error('El proyecto tiene unidades registradas y no puede eliminarse.');
+                                }
+                              } else {
+                                message.error('Error al eliminar el proyecto.');
+                              }
+                            }
+                          }}>
                           <Button size="small" type="text" danger icon={<DeleteOutlined />} style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 6 }} />
                         </Popconfirm>
                       </Space>
@@ -208,12 +265,12 @@ const InventarioPage = () => {
 
           <TablaUnidades
             unidades={inv.unidades} etapas={inv.etapas} loading={inv.loading}
-            isAdmin={inv.isAdmin} isInmobiliaria={inv.isInmobiliaria}
-            canEdit={inv.canEdit}
+            isAdmin={isPreview ? false : inv.isAdmin} isInmobiliaria={isInmobiliariaEffective}
+            canEdit={canEditEffective}
             inmoNombre={inv.inmoNombre}
             onEditar={abrirEditarUnidad}
             onEliminar={inv.handleEliminarUnidad}
-            onBloquear={u => { setUnidadABloquear(u); setClienteEncontrado(null); setModalBloqueo(true); }}
+            onBloquear={isPreview ? undefined : (u => { setUnidadABloquear(u); setClienteEncontrado(null); setModalBloqueo(true); })}
           />
         </>
       )}

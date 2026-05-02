@@ -218,13 +218,36 @@ def listar_todos_procesos(event):
             inmobiliaria_id = sub
 
     if proyecto_id:
+        # gsi-proyecto-procesos: PK=proyecto_id, SK=estado
+        # estado es sort key del GSI — NO puede ir en FilterExpression, solo en KeyConditionExpression
+        if estado:
+            key_cond = Key('proyecto_id').eq(proyecto_id) & Key('estado').eq(estado)
+        else:
+            key_cond = Key('proyecto_id').eq(proyecto_id)
+
         kwargs = {
             'IndexName': 'gsi-proyecto-procesos',
-            'KeyConditionExpression': Key('proyecto_id').eq(proyecto_id),
+            'KeyConditionExpression': key_cond,
             'Limit': limit,
         }
         query_fn = procesos_table.query
+        usar_gsi_proyecto = True
+        usar_gsi_inmo = False
+    elif inmobiliaria_id:
+        # Usar GSI de inmobiliaria para evitar scan — normalizar sin prefijo
+        inmo_id_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
+        kwargs = {
+            'IndexName': 'gsi-inmobiliaria-procesos',
+            'KeyConditionExpression': Key('inmobiliaria_id').eq(inmo_id_clean),
+            'Limit': limit,
+        }
+        query_fn = procesos_table.query
+        usar_gsi_proyecto = False
+        usar_gsi_inmo = True
+        inmobiliaria_id = inmo_id_clean  # normalizado para filtros posteriores
     else:
+        usar_gsi_proyecto = False
+        usar_gsi_inmo = False
         kwargs = {'Limit': limit}
         query_fn = procesos_table.scan
 
@@ -235,13 +258,17 @@ def listar_todos_procesos(event):
         except Exception:
             pass
 
+    # FilterExpression: solo atributos que NO sean PK/SK del GSI activo
     filtros = []
-    if not incluir_cerrados:
-        filtros.append(Attr('estado').is_in(['captacion', 'reserva', 'separacion', 'inicial']))
-    if estado:
-        filtros.append(Attr('estado').eq(estado))
-    if inmobiliaria_id:
-        filtros.append(Attr('inmobiliaria_id').eq(inmobiliaria_id))
+    if inmobiliaria_id and not usar_gsi_inmo:
+        inmo_id_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
+        filtros.append(Attr('inmobiliaria_id').eq(inmo_id_clean))
+    if not usar_gsi_proyecto:
+        if estado:
+            # Estado específico tiene prioridad — filtrar exacto sin importar incluir_cerrados
+            filtros.append(Attr('estado').eq(estado))
+        elif not incluir_cerrados:
+            filtros.append(Attr('estado').is_in(['captacion', 'reserva', 'separacion', 'inicial']))
 
     if filtros:
         expr = filtros[0]
@@ -251,6 +278,21 @@ def listar_todos_procesos(event):
 
     result = query_fn(**kwargs)
     items = result.get('Items', [])
+
+    # Filtrar estado en Python cuando usamos gsi-proyecto-procesos sin estado exacto
+    if usar_gsi_proyecto and not estado:
+        estados_activos = {'captacion', 'reserva', 'separacion', 'inicial'}
+        if not incluir_cerrados:
+            items = [i for i in items if i.get('estado') in estados_activos]
+
+    # Filtrar estado en Python cuando usamos gsi-inmobiliaria-procesos
+    if usar_gsi_inmo:
+        if estado:
+            # Estado específico tiene prioridad
+            items = [i for i in items if i.get('estado') == estado]
+        elif not incluir_cerrados:
+            estados_activos = {'captacion', 'reserva', 'separacion', 'inicial'}
+            items = [i for i in items if i.get('estado') in estados_activos]
 
     # Enriquecer con datos del cliente (con cache por cedula+inmo+proyecto)
     cache = {}
@@ -346,7 +388,8 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
             f"Permitidas: {', '.join(permitidos) or 'ninguna'}"
         )
 
-    # Punto 2: validar que la unidad sigue disponible/bloqueada antes de reservar
+    # Fix #5: validar que la unidad sigue disponible/bloqueada antes de reservar
+    # y que si está bloqueada, es por la misma inmobiliaria
     if nuevo_estatus == 'reserva':
         unidad = inventario_table.get_item(
             Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'}
@@ -356,6 +399,15 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
             return conflict(
                 f"La unidad no está disponible para reservar (estado actual: {estado_unidad})"
             )
+        # Si está bloqueada, verificar que sea por la misma inmobiliaria
+        if estado_unidad == 'bloqueada':
+            bloqueado_por = unidad.get('bloqueado_por', '')
+            inmo_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
+            bloqueado_clean = bloqueado_por.replace('INMOBILIARIA#', '')
+            if bloqueado_clean and bloqueado_clean != inmo_clean:
+                return conflict(
+                    'La unidad está bloqueada por otra inmobiliaria y no puede ser reservada'
+                )
 
     sub = get_sub(event)
     nombre_admin = get_nombre(event)

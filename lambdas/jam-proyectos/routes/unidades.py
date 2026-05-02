@@ -6,10 +6,11 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
-from utils.response import ok, created, bad_request, not_found
+from utils.response import ok, created, bad_request, not_found, conflict
 from utils.helpers import now
 
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
+_procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
 
 
 def _enrich_bloqueo(item):
@@ -86,6 +87,15 @@ def crear(proyecto_id, event):
 
     if not all([id_unidad, etapa_id, metraje, precio]):
         return bad_request('Campos requeridos: id_unidad, etapa_id, metraje, precio')
+
+    # Validar que el proyecto existe y está activo (#6)
+    proyecto = inventario.get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    ).get('Item')
+    if not proyecto:
+        return not_found('Proyecto no encontrado')
+    if not proyecto.get('activo', True):
+        return bad_request('No se pueden agregar unidades a un proyecto desactivado')
 
     try:
         metraje = Decimal(str(metraje))
@@ -205,6 +215,26 @@ def actualizar(proyecto_id, unidad_id, event):
 
 
 def eliminar(proyecto_id, unidad_id):
+    # Fix #1: verificar que no haya procesos de venta activos antes de eliminar
+    if _procesos_table_name:
+        procesos = boto3.resource('dynamodb').Table(_procesos_table_name)
+        activos = procesos.query(
+            IndexName='gsi-proyecto-procesos',
+            KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
+            FilterExpression='unidad_id = :uid AND estado IN (:c, :r, :s, :i)',
+            ExpressionAttributeValues={
+                ':uid': unidad_id,
+                ':c': 'captacion', ':r': 'reserva',
+                ':s': 'separacion', ':i': 'inicial',
+            },
+            Limit=1,
+        )
+        if activos.get('Items'):
+            estado = activos['Items'][0].get('estado', '')
+            return conflict(
+                f'No se puede eliminar: la unidad tiene un proceso de venta activo en estado "{estado}"'
+            )
+
     try:
         inventario.delete_item(
             Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'},

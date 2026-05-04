@@ -19,7 +19,7 @@ import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import type { Proyecto, Proceso, Bloqueo, Cliente, HistorialBloqueo } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
-import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL } from '../../constants/estados';
+import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION } from '../../constants/estados';
 import { useAuthContext } from '../../context/AuthContext';
 
 const { Title, Text } = Typography;
@@ -176,10 +176,8 @@ const ProcesosPage = () => {
       setEstatusModal(null);
       cargar();
     } catch (err: any) {
-      try {
-        const body = await err?.response?.body?.json?.();
-        message.error(body?.message ?? 'Error al cambiar estatus');
-      } catch { message.error('Error al cambiar estatus'); }
+      const msg = err?.response?.data?.message || err?.message;
+      message.error(msg || 'Error al cambiar estatus');
       throw err;
     }
   };
@@ -286,8 +284,9 @@ const ProcesosPage = () => {
       cargarBloqueosSinCliente();
     } catch (err: any) {
       const status = err?.response?.status ?? err?.response?.statusCode;
-      if (status === 409) message.error('Este cliente tiene exclusividad activa con otra inmobiliaria en este proyecto');
-      else message.error('Error al asignar cliente');
+      const msg = err?.response?.data?.message || err?.message;
+      if (status === 409) message.error(msg || 'Este cliente tiene exclusividad activa con otra inmobiliaria en este proyecto');
+      else message.error(msg || 'Error al asignar cliente');
     } finally { setGuardandoAsignar(false); }
   };
 
@@ -345,7 +344,8 @@ const ProcesosPage = () => {
   );
 
   // Bloqueos sin cliente filtrados por búsqueda/proyecto
-  const bloqueosFiltrados = bloqueosSinCliente.filter(b => {
+  // Solo mostrar cuando NO hay filtro de estado activo
+  const bloqueosFiltrados = estadoFiltro ? [] : bloqueosSinCliente.filter(b => {
     if (proyectoFiltro && b.proyecto_id?.replace('PROYECTO#', '') !== proyectoFiltro) return false;
     if (inmoFiltro) {
       const norm = inmoFiltro.replace('INMOBILIARIA#', '');
@@ -400,8 +400,19 @@ const ProcesosPage = () => {
     ];
     return (
       <div key={`${p.pk}#${p.sk}`} style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: 10, padding: '14px 16px' }}>
-        {vencida && <div style={{ background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6, padding: '4px 10px', marginBottom: 8, fontSize: 12, color: '#cf1322' }}>⚠️ Separación vencida — 30 días sin pago confirmado</div>}
-        {proxima && <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: '4px 10px', marginBottom: 8, fontSize: 12, color: '#d46b08' }}>⏰ Vence en {30 - dias!} día{30 - dias! !== 1 ? 's' : ''} — pendiente pago</div>}
+        {vencida && (
+          <div style={{ background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#cf1322', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 14 }}>⚠️</span>
+            <span style={{ flex: 1 }}>Separación vencida (30 días)</span>
+            {puedeAvanzar && <Button size="small" type="link" danger style={{ padding: 0, height: 'auto', fontSize: 11 }} onClick={() => setEstatusModal(p)}>Cambiar estatus</Button>}
+          </div>
+        )}
+        {proxima && (
+          <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 14 }}>⏰</span>
+            <span>Vence en {30 - dias!} día{30 - dias! !== 1 ? 's' : ''}</span>
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
@@ -410,7 +421,9 @@ const ProcesosPage = () => {
             </div>
             <Space size={4} wrap>
               <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
-              <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
+              <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
+                <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
+              </Tooltip>
               {renderTagUnidad(p)}
             </Space>
             <div style={{ marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -446,8 +459,12 @@ const ProcesosPage = () => {
         <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
         <Badge status={vencida ? 'error' : proxima ? 'warning' : 'default'} text={
           <Space size={4}>
-            <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
+            <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
+              <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
+            </Tooltip>
             {renderTagUnidad(p)}
+            {vencida && <Tooltip title="Separación vencida (30 días sin pago)"><span style={{ fontSize: 12, color: '#cf1322' }}>⚠️</span></Tooltip>}
+            {proxima && <Tooltip title="Próximo a vencer"><span style={{ fontSize: 12, color: '#d46b08' }}>⏰</span></Tooltip>}
           </Space>
         } />
         <Text style={{ fontSize: 12 }}>{proyectoNombre(p.proyecto_id)}</Text>
@@ -599,9 +616,13 @@ const ProcesosPage = () => {
     </div>
   );
 
-  const opcionesEstado = ['captacion', 'reserva', 'separacion', 'inicial', 'vendida', 'desvinculado'].map(e => ({
+  const opcionesEstado = ['captacion', 'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida', 'desvinculado'].map(e => ({
     value: e,
-    label: <Tag color={ESTADO_PROCESO_COLOR[e]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[e]}</Tag>,
+    label: (
+      <Tooltip title={ESTADO_PROCESO_DESCRIPCION[e]} placement="right">
+        <Tag color={ESTADO_PROCESO_COLOR[e]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[e]}</Tag>
+      </Tooltip>
+    ),
   }));
 
   // ── JSX ───────────────────────────────────────────────────────────────────

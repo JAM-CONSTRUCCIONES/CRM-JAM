@@ -40,7 +40,6 @@ export interface Etapa {
   sk: string;
   etapa_id: string;
   nombre: string;
-  orden: number;
   activo: boolean;
   creado_en: string;
 }

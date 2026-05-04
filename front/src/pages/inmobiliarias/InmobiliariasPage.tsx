@@ -100,12 +100,10 @@ const InmobiliariasPage = () => {
       await eliminarInmobiliaria(inmo.pk); message.success('Inmobiliaria eliminada');
       await cargar();
     } catch (err: any) {
-      try {
-        const body = await err?.response?.body?.json?.();
-        message.error(body?.message ?? 'Error al eliminar');
-      } catch {
-        message.error('Error al eliminar');
-      }
+      console.error('Error al eliminar inmobiliaria:', err);
+      // El mensaje ya viene procesado por handleApiError en api.ts
+      const errorMessage = err?.message || 'Error al eliminar';
+      message.error(errorMessage);
     }
   };
 

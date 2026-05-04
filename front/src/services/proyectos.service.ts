@@ -23,10 +23,10 @@ export const getPresignedImagenProyecto = (proyectoId: string, contentType = 'im
 export const getEtapas = (proyectoId: string): Promise<Etapa[]> =>
   apiGet<Etapa[]>(`/proyectos/${proyectoId}/etapas`);
 
-export const crearEtapa = (proyectoId: string, data: { nombre: string; orden?: number }): Promise<Etapa> =>
+export const crearEtapa = (proyectoId: string, data: { nombre: string }): Promise<Etapa> =>
   apiPost<Etapa>(`/admin/proyectos/${proyectoId}/etapas`, data);
 
-export const actualizarEtapa = (proyectoId: string, etapaId: string, data: { nombre?: string; orden?: number }): Promise<void> =>
+export const actualizarEtapa = (proyectoId: string, etapaId: string, data: { nombre?: string }): Promise<void> =>
   apiPut(`/admin/proyectos/${proyectoId}/etapas/${etapaId}`, data);
 
 export const eliminarEtapa = (proyectoId: string, etapaId: string): Promise<void> =>
@@ -35,16 +35,28 @@ export const eliminarEtapa = (proyectoId: string, etapaId: string): Promise<void
 // Unidades
 export const getUnidades = (
   proyectoId: string,
-  filtros?: { estado?: string; etapa_id?: string; tipo?: string; manzana?: string; piso?: string }
+  filtros?: { estado?: string; etapa_id?: string; id_unidad?: string; tipo?: string; manzana?: string; piso?: string; limit?: number; next_token?: string }
 ): Promise<Unidad[]> => {
   const params = new URLSearchParams();
   if (filtros?.estado) params.append('estado', filtros.estado);
   if (filtros?.etapa_id) params.append('etapa_id', filtros.etapa_id);
+  if (filtros?.id_unidad) params.append('id_unidad', filtros.id_unidad);
   if (filtros?.tipo) params.append('tipo', filtros.tipo);
   if (filtros?.manzana) params.append('manzana', filtros.manzana);
   if (filtros?.piso) params.append('piso', filtros.piso);
+  if (filtros?.limit) params.append('limit', filtros.limit.toString());
+  if (filtros?.next_token) params.append('next_token', filtros.next_token);
   const qs = params.toString();
-  return apiGet<Unidad[]>(`/proyectos/${proyectoId}/unidades${qs ? `?${qs}` : ''}`);
+  const url = `/proyectos/${proyectoId}/unidades${qs ? `?${qs}` : ''}`;
+  return apiGet<{ items: Unidad[]; count: number; next_token?: string }>(url)
+    .then(response => {
+      // Si la respuesta es un array (backend antiguo), devolverlo directamente
+      if (Array.isArray(response)) {
+        return response;
+      }
+      // Si es el nuevo formato con paginación, devolver solo los items
+      return response.items || [];
+    });
 };
 
 export const getUnidad = (proyectoId: string, unidadId: string): Promise<Unidad> =>

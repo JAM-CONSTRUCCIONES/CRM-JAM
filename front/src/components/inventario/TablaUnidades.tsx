@@ -1,5 +1,5 @@
-import { Table, Tag, Button, Space, Tooltip, Popconfirm, Typography, Grid } from 'antd';
-import { EditOutlined, DeleteOutlined, LockOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Tooltip, Popconfirm, Typography, Grid, Popover } from 'antd';
+import { EditOutlined, DeleteOutlined, LockOutlined, ClockCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import type { Unidad, Etapa } from '../../types';
 import { ESTADO_UNIDAD_CONFIG } from '../../constants/estados';
 
@@ -186,16 +186,32 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
     },
     {
       title: 'Precio', key: 'precio',
-      render: (_: any, u: Unidad) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{fmt$(u.precio) ?? '—'}</Text>
-          {u.precio_reserva ? <Text type="secondary" style={{ fontSize: 11 }}>Reserva: {fmt$(u.precio_reserva)}</Text> : null}
-          {u.precio_separacion ? <Text type="secondary" style={{ fontSize: 11 }}>Sep.: {fmt$(u.precio_separacion)}</Text> : null}
-          {u.precio_inicial ? <Text type="secondary" style={{ fontSize: 11 }}>Inicial: {fmt$(u.precio_inicial)}</Text> : null}
-          {u.cuota_monto ? <Text type="secondary" style={{ fontSize: 11 }}>Cuota: {fmt$(u.cuota_monto)} x{u.cuota_meses ?? '?'} meses</Text> : null}
-          {u.contra_entrega ? <Text type="secondary" style={{ fontSize: 11 }}>C.E.: {fmt$(u.contra_entrega)}</Text> : null}
-        </Space>
-      ),
+      render: (_: any, u: Unidad) => {
+        const tieneDetalles = u.precio_reserva || u.precio_separacion || u.precio_inicial || u.cuota_monto || u.contra_entrega;
+        const contenidoPopover = tieneDetalles ? (
+          <div style={{ minWidth: 180 }}>
+            <div style={{ marginBottom: 8 }}>
+              <Text strong style={{ fontSize: 13 }}>Desglose de precios</Text>
+            </div>
+            {u.precio_reserva && <div style={{ marginBottom: 4 }}><Text type="secondary" style={{ fontSize: 12 }}>Reserva:</Text> <Text style={{ fontSize: 12 }}>{fmt$(u.precio_reserva)}</Text></div>}
+            {u.precio_separacion && <div style={{ marginBottom: 4 }}><Text type="secondary" style={{ fontSize: 12 }}>Separación:</Text> <Text style={{ fontSize: 12 }}>{fmt$(u.precio_separacion)}</Text></div>}
+            {u.precio_inicial && <div style={{ marginBottom: 4 }}><Text type="secondary" style={{ fontSize: 12 }}>Inicial:</Text> <Text style={{ fontSize: 12 }}>{fmt$(u.precio_inicial)}</Text></div>}
+            {u.cuota_monto && <div style={{ marginBottom: 4 }}><Text type="secondary" style={{ fontSize: 12 }}>Cuota:</Text> <Text style={{ fontSize: 12 }}>{fmt$(u.cuota_monto)} × {u.cuota_meses ?? '?'} meses</Text></div>}
+            {u.contra_entrega && <div><Text type="secondary" style={{ fontSize: 12 }}>Contra entrega:</Text> <Text style={{ fontSize: 12 }}>{fmt$(u.contra_entrega)}</Text></div>}
+          </div>
+        ) : null;
+
+        return (
+          <Space size={4} align="center">
+            <Text strong>{fmt$(u.precio) ?? '—'}</Text>
+            {tieneDetalles && (
+              <Popover content={contenidoPopover} title={null} trigger="hover" placement="left">
+                <InfoCircleOutlined style={{ color: '#1677ff', fontSize: 14, cursor: 'pointer' }} />
+              </Popover>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: 'Estado', dataIndex: 'estado', key: 'estado',

@@ -51,11 +51,11 @@ function nowTime() {
   return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
 }
 
-const ChatbotWidget = () => {
+const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
   const { usuario } = useAuthContext();
   const location = useLocation();
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true); // Abierto por defecto cuando se usa desde sidebar
   const [mode, setMode] = useState<Mode>('faq');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -143,40 +143,44 @@ const ChatbotWidget = () => {
     <>
       <style>{CSS}</style>
 
-      {/* Launcher */}
-      <div className={`jam-launcher${open ? ' chat-open' : ''}`}>
-        {/* Teaser card */}
-        <div className="jam-teaser" onClick={() => setOpen(true)}>
-          <div className="jam-teaser-avatar">
-            <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-          </div>
-          <div>
-            <div className="jam-teaser-title">Pregúntale al ingeniero</div>
-            <div className="jam-teaser-sub"><span className="jam-dot" />En línea ahora</div>
-          </div>
-        </div>
+      {/* Overlay */}
+      {open && (
+        <div 
+          className="jam-overlay" 
+          onClick={() => {
+            setOpen(false);
+            onClose?.();
+          }}
+        />
+      )}
 
-        {/* FAB */}
-        <button className="jam-fab" aria-label="Abrir JAM Asistente" onClick={() => setOpen(v => !v)}>
-          <img src={ENGINEER_URL} alt="Abrir chat" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-          <span className="jam-fab-status" />
-        </button>
-      </div>
-
-      {/* Window */}
+      {/* Window - solo mostrar la ventana, sin launcher ni FAB */}
       {open && (
         <section className="jam-window open">
           {/* Header */}
           <header className="jam-header">
             <div className="jam-header-accent" />
-            <button className="jam-close" aria-label="Cerrar chat" onClick={() => setOpen(false)}>
+            <button className="jam-close" aria-label="Cerrar chat" onClick={() => {
+              setOpen(false);
+              onClose?.();
+            }}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
               </svg>
             </button>
             <div className="jam-header-main">
               <div className="jam-header-avatar">
-                <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero virtual JAM" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero virtual JAM" onError={e => { 
+                  const img = e.target as HTMLImageElement;
+                  img.style.display = 'none';
+                  const parent = img.parentElement;
+                  if (parent && !parent.querySelector('.jam-avatar-fallback')) {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'jam-avatar-fallback';
+                    fallback.textContent = '👷';
+                    parent.appendChild(fallback);
+                  }
+                }} />
                 <span className="jam-live-badge" />
               </div>
               <div className="jam-header-info">
@@ -273,7 +277,17 @@ const ChatbotWidget = () => {
                   {/* Welcome message */}
                   <div className="jam-msg bot">
                     <div className="jam-avatar-mini">
-                      <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { 
+                        const img = e.target as HTMLImageElement;
+                        img.style.display = 'none';
+                        const parent = img.parentElement;
+                        if (parent && !parent.querySelector('.jam-avatar-fallback')) {
+                          const fallback = document.createElement('div');
+                          fallback.className = 'jam-avatar-fallback';
+                          fallback.textContent = '👷';
+                          parent.appendChild(fallback);
+                        }
+                      }} />
                     </div>
                     <div className="jam-bubble">
                       {`¡Hola! 👷 Soy el ingeniero virtual de JAM Construcciones.\nPuedo ayudarte con bloqueos, inventario, clientes, estados de venta y todo lo relacionado con el CRM. ¿En qué te puedo ayudar?`}
@@ -286,7 +300,17 @@ const ChatbotWidget = () => {
                     <div key={i} className={`jam-msg ${msg.role}`}>
                       {msg.role === 'bot' && (
                         <div className="jam-avatar-mini">
-                          <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { 
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = 'none';
+                            const parent = img.parentElement;
+                            if (parent && !parent.querySelector('.jam-avatar-fallback')) {
+                              const fallback = document.createElement('div');
+                              fallback.className = 'jam-avatar-fallback';
+                              fallback.textContent = '👷';
+                              parent.appendChild(fallback);
+                            }
+                          }} />
                         </div>
                       )}
                       <div className="jam-bubble">
@@ -300,7 +324,17 @@ const ChatbotWidget = () => {
                   {loading && (
                     <div className="jam-typing show">
                       <div className="jam-avatar-mini">
-                        <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { 
+                          const img = e.target as HTMLImageElement;
+                          img.style.display = 'none';
+                          const parent = img.parentElement;
+                          if (parent && !parent.querySelector('.jam-avatar-fallback')) {
+                            const fallback = document.createElement('div');
+                            fallback.className = 'jam-avatar-fallback';
+                            fallback.textContent = '👷';
+                            parent.appendChild(fallback);
+                          }
+                        }} />
                       </div>
                       <div className="jam-typing-bubble">
                         <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
@@ -353,21 +387,8 @@ const ChatbotWidget = () => {
 const CSS = `
 :root{--navy-950:#061426;--navy-900:#081c33;--navy-850:#0c2745;--navy-800:#10365f;--navy-700:#164b82;--blue:#246fba;--gold:#e99a17;--gold-2:#f5b642;--gold-3:#ffe3a3;--orange:#cf6f1b;--white:#ffffff;--paper:#fbfdff;--cream:#fff8ef;--cream-2:#f7ecdd;--line:#e3eaf2;--line-warm:#eadcc8;--text:#0f2035;--text-2:#2d4058;--muted:#7d8ca2;--muted-2:#a5b0bf;--green:#22c55e;--font:"Plus Jakarta Sans",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--serif:"Playfair Display",Georgia,serif;--shadow-xs:0 2px 8px rgba(6,20,38,.06);--shadow-sm:0 8px 24px rgba(6,20,38,.10);--shadow-md:0 18px 48px rgba(6,20,38,.16);--shadow-lg:0 34px 90px rgba(6,20,38,.24);--shadow-xl:0 54px 130px rgba(6,20,38,.34);--ease:cubic-bezier(.34,1.28,.64,1);}
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
-.jam-launcher{position:fixed;right:26px;bottom:24px;z-index:10000;display:flex;flex-direction:column;align-items:flex-end;gap:12px;}
-.jam-teaser{min-width:276px;max-width:320px;display:flex;align-items:center;gap:13px;padding:12px 16px 12px 12px;border-radius:24px 24px 8px 24px;background:rgba(255,255,255,.94);border:1px solid rgba(255,255,255,.86);box-shadow:var(--shadow-md),inset 0 1px 0 rgba(255,255,255,.96);backdrop-filter:blur(16px);cursor:pointer;transition:transform .24s var(--ease),box-shadow .24s ease,opacity .22s ease;animation:jamFloatCard 4.8s ease-in-out infinite;}
-.jam-teaser:hover{transform:translateY(-5px) scale(1.02);box-shadow:var(--shadow-lg),inset 0 1px 0 rgba(255,255,255,.96);}
-.jam-launcher.chat-open .jam-teaser{opacity:0;transform:translateY(8px) scale(.94);pointer-events:none;animation:none;}
-.jam-teaser-avatar{width:52px;height:52px;border-radius:18px;overflow:hidden;background:var(--cream);border:2px solid rgba(233,154,23,.48);box-shadow:0 8px 22px rgba(6,20,38,.13);flex-shrink:0;}
-.jam-img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block;}
-.jam-teaser-title{font-size:15px;line-height:1.18;color:var(--navy-950);font-weight:800;letter-spacing:-.035em;}
-.jam-teaser-sub{margin-top:4px;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);font-weight:700;}
-.jam-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(34,197,94,.42);animation:jamPulse 2.2s infinite;flex-shrink:0;display:inline-block;}
-.jam-fab{width:72px;height:72px;border:none;border-radius:50%;cursor:pointer;position:relative;display:grid;place-items:center;background:radial-gradient(circle at 30% 20%,rgba(255,255,255,.18),transparent 26%),linear-gradient(145deg,var(--navy-800),var(--navy-950));box-shadow:0 20px 58px rgba(6,20,38,.40),0 0 0 1px rgba(245,182,66,.28);transition:transform .26s var(--ease),box-shadow .26s ease;}
-.jam-fab:hover{transform:scale(1.08) rotate(-3deg);box-shadow:0 30px 76px rgba(6,20,38,.50),0 0 0 2px rgba(245,182,66,.44);}
-.jam-fab::before{content:"";position:absolute;inset:-6px;border-radius:50%;border:1.5px dashed rgba(233,154,23,.34);animation:jamOrbit 18s linear infinite;}
-.jam-fab img{width:59px;height:59px;border-radius:50%;border:2px solid rgba(255,227,163,.65);background:#fff;object-fit:cover;object-position:top center;z-index:1;}
-.jam-fab-status{position:absolute;right:5px;bottom:5px;width:16px;height:16px;border-radius:50%;background:var(--green);border:3px solid var(--navy-950);z-index:2;}
-.jam-window{position:fixed;right:26px;bottom:110px;width:432px;max-width:calc(100vw - 20px);height:680px;max-height:calc(100vh - 132px);display:flex;flex-direction:column;overflow:hidden;border-radius:32px;background:#fff;border:1px solid rgba(255,255,255,.88);box-shadow:var(--shadow-xl);z-index:9999;transform-origin:bottom right;}
+.jam-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;animation:jamFadeIn .2s ease;}
+.jam-window{position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);width:432px;max-width:calc(100vw - 20px);height:680px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;border-radius:32px;background:#fff;border:1px solid rgba(255,255,255,.88);box-shadow:var(--shadow-xl);z-index:9999;}
 .jam-window.open{animation:jamOpenWindow .34s var(--ease) both;}
 .jam-header{position:relative;flex-shrink:0;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.99),rgba(251,253,255,.98));border-bottom:1px solid var(--line);}
 .jam-header-accent{height:5px;background:linear-gradient(90deg,var(--navy-950) 0%,var(--blue) 38%,var(--gold) 72%,var(--gold-2) 100%);}
@@ -375,7 +396,8 @@ const CSS = `
 .jam-close{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:14px;border:1px solid #dde6f0;background:rgba(255,255,255,.88);color:#8392a5;display:grid;place-items:center;cursor:pointer;z-index:5;box-shadow:var(--shadow-xs);transition:all .18s ease;}
 .jam-close:hover{background:var(--navy-950);color:#fff;border-color:var(--navy-950);transform:rotate(90deg);}
 .jam-header-main{position:relative;z-index:2;display:flex;align-items:center;gap:14px;padding:17px 62px 14px 18px;}
-.jam-header-avatar{position:relative;width:76px;height:76px;border-radius:24px;overflow:hidden;background:linear-gradient(180deg,#fff,var(--cream));border:2px solid rgba(233,154,23,.50);box-shadow:0 12px 30px rgba(6,20,38,.14),inset 0 0 0 4px rgba(255,255,255,.56);flex-shrink:0;}
+.jam-header-avatar{position:relative;width:76px;height:76px;border-radius:24px;overflow:hidden;background:#ffffff;border:2px solid rgba(203,215,230,.60);box-shadow:0 12px 30px rgba(6,20,38,.14),inset 0 0 0 4px rgba(255,255,255,.56);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px;}
+.jam-header-avatar .jam-img{width:100%;height:100%;object-fit:cover;}
 .jam-live-badge{position:absolute;right:-2px;bottom:-2px;width:18px;height:18px;border-radius:50%;background:var(--green);border:4px solid #fff;z-index:2;box-shadow:var(--shadow-xs);}
 .jam-header-info{min-width:0;flex:1;}
 .jam-brand-row{display:flex;align-items:center;gap:9px;margin-bottom:8px;min-width:0;}
@@ -432,7 +454,9 @@ const CSS = `
 .jam-day::after{right:0}
 .jam-msg{display:flex;align-items:flex-end;gap:10px;margin-bottom:10px;animation:jamMsgIn .22s ease both;}
 .jam-msg.user{justify-content:flex-end}
-.jam-avatar-mini{width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid rgba(233,154,23,.30);background:var(--cream);flex-shrink:0;box-shadow:var(--shadow-xs);}
+.jam-avatar-mini{width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid rgba(203,215,230,.40);background:#ffffff;flex-shrink:0;box-shadow:var(--shadow-xs);display:flex;align-items:center;justify-content:center;font-size:18px;}
+.jam-avatar-mini .jam-img{width:100%;height:100%;object-fit:cover;}
+.jam-avatar-fallback{font-size:inherit;}
 .jam-bubble{max-width:82%;padding:13px 15px;font-size:14px;line-height:1.62;white-space:pre-wrap;word-break:break-word;letter-spacing:-.006em;}
 .jam-msg.bot .jam-bubble{color:var(--text);background:#fffdf9;border:1px solid var(--line-warm);border-radius:22px 22px 22px 6px;box-shadow:0 8px 20px rgba(6,20,38,.055);}
 .jam-msg.user .jam-bubble{color:#f3f9ff;background:linear-gradient(145deg,var(--navy-700),var(--navy-950));border-radius:22px 22px 6px 22px;box-shadow:0 10px 26px rgba(6,20,38,.18);}
@@ -455,16 +479,15 @@ const CSS = `
 .jam-footer-brand{margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;color:#9ea8b6;font-size:12px;font-weight:800;letter-spacing:-.01em;}
 .jam-footer-logo{width:24px;height:24px;border-radius:8px;padding:2px;overflow:hidden;background:#fff;border:1px solid #e1e7ef;}
 .jam-footer-logo img{width:100%;height:100%;object-fit:contain;display:block}
-@keyframes jamOpenWindow{from{opacity:0;transform:translateY(24px) scale(.88)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes jamFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes jamOpenWindow{from{opacity:0;transform:translate(-50%, -50%) translateY(24px) scale(.88)}to{opacity:1;transform:translate(-50%, -50%) translateY(0) scale(1)}}
 @keyframes jamMsgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes jamFloatCard{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 @keyframes jamPulse{0%,100%{box-shadow:0 0 0 2px rgba(34,197,94,.25)}50%{box-shadow:0 0 0 9px rgba(34,197,94,0)}}
 @keyframes jamOrbit{to{transform:rotate(360deg)}}
 @keyframes jamBounce{0%,70%,100%{transform:translateY(0);opacity:.42}35%{transform:translateY(-5px);opacity:1}}
 @media(max-width:560px){
-  .jam-window{left:10px;right:10px;bottom:98px;width:auto;height:80vh;max-height:80vh;border-radius:28px;}
-  .jam-launcher{right:16px;bottom:16px;}
-  .jam-teaser{max-width:235px;min-width:0;}
+  .jam-window{width:calc(100vw - 20px);height:calc(100vh - 40px);max-height:calc(100vh - 40px);border-radius:28px;}
   .jam-header-main{padding:15px 58px 13px 14px;gap:12px;}
   .jam-header-avatar{width:66px;height:66px;border-radius:22px;}
   .jam-title{font-size:22px;}

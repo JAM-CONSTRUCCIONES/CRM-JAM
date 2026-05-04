@@ -207,9 +207,10 @@ const BloqueosPage = () => {
       setClienteSeleccionado(null);
       cargar();
     } catch (err: any) {
-      const status = err?.response?.status ?? err?.response?.statusCode;
-      if (status === 409) message.error('Este cliente tiene exclusividad activa con otra inmobiliaria en este proyecto');
-      else message.error('Error al asignar cliente');
+      console.error('Error al asignar cliente:', err);
+      // El mensaje ya viene procesado por handleApiError en api.ts
+      const errorMessage = err?.message || 'Error al asignar cliente';
+      message.error(errorMessage);
     } finally {
       setGuardandoCliente(false);
     }

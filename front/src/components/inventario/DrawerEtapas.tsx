@@ -1,4 +1,4 @@
-import { Drawer, Form, Input, Button, Space, Popconfirm, Typography, Badge } from 'antd';
+import { Drawer, Form, Input, Button, Space, Popconfirm, Typography } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { Etapa } from '../../types';
 
@@ -43,13 +43,10 @@ const DrawerEtapas = ({ open, etapas, etapaEditando, onClose, onGuardar, onElimi
           form={form}
           layout="vertical"
           onFinish={handleGuardar}
-          initialValues={etapaEditando ? { nombre: etapaEditando.nombre, orden: etapaEditando.orden } : {}}
+          initialValues={etapaEditando ? { nombre: etapaEditando.nombre } : {}}
         >
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]} style={{ marginBottom: 10 }}>
             <Input placeholder="Ej: Etapa 1" />
-          </Form.Item>
-          <Form.Item name="orden" label="Orden" style={{ marginBottom: 12 }}>
-            <Input type="number" placeholder="1" style={{ width: 100 }} />
           </Form.Item>
           <Space>
             <Button type="primary" htmlType="submit" icon={etapaEditando ? <EditOutlined /> : <PlusOutlined />}>
@@ -78,17 +75,13 @@ const DrawerEtapas = ({ open, etapas, etapaEditando, onClose, onGuardar, onElimi
             }}
           >
             <Space size={10}>
-              <Badge
-                count={e.orden ?? '—'}
-                style={{ background: '#1677ff', fontSize: 11, minWidth: 20, height: 20, lineHeight: '20px' }}
-              />
               <Text strong style={{ fontSize: 13 }}>{e.nombre}</Text>
             </Space>
             <Space size={4}>
               <Button
                 size="small"
                 icon={<EditOutlined />}
-                onClick={() => { onEditar(e); form.setFieldsValue({ nombre: e.nombre, orden: e.orden }); }}
+                onClick={() => { onEditar(e); form.setFieldsValue({ nombre: e.nombre }); }}
               />
               <Popconfirm title="¿Eliminar etapa?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(e.etapa_id)}>
                 <Button size="small" danger icon={<DeleteOutlined />} />

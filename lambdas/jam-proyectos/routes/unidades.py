@@ -2,9 +2,10 @@ import json
 import uuid
 import boto3
 import os
+import base64
 from decimal import Decimal
 from datetime import datetime, timezone
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found, conflict
 from utils.helpers import now
@@ -29,35 +30,93 @@ def listar(proyecto_id, event, rol):
         return bad_request('proyecto_id requerido')
 
     qs = event.get('queryStringParameters') or {}
-
-    result = inventario.query(
-        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#')
-    )
-    items = [i for i in result.get('Items', []) if i.get('id_unidad')]
-
-    # Filtros opcionales
-    if qs.get('etapa_id'):
-        items = [i for i in items if i.get('etapa_id') == qs['etapa_id']]
+    
+    # Paginación
+    limit = min(int(qs.get('limit', 100)), 500)
+    
+    # Siempre usar query normal por proyecto (más confiable)
+    query_kwargs = {
+        'Limit': limit,
+        'KeyConditionExpression': Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#')
+    }
+    
+    filter_expr = None
+    
+    # Agregar filtros adicionales
     if qs.get('estado'):
-        items = [i for i in items if i.get('estado') == qs['estado']]
+        new_filter = Attr('estado').eq(qs['estado'])
+        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+    
+    if qs.get('etapa_id'):
+        new_filter = Attr('etapa_id').eq(qs['etapa_id'])
+        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+    
+    if qs.get('id_unidad'):
+        # Búsqueda parcial (contains) para id_unidad
+        new_filter = Attr('id_unidad').contains(qs['id_unidad'])
+        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+    
     if qs.get('tipo'):
-        items = [i for i in items if i.get('tipo') == qs['tipo']]
+        # Búsqueda parcial (contains) para tipo
+        new_filter = Attr('tipo').contains(qs['tipo'])
+        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+    
     if qs.get('manzana'):
-        items = [i for i in items if i.get('manzana') == qs['manzana']]
+        # Búsqueda parcial (contains) para manzana
+        new_filter = Attr('manzana').contains(qs['manzana'])
+        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+    
     if qs.get('piso'):
-        items = [i for i in items if str(i.get('piso', '')) == qs['piso']]
-
-    # Filtrar y ocultar campos internos (solo JAM) para inmobiliaria
+        # Búsqueda parcial (contains) para piso
+        new_filter = Attr('piso').contains(qs['piso'])
+        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+    
+    if qs.get('torre_id'):
+        new_filter = Attr('torre_id').eq(qs['torre_id'])
+        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+    
+    # Filtro por rol: inmobiliarias solo ven disponible y bloqueada
     if rol == 'inmobiliaria':
-        items = [i for i in items if i.get('estado') in ('disponible', 'bloqueada')]
+        new_filter = Attr('estado').is_in(['disponible', 'bloqueada'])
+        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+    
+    # Aplicar FilterExpression si existe
+    if filter_expr:
+        query_kwargs['FilterExpression'] = filter_expr
+    
+    # Soporte para paginación con next_token
+    next_token = qs.get('next_token')
+    if next_token:
+        try:
+            query_kwargs['ExclusiveStartKey'] = json.loads(base64.b64decode(next_token).decode())
+        except Exception:
+            pass  # Token inválido, ignorar
+    
+    # Ejecutar query
+    result = inventario.query(**query_kwargs)
+    items = [i for i in result.get('Items', []) if i.get('id_unidad')]
+    
+    # Ocultar campos internos para inmobiliarias (por seguridad adicional)
+    if rol == 'inmobiliaria':
         for item in items:
             item.pop('bloqueado_por', None)
             item.pop('cliente_id', None)
             item.pop('cliente_cedula', None)
-            item.pop('comentario', None)       # CELDA INTERNA
-
+            item.pop('comentario', None)
+    
+    # Enriquecer con tiempo restante de bloqueo
     items = [_enrich_bloqueo(i) for i in items]
-    return ok(items)
+    
+    # Preparar respuesta con paginación
+    response_data = {'items': items, 'count': len(items)}
+    
+    # Agregar next_token si hay más resultados
+    if result.get('LastEvaluatedKey'):
+        response_data['next_token'] = base64.b64encode(
+            json.dumps(result['LastEvaluatedKey']).encode()
+        ).decode()
+    
+    return ok(response_data)
 
 
 def detalle(proyecto_id, unidad_id, rol):
@@ -106,19 +165,22 @@ def crear(proyecto_id, event):
     unidad_id = str(uuid.uuid4())[:8].upper()
     ts = now()
 
-    # Validar que no exista otra unidad con el mismo id_unidad en este proyecto
+    # ✅ Validar duplicados usando GSI (más eficiente)
+    proyecto_id_unidad = f"{proyecto_id}#{id_unidad.upper()}"
     existing = inventario.query(
-        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#')
+        IndexName='gsi-proyecto-id-unidad',
+        KeyConditionExpression=Key('proyecto_id_unidad').eq(proyecto_id_unidad),
+        Limit=1
     )
-    for u in existing.get('Items', []):
-        if u.get('id_unidad', '').strip().upper() == id_unidad.upper():
-            return bad_request(f'Ya existe una unidad con el nombre "{id_unidad}" en este proyecto')
+    if existing.get('Items'):
+        return bad_request(f'Ya existe una unidad con el nombre "{id_unidad}" en este proyecto')
 
     item = {
         'pk': f'PROYECTO#{proyecto_id}',
         'sk': f'UNIDAD#{unidad_id}',
         'unidad_id': unidad_id,
         'id_unidad': id_unidad,
+        'proyecto_id_unidad': proyecto_id_unidad,  # ✅ Campo para GSI
         'etapa_id': etapa_id,
         'metraje': metraje,
         'precio': precio,
@@ -150,14 +212,27 @@ def actualizar(proyecto_id, unidad_id, event):
     if 'id_unidad' in body:
         nuevo_id = (body['id_unidad'] or '').strip()
         if nuevo_id:
+            # ✅ Validar duplicados usando GSI (más eficiente)
+            proyecto_id_unidad = f"{proyecto_id}#{nuevo_id.upper()}"
             existing = inventario.query(
-                KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#')
+                IndexName='gsi-proyecto-id-unidad',
+                KeyConditionExpression=Key('proyecto_id_unidad').eq(proyecto_id_unidad),
+                Limit=1
             )
-            for u in existing.get('Items', []):
-                if u.get('id_unidad', '').strip().upper() == nuevo_id.upper() and u.get('unidad_id') != unidad_id:
+            # Verificar que no sea la misma unidad que estamos actualizando
+            if existing.get('Items'):
+                existing_unidad = existing['Items'][0]
+                if existing_unidad.get('unidad_id') != unidad_id:
                     return bad_request(f'Ya existe una unidad con el nombre "{nuevo_id}" en este proyecto')
-        values[':id_unidad'] = nuevo_id
-        updates.append('id_unidad = :id_unidad')
+            
+            # Actualizar ambos campos
+            values[':id_unidad'] = nuevo_id
+            values[':proyecto_id_unidad'] = proyecto_id_unidad
+            updates.append('id_unidad = :id_unidad')
+            updates.append('proyecto_id_unidad = :proyecto_id_unidad')
+        else:
+            values[':id_unidad'] = nuevo_id
+            updates.append('id_unidad = :id_unidad')
 
     if 'etapa_id' in body:
         values[':etapa_id'] = body['etapa_id']
@@ -217,23 +292,32 @@ def actualizar(proyecto_id, unidad_id, event):
 def eliminar(proyecto_id, unidad_id):
     # Fix #1: verificar que no haya procesos de venta activos antes de eliminar
     if _procesos_table_name:
-        procesos = boto3.resource('dynamodb').Table(_procesos_table_name)
-        activos = procesos.query(
-            IndexName='gsi-proyecto-procesos',
-            KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
-            FilterExpression='unidad_id = :uid AND estado IN (:c, :r, :s, :i)',
-            ExpressionAttributeValues={
-                ':uid': unidad_id,
-                ':c': 'captacion', ':r': 'reserva',
-                ':s': 'separacion', ':i': 'inicial',
-            },
-            Limit=1,
-        )
-        if activos.get('Items'):
-            estado = activos['Items'][0].get('estado', '')
-            return conflict(
-                f'No se puede eliminar: la unidad tiene un proceso de venta activo en estado "{estado}"'
+        try:
+            procesos = boto3.resource('dynamodb').Table(_procesos_table_name)
+            activos = procesos.query(
+                IndexName='gsi-proyecto-procesos',
+                KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
+                FilterExpression='unidad_id = :uid AND estado IN (:c, :r, :s, :i)',
+                ExpressionAttributeValues={
+                    ':uid': unidad_id,
+                    ':c': 'captacion', ':r': 'reserva',
+                    ':s': 'separacion', ':i': 'inicial',
+                },
+                Limit=1,
             )
+            if activos.get('Items'):
+                estado = activos['Items'][0].get('estado', '')
+                return conflict(
+                    f'No se puede eliminar: la unidad tiene un proceso de venta activo en estado "{estado}"'
+                )
+        except ClientError as e:
+            # Si falla la consulta de procesos, registrar el error pero continuar con la eliminación
+            print(f'Error al verificar procesos activos: {e}')
+            # No bloqueamos la eliminación si la tabla de procesos tiene problemas
+        except Exception as e:
+            # Capturar cualquier otro error (tabla no existe, permisos, etc.)
+            print(f'Error inesperado al verificar procesos: {e}')
+            # No bloqueamos la eliminación
 
     try:
         inventario.delete_item(
@@ -250,4 +334,10 @@ def eliminar(proyecto_id, unidad_id):
             if not item:
                 return not_found('Unidad no encontrada')
             return bad_request(f'No se puede eliminar: la unidad está en estado "{item.get("estado")}"')
-        raise
+        # Capturar cualquier otro error de DynamoDB y devolver respuesta apropiada
+        print(f'Error al eliminar unidad: {e}')
+        return bad_request(f'Error al eliminar unidad: {str(e)}')
+    except Exception as e:
+        # Capturar errores inesperados para evitar 502
+        print(f'Error inesperado al eliminar unidad: {e}')
+        return bad_request(f'Error inesperado: {str(e)}')

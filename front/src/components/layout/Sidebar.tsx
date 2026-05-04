@@ -3,9 +3,12 @@ import {
   AppstoreOutlined, TeamOutlined, DashboardOutlined,
   BankOutlined, UserOutlined, PoweroffOutlined,
   ApartmentOutlined, LinkOutlined, ImportOutlined,
+  MessageOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import { useState } from 'react';
+import ChatbotWidget from '../common/ChatbotWidget';
 
 const { Text } = Typography;
 
@@ -36,6 +39,7 @@ const Sidebar = ({ onSelect }: Props) => {
   const location = useLocation();
   const { usuario, logout } = useAuth();
   const rol = usuario?.rol;
+  const [chatOpen, setChatOpen] = useState(false);
 
   const isAdmin = rol === 'admin';
   const isInterno = rol === 'admin' || rol === 'coordinador' || rol === 'supervisor';
@@ -206,6 +210,43 @@ const Sidebar = ({ onSelect }: Props) => {
           </Text>
         </div>
       </div>
+
+      {/* Botón Chatbot */}
+      <div
+        onClick={() => setChatOpen(true)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 12px',
+          borderRadius: 10,
+          cursor: 'pointer',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: '#fff',
+          fontSize: 13,
+          fontWeight: 600,
+          marginTop: 12,
+          transition: 'all 0.2s',
+          boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
+        }}
+      >
+        <MessageOutlined style={{ fontSize: 16 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>Asistente IA</div>
+          <div style={{ fontSize: 10, opacity: 0.9 }}>Pregúntame lo que quieras</div>
+        </div>
+      </div>
+
+      {/* ChatbotWidget con diseño completo */}
+      {chatOpen && <ChatbotWidget onClose={() => setChatOpen(false)} />}
     </div>
   );
 };

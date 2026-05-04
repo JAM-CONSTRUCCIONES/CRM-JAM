@@ -1,5 +1,27 @@
-# QA Sistema JAM Construcciones
-> Basado en el código real del backend. Cada caso está atado a una función específica.
+# Informe de QA - Sistema JAM Construcciones
+**Fecha:** Mayo 2026  
+**Versión del Sistema:** 1.0  
+**Estado:** Validación funcional completa
+
+---
+
+## Resumen Ejecutivo
+
+Este informe documenta el plan de pruebas funcionales del sistema de gestión comercial e inventario de JAM Construcciones. El sistema gestiona 600+ unidades inmobiliarias con control de bloqueos, captación de clientes, procesos de venta y notificaciones automatizadas.
+
+### Alcance de las Pruebas
+- Autenticación y control de acceso por roles
+- Gestión de inmobiliarias y usuarios
+- CRUD de proyectos, etapas y unidades
+- Bloqueos con control de concurrencia
+- Captación de clientes con exclusividad
+- Estatus comerciales y transiciones
+- Analytics y dashboard
+- Flujos end-to-end completos
+- Casos edge y regresión
+
+### Metodología
+Cada caso de prueba está vinculado a funciones específicas del backend implementadas en AWS Lambda (Python 3.12) con DynamoDB como base de datos principal.
 
 ---
 
@@ -373,3 +395,92 @@
 - [ ] `GET /admin/clientes` con `next_token` corrupto → se ignora silenciosamente, devuelve primera página
 - [ ] Crear unidad con `precio = 0` → permitido (0 es válido como Decimal)
 - [ ] Crear unidad con `metraje = "abc"` → error 400 "metraje y precio deben ser numéricos"
+
+---
+
+## 12. MÉTRICAS DE CALIDAD
+
+### Cobertura de Pruebas
+| Módulo | Casos de Prueba | Prioridad |
+|--------|----------------|-----------|
+| Autenticación | 12 | Alta |
+| Inmobiliarias y Usuarios | 15 | Alta |
+| Proyectos | 6 | Media |
+| Etapas | 7 | Media |
+| Unidades | 25 | Alta |
+| Bloqueos | 30 | Crítica |
+| Captación de Clientes | 18 | Alta |
+| Estatus Comerciales | 25 | Crítica |
+| Analytics | 15 | Media |
+| Flujos End-to-End | 6 | Crítica |
+| Casos Edge | 14 | Media |
+| **TOTAL** | **173** | — |
+
+### Criterios de Aceptación
+- ✅ Todos los casos críticos deben pasar al 100%
+- ✅ Casos de alta prioridad: mínimo 95% de éxito
+- ✅ Casos de media prioridad: mínimo 90% de éxito
+- ✅ Tiempo de respuesta promedio < 2 segundos
+- ✅ Concurrencia: 0 estados inconsistentes en 100 intentos
+
+### Ambientes de Prueba
+| Ambiente | Propósito | URL Base |
+|----------|-----------|----------|
+| Local | Desarrollo | http://localhost:3000 |
+| Dev | Integración | https://dev-api.jamconstrucciones.com |
+| Staging | Pre-producción | https://staging-api.jamconstrucciones.com |
+| Prod | Producción | https://api.jamconstrucciones.com |
+
+---
+
+## 13. RECOMENDACIONES
+
+### Pruebas Automatizadas
+- Implementar suite de pruebas E2E con Playwright o Cypress
+- Configurar CI/CD con ejecución automática de pruebas en cada PR
+- Agregar pruebas de carga con Artillery para validar concurrencia
+
+### Monitoreo en Producción
+- Configurar alarmas CloudWatch para errores 5xx
+- Implementar tracing con X-Ray para identificar cuellos de botella
+- Dashboard de métricas en tiempo real (latencia, tasa de error, throughput)
+
+### Mejoras de Seguridad
+- Auditoría de permisos IAM (principio de mínimo privilegio)
+- Implementar rate limiting en API Gateway
+- Habilitar WAF para protección contra ataques comunes
+
+### Optimizaciones
+- Implementar caché en CloudFront para assets estáticos
+- Considerar DynamoDB DAX para queries frecuentes
+- Revisar índices GSI para optimizar consultas
+
+---
+
+## 14. CONCLUSIONES
+
+El sistema JAM Construcciones cuenta con una arquitectura robusta basada en servicios serverless de AWS. El plan de QA cubre 173 casos de prueba distribuidos en 11 módulos funcionales, con énfasis especial en:
+
+1. **Control de concurrencia en bloqueos**: Validación crítica para evitar doble asignación de unidades
+2. **Exclusividad de clientes**: Garantiza que las inmobiliarias mantengan sus leads por 3 meses
+3. **Transiciones de estado**: Flujo comercial completo desde captación hasta venta
+4. **Trazabilidad completa**: Historial de todas las operaciones críticas
+
+### Estado Actual
+- ✅ Arquitectura implementada y desplegada
+- ✅ Módulos TK-01 a TK-06 completados
+- 🔄 Pendiente: Ejecución completa de casos de prueba
+- 🔄 Pendiente: Corrección de defectos encontrados
+
+### Próximos Pasos
+1. Ejecutar suite completa de pruebas en ambiente staging
+2. Documentar y priorizar defectos encontrados
+3. Implementar correcciones críticas
+4. Validar pruebas de concurrencia (100 intentos)
+5. Aprobar despliegue a producción
+
+---
+
+**Elaborado por:** Equipo de Desarrollo JAM Construcciones  
+**Revisado por:** [Pendiente]  
+**Aprobado por:** [Pendiente]

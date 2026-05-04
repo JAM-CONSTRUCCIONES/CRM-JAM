@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Modal, Select, Space, Typography, Alert, Tag, Divider, Button } from 'antd';
-import { ArrowRightOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
+import { Modal, Select, Space, Typography, Alert, Tag, Divider, Button, Tooltip } from 'antd';
+import { ArrowRightOutlined, TeamOutlined, UserOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import type { Proceso } from '../../types';
-import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL } from '../../constants/estados';
+import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION } from '../../constants/estados';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -91,7 +91,9 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
         </div>
 
         <div>
-          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Nuevo estatus</Text>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
+            Nuevo estatus <Tooltip title="Selecciona el siguiente paso en el proceso de venta"><InfoCircleOutlined style={{ marginLeft: 4, color: '#1677ff' }} /></Tooltip>
+          </Text>
           <Select
             style={{ width: '100%' }}
             placeholder="Selecciona el nuevo estatus"
@@ -100,9 +102,11 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
           >
             {opciones.map(op => (
               <Option key={op} value={op}>
-                <Tag color={ESTADO_PROCESO_COLOR[op]} style={{ margin: 0 }}>
-                  {ESTADO_PROCESO_LABEL[op] ?? op}
-                </Tag>
+                <Tooltip title={ESTADO_PROCESO_DESCRIPCION[op]} placement="right">
+                  <Tag color={ESTADO_PROCESO_COLOR[op]} style={{ margin: 0 }}>
+                    {ESTADO_PROCESO_LABEL[op] ?? op}
+                  </Tag>
+                </Tooltip>
               </Option>
             ))}
           </Select>
@@ -113,13 +117,22 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
         </div>
 
         {nuevoEstatus === 'reserva' && (
-          <Alert type="info" showIcon message="La unidad pasará a no disponible." />
+          <Alert type="info" showIcon message="La unidad pasará a estado 'No disponible' y se iniciará el proceso de venta." />
+        )}
+        {nuevoEstatus === 'separacion' && (
+          <Alert type="info" showIcon message="El cliente tiene 30 días para completar el pago de separación." />
+        )}
+        {nuevoEstatus === 'inicial' && (
+          <Alert type="success" showIcon message="Separación completada. Cliente comienza a pagar inicial." />
         )}
         {nuevoEstatus === 'vendida' && (
-          <Alert type="success" showIcon message="La unidad quedará marcada como vendida definitivamente." />
+          <Alert type="success" showIcon message="Venta completada. La unidad quedará marcada como vendida definitivamente." />
         )}
         {nuevoEstatus === 'desvinculado' && (
-          <Alert type="warning" showIcon message="La unidad volverá a estar disponible." />
+          <Alert type="warning" showIcon message="El proceso se cancelará y la unidad volverá a estar disponible." />
+        )}
+        {nuevoEstatus === 'pagos_atrasados' && (
+          <Alert type="error" showIcon message="El cliente tiene pagos pendientes que requieren seguimiento." />
         )}
 
         {nuevoEstatus && (
@@ -127,36 +140,37 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
             <Divider style={{ margin: '4px 0' }} />
             <div>
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
-                Notificación por correo (opcional)
+                ¿Enviar notificación por correo?
               </Text>
               <Space style={{ width: '100%' }} direction="vertical" size={8}>
-                {tieneContacto && (
-                  <Button
-                    block
-                    icon={<TeamOutlined />}
-                    onClick={() => handleConfirm('todos')}
-                    loading={loading}
-                    style={{ textAlign: 'left', height: 'auto', padding: '8px 14px' }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 500 }}>Notificar a todos</div>
-                      <div style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>
-                        Inmobiliaria, cliente y administración
-                      </div>
+                <Button
+                  block
+                  icon={<TeamOutlined />}
+                  onClick={() => handleConfirm('todos')}
+                  loading={loading}
+                  disabled={!tieneContacto}
+                  style={{ textAlign: 'left', height: 'auto', padding: '10px 14px', border: '1px solid #d9d9d9' }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: 14 }}>Notificar a todos</div>
+                    <div style={{ fontSize: 12, color: '#888', fontWeight: 400, marginTop: 2 }}>
+                      {tieneContacto 
+                        ? 'Cliente, inmobiliaria y administración'
+                        : 'Cliente sin contacto registrado'}
                     </div>
-                  </Button>
-                )}
+                  </div>
+                </Button>
                 <Button
                   block
                   icon={<UserOutlined />}
                   onClick={() => handleConfirm('admin')}
                   loading={loading}
-                  style={{ textAlign: 'left', height: 'auto', padding: '8px 14px' }}
+                  style={{ textAlign: 'left', height: 'auto', padding: '10px 14px', border: '1px solid #d9d9d9' }}
                 >
                   <div>
-                    <div style={{ fontWeight: 500 }}>Solo administración</div>
-                    <div style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>
-                      Solo nos llega a nosotros
+                    <div style={{ fontWeight: 500, fontSize: 14 }}>Solo administración</div>
+                    <div style={{ fontSize: 12, color: '#888', fontWeight: 400, marginTop: 2 }}>
+                      Notificación interna únicamente
                     </div>
                   </div>
                 </Button>
@@ -165,9 +179,9 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
                   onClick={() => handleConfirm(false)}
                   loading={loading}
                   type="text"
-                  style={{ color: '#8c8c8c' }}
+                  style={{ color: '#8c8c8c', fontSize: 13 }}
                 >
-                  Confirmar sin notificar
+                  Continuar sin enviar notificación
                 </Button>
               </Space>
             </div>

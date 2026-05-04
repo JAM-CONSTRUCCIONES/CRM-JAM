@@ -20,7 +20,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import type { Cliente, Proyecto, Proceso } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
-import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL } from '../../constants/estados';
+import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION } from '../../constants/estados';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -177,7 +177,12 @@ const ClientesPage = () => {
       message.success('Cliente actualizado');
       setEditarModal(false);
       if (drawerCedula) abrirDetalleCedula(drawerCedula);
-    } catch { message.error('Error al actualizar'); }
+    } catch (err: any) {
+      console.error('Error al actualizar cliente:', err);
+      // El mensaje ya viene procesado por handleApiError en api.ts
+      const errorMessage = err?.message || 'Error al actualizar';
+      message.error(errorMessage);
+    }
   };
 
   const handleCambiarEstatus = async (estatus: string, notificar: ModoNotificacion) => {
@@ -190,12 +195,10 @@ const ClientesPage = () => {
       if (drawerCedula) abrirDetalleCedula(drawerCedula);
       cargar(proyectoFiltro, inmoFiltro);
     } catch (err: any) {
-      try {
-        const body = await err?.response?.body?.json?.();
-        message.error(body?.message || body?.error || 'Error al cambiar estatus');
-      } catch {
-        message.error('Error al cambiar estatus');
-      }
+      console.error('Error al cambiar estatus:', err);
+      // El mensaje ya viene procesado por handleApiError en api.ts
+      const errorMessage = err?.message || 'Error al cambiar estatus';
+      message.error(errorMessage);
       throw err;
     }
   };
@@ -208,15 +211,15 @@ const ClientesPage = () => {
       setNextToken(undefined);
       cargar(proyectoFiltro);
     } catch (err: any) {
+      console.error('Error al registrar cliente:', err);
+      // El mensaje ya viene procesado por handleApiError en api.ts
+      const errorMessage = err?.message || 'Error al registrar cliente';
       const status = err?.response?.status ?? err?.response?.statusCode;
-      try {
-        const body = await err?.response?.body?.json?.();
-        const msg = body?.message || body?.error;
-        if (status === 409) message.error(msg || 'Este cliente tiene exclusividad activa en este proyecto.');
-        else message.error(msg || 'Error al registrar cliente');
-      } catch {
-        if (status === 409) message.error('Este cliente tiene exclusividad activa en este proyecto.');
-        else message.error('Error al registrar cliente');
+      
+      if (status === 409) {
+        message.error(errorMessage);
+      } else {
+        message.error(errorMessage);
       }
     }
   };
@@ -495,19 +498,23 @@ const ClientesPage = () => {
                   return (
                     <div key={p.sk} style={{ marginBottom: 6 }}>
                       {alertaVencida && (
-                        <div style={{ background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6, padding: '4px 10px', marginBottom: 4, fontSize: 12, color: '#cf1322', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          ⚠️ Separación vencida — 30 días sin pago confirmado
+                        <div style={{ background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#cf1322', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 14 }}>⚠️</span>
+                          <span style={{ flex: 1 }}>Separación vencida (30 días)</span>
                         </div>
                       )}
                       {proximoVencer && (
-                        <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: '4px 10px', marginBottom: 4, fontSize: 12, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          ⏰ Vence en {30 - diasEnSeparacion!} día{30 - diasEnSeparacion! !== 1 ? 's' : ''} — pendiente pago de separación
+                        <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 14 }}>⏰</span>
+                          <span>Vence en {30 - diasEnSeparacion!} día{30 - diasEnSeparacion! !== 1 ? 's' : ''}</span>
                         </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Space size={4}>
                           <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
-                          <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
+                          <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
+                            <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
+                          </Tooltip>
                         </Space>
                         <Space size={0}>
                           <Button size="small" type="link" icon={<SwapOutlined />}
@@ -575,7 +582,9 @@ const ClientesPage = () => {
                   <div key={p.sk} style={{ padding: '10px 14px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 8 }}>
                     <Space>
                       <Tag color="geekblue">{p.unidad_nombre || p.unidad_id}</Tag>
-                      <Tag color={ESTADO_PROCESO_COLOR[p.estado]}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
+                      <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
+                        <Tag color={ESTADO_PROCESO_COLOR[p.estado]}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
+                      </Tooltip>
                     </Space>
                   </div>
                 ))}

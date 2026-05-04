@@ -31,11 +31,14 @@ const CapturaPage = () => {
         setProyectos(data);
       })
       .catch((err: any) => {
-        const msg = err?.response?.data?.message || err?.message;
-        if (err?.response?.status === 400 && msg?.toLowerCase().includes('no válida')) {
+        console.error('Error al cargar proyectos:', err);
+        const msg = err?.message || 'No se pudieron cargar los proyectos. Intenta de nuevo.';
+        const status = err?.response?.status;
+        
+        if (status === 400 && msg?.toLowerCase().includes('no válida')) {
           setInmoValida(false);
         } else {
-          setInmoError(msg || 'No se pudieron cargar los proyectos. Intenta de nuevo.');
+          setInmoError(msg);
         }
       })
       .finally(() => setLoadingProyectos(false));
@@ -54,12 +57,10 @@ const CapturaPage = () => {
       });
       setEnviado(true);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.response?.data?.error;
-      if (err?.response?.status === 409) {
-        setErrorMsg(msg || 'Este cliente ya tiene exclusividad activa con otra inmobiliaria en este proyecto.');
-      } else {
-        setErrorMsg(msg || 'Ocurrió un error al registrar. Intenta de nuevo.');
-      }
+      console.error('Error al registrar cliente:', err);
+      // El mensaje ya viene procesado por handleApiError o del fetch manual
+      const errorMessage = err?.message || 'Ocurrió un error al registrar. Intenta de nuevo.';
+      setErrorMsg(errorMessage);
     } finally {
       setEnviando(false);
     }
@@ -69,7 +70,19 @@ const CapturaPage = () => {
   if (!loadingProyectos && !inmoValida) {
     return (
       <div style={s.wrap}>
+        <style>{`
+          .captura-result .ant-result-title {
+            color: #ffffff !important;
+            font-size: 24px;
+            font-weight: 600;
+          }
+          .captura-result .ant-result-subtitle {
+            color: rgba(255, 255, 255, 0.85) !important;
+            font-size: 15px;
+          }
+        `}</style>
         <Result
+          className="captura-result"
           status="404"
           title="Enlace no válido"
           subTitle="Este enlace de registro no es válido o ha expirado. Contacta a tu asesor."
@@ -85,8 +98,8 @@ const CapturaPage = () => {
         <div style={s.card}>
           <div style={{ textAlign: 'center', padding: '32px 0' }}>
             <CheckCircleFilled style={{ fontSize: 56, color: '#52c41a', marginBottom: 16 }} />
-            <Title level={3} style={{ margin: '0 0 8px' }}>¡Registro exitoso!</Title>
-            <Text type="secondary">
+            <Title level={3} style={{ margin: '0 0 8px', color: '#fff' }}>¡Registro exitoso!</Title>
+            <Text style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: 16 }}>
               Tus datos han sido registrados correctamente. Tu asesor se pondrá en contacto contigo pronto.
             </Text>
           </div>
@@ -97,6 +110,15 @@ const CapturaPage = () => {
 
   return (
     <div style={s.wrap}>
+      <style>{`
+        .captura-form .ant-form-item-label > label {
+          color: #fff !important;
+          font-weight: 500;
+        }
+        .captura-form .ant-form-item-label > label.ant-form-item-required:not(.ant-form-item-required-mark-optional)::before {
+          color: #ff4d4f !important;
+        }
+      `}</style>
       <div style={s.card}>
         {/* Header */}
         <div style={s.header}>
@@ -106,14 +128,20 @@ const CapturaPage = () => {
             style={{ height: 40, objectFit: 'contain', marginBottom: 12 }}
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
-          <Title level={3} style={{ margin: '0 0 4px' }}>Registro de interés</Title>
-          <Text type="secondary">Completa el formulario y un asesor se comunicará contigo</Text>
+          <Title level={3} style={{ margin: '0 0 4px', color: '#fff' }}>Registro de interés</Title>
+          <Text style={{ color: 'rgba(255, 255, 255, 0.85)' }}>Completa el formulario y un asesor se comunicará contigo</Text>
         </div>
 
         {loadingProyectos ? (
           <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
         ) : (
-          <Form form={form} layout="vertical" onFinish={handleSubmit} style={{ marginTop: 24 }}>
+          <Form 
+            form={form} 
+            layout="vertical" 
+            onFinish={handleSubmit} 
+            style={{ marginTop: 24 }}
+            className="captura-form"
+          >
 
             <Form.Item name="proyecto_id" label="Proyecto de interés" rules={[{ required: true, message: 'Selecciona un proyecto' }]}>
               <Select placeholder="Selecciona el proyecto" disabled={!!inmoError}>
@@ -194,7 +222,14 @@ const CapturaPage = () => {
 const s: Record<string, React.CSSProperties> = {
   wrap: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #f0f4f8 0%, #e8f5e9 100%)',
+    background: '#0a1929',
+    backgroundImage: `
+      linear-gradient(135deg, rgba(10, 25, 41, 0.95) 0%, rgba(16, 54, 95, 0.92) 100%),
+      url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2070&auto=format&fit=crop')
+    `,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed',
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'center',
@@ -202,9 +237,10 @@ const s: Record<string, React.CSSProperties> = {
     fontFamily: "'Inter', system-ui, sans-serif",
   },
   card: {
-    background: '#fff',
+    background: 'rgba(16, 35, 58, 0.95)',
+    backdropFilter: 'blur(10px)',
     borderRadius: 16,
-    boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.24), 0 0 0 1px rgba(255,255,255,0.1)',
     padding: '32px 36px',
     width: '100%',
     maxWidth: 560,
@@ -212,7 +248,7 @@ const s: Record<string, React.CSSProperties> = {
   header: {
     textAlign: 'center',
     paddingBottom: 8,
-    borderBottom: '1px solid #f0f0f0',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
     marginBottom: 4,
   },
 };

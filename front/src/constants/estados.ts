@@ -1,9 +1,9 @@
-export const ESTADO_UNIDAD_CONFIG: Record<string, { label: string; tagColor: string }> = {
-  disponible:    { label: 'Disponible',    tagColor: 'success' },
-  bloqueada:     { label: 'Bloqueada',     tagColor: 'warning' },
-  no_disponible: { label: 'No disponible', tagColor: 'orange' },
-  vendida:       { label: 'Vendida',       tagColor: 'purple' },
-  desvinculada:  { label: 'Desvinculada',  tagColor: 'error' },
+export const ESTADO_UNIDAD_CONFIG: Record<string, { label: string; tagColor: string; descripcion?: string }> = {
+  disponible:    { label: 'Disponible',    tagColor: 'success', descripcion: 'Unidad lista para ser bloqueada por una inmobiliaria' },
+  bloqueada:     { label: 'Bloqueada',     tagColor: 'warning', descripcion: 'Unidad temporalmente reservada por una inmobiliaria' },
+  no_disponible: { label: 'No disponible', tagColor: 'orange', descripcion: 'Unidad en proceso de venta activo' },
+  vendida:       { label: 'Vendida',       tagColor: 'purple', descripcion: 'Venta completada y cerrada' },
+  desvinculada:  { label: 'Desvinculada',  tagColor: 'error', descripcion: 'Proceso cancelado, unidad vuelve a disponible' },
 };
 
 export const ESTADO_PROCESO_COLOR: Record<string, string> = {
@@ -28,6 +28,18 @@ export const ESTADO_PROCESO_LABEL: Record<string, string> = {
   contra_entrega:  'Contra entrega',
   vendida:         'Vendido',
   desvinculado:    'Desvinculado',
+};
+
+export const ESTADO_PROCESO_DESCRIPCION: Record<string, string> = {
+  captacion:       'Cliente interesado, aún no ha reservado',
+  disponible:      'Sin proceso activo',
+  reserva:         'Cliente ha reservado, pendiente de separación',
+  separacion:      'Contrato firmado, pagando separación (30 días)',
+  inicial:         'Separación pagada, pagando inicial',
+  pagos_atrasados: 'Cliente con pagos pendientes',
+  contra_entrega:  'Pagando contra entrega final',
+  vendida:         'Venta completada',
+  desvinculado:    'Proceso cancelado',
 };
 
 export const projectGradient = (nombre: string): string => {

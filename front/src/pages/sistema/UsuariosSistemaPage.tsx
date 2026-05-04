@@ -94,12 +94,10 @@ const UsuariosSistemaPage = () => {
         await cargar();
       }
     } catch (err: any) {
-      try {
-        const body = await err?.response?.body?.json?.();
-        message.error(body?.message ?? 'Error al guardar');
-      } catch {
-        message.error('Error al guardar');
-      }
+      console.error('Error al guardar usuario:', err);
+      // El mensaje ya viene procesado por handleApiError en api.ts
+      const errorMessage = err?.message || 'Error al guardar';
+      message.error(errorMessage);
     }
   };
 

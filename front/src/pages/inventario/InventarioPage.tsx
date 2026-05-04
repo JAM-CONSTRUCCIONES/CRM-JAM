@@ -14,6 +14,7 @@ import { buscarClientePorCedula } from '../../services/clientes.service';
 import type { Cliente, Unidad } from '../../types';
 import { message } from 'antd';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -54,6 +55,48 @@ const InventarioPage = () => {
   const [formProyecto] = Form.useForm();
   const [imagenFile, setImagenFile] = useState<UploadFile | null>(null);
 
+  // Ref para debounce consolidado de filtros de texto
+  const debounceTimerFiltros = useRef<NodeJS.Timeout | null>(null);
+
+  // Refs para siempre tener los valores más recientes sin stale closure
+  const filtroUnidadRef = useRef(inv.filtroUnidad);
+  const filtroTipoRef = useRef(inv.filtroTipo);
+  const filtroManzanaRef = useRef(inv.filtroManzana);
+  const filtroPisoRef = useRef(inv.filtroPiso);
+  const cargarUnidadesRef = useRef(inv.cargarUnidades);
+
+  // Mantener refs sincronizados en cada render
+  filtroUnidadRef.current = inv.filtroUnidad;
+  filtroTipoRef.current = inv.filtroTipo;
+  filtroManzanaRef.current = inv.filtroManzana;
+  filtroPisoRef.current = inv.filtroPiso;
+  cargarUnidadesRef.current = inv.cargarUnidades;
+
+  // Un único debounce consolidado para todos los filtros de texto
+  useEffect(() => {
+    if (inv.vista !== 'unidades') return;
+
+    if (debounceTimerFiltros.current) {
+      clearTimeout(debounceTimerFiltros.current);
+    }
+
+    debounceTimerFiltros.current = setTimeout(() => {
+      // Usa siempre los valores más recientes via refs, sin stale closure
+      cargarUnidadesRef.current(undefined, {
+        id_unidad: filtroUnidadRef.current,
+        tipo: filtroTipoRef.current,
+        manzana: filtroManzanaRef.current,
+        piso: filtroPisoRef.current,
+      });
+    }, 400);
+
+    return () => {
+      if (debounceTimerFiltros.current) {
+        clearTimeout(debounceTimerFiltros.current);
+      }
+    };
+  }, [inv.filtroUnidad, inv.filtroTipo, inv.filtroManzana, inv.filtroPiso, inv.vista]);
+
   const abrirEditarUnidad = (u: Unidad) => {
     inv.setModoUnidad('editar');
     inv.setUnidadEditando(u);
@@ -90,9 +133,10 @@ const InventarioPage = () => {
       await inv.cargarUnidades();
     } catch (err: any) {
       const s = err?.response?.statusCode ?? err?.response?.status;
-      if (s === 409) message.error('La unidad ya no está disponible o el cliente tiene exclusividad con otra inmobiliaria');
-      else if (s === 429) message.warning('No puedes re-bloquear esta unidad antes de 24h');
-      else message.error('Error al procesar la operación');
+      const msg = err?.response?.data?.message || err?.message;
+      if (s === 409) message.error(msg || 'La unidad ya no está disponible o el cliente tiene exclusividad con otra inmobiliaria');
+      else if (s === 429) message.warning(msg || 'No puedes re-bloquear esta unidad antes de 24h');
+      else message.error(msg || 'Error al procesar la operación');
     } finally { setGuardandoBloqueo(false); }
   };
 
@@ -104,16 +148,16 @@ const InventarioPage = () => {
           type="info"
           icon={<EyeOutlined />}
           showIcon
-          style={{ marginBottom: 16, borderRadius: 10 }}
+          style={{ marginBottom: 16, borderRadius: 10, border: '2px solid #1677ff' }}
           message={
-            <span>
-              Viendo como inmobiliaria: <strong>{previewInmoNombre}</strong> — solo lectura
-            </span>
-          }
-          action={
-            <Button size="small" onClick={() => navigate('/inmobiliarias')}>
-              Salir del preview
-            </Button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <span>
+                <strong>Modo vista previa:</strong> Viendo como <strong>{previewInmoNombre}</strong> — Solo lectura, sin acciones de edición
+              </span>
+              <Button size="small" type="primary" onClick={() => navigate('/inmobiliarias')}>
+                Salir del preview
+              </Button>
+            </div>
           }
         />
       )}
@@ -131,7 +175,7 @@ const InventarioPage = () => {
           </div>
           <Space wrap>
             {inv.vista === 'unidades' && (
-              <Tooltip title="Actualizar">
+              <Tooltip title={isPreview ? "No disponible en modo preview" : "Actualizar"}>
                 <Button icon={<ReloadOutlined />} onClick={() => inv.cargarUnidades()} loading={inv.loading} />
               </Tooltip>
             )}
@@ -149,6 +193,13 @@ const InventarioPage = () => {
                   {isMobile ? '' : 'Nueva unidad'}
                 </Button>
               </>
+            )}
+            {isPreview && inv.vista === 'unidades' && (
+              <Tooltip title="Acciones de edición deshabilitadas en modo preview">
+                <Button icon={<SettingOutlined />} disabled style={{ cursor: 'not-allowed' }}>
+                  {isMobile ? '' : 'Etapas'}
+                </Button>
+              </Tooltip>
             )}
           </Space>
         </div>
@@ -177,15 +228,11 @@ const InventarioPage = () => {
                               inv.cargarProyectos();
                             } catch (err: any) {
                               const status = err?.response?.status ?? err?.response?.statusCode;
+                              const msg = err?.response?.data?.message || err?.message;
                               if (status === 409) {
-                                try {
-                                  const body = await err?.response?.body?.json?.();
-                                  message.error(body?.message || 'El proyecto tiene unidades registradas y no puede eliminarse.');
-                                } catch {
-                                  message.error('El proyecto tiene unidades registradas y no puede eliminarse.');
-                                }
+                                message.error(msg || 'El proyecto tiene unidades registradas y no puede eliminarse.');
                               } else {
-                                message.error('Error al eliminar el proyecto.');
+                                message.error(msg || 'Error al eliminar el proyecto.');
                               }
                             }
                           }}>
@@ -210,57 +257,71 @@ const InventarioPage = () => {
       {inv.vista === 'unidades' && (
         <>
           {/* Barra de filtros */}
-          <div style={{
-            background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0',
-            padding: '16px 20px', marginBottom: 20,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-          }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(130px, 1fr))',
-              gap: 12,
-              alignItems: 'end',
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#8c8c8c', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>Etapa</span>
-                <Select allowClear placeholder="Todas" style={{ width: '100%' }}
-                  value={inv.filtroEtapa || undefined} onChange={v => inv.setFiltroEtapa(v || '')}>
-                  {inv.etapas.map(e => <Option key={e.etapa_id} value={e.etapa_id}>{e.nombre}</Option>)}
-                </Select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#8c8c8c', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>Estado</span>
-                <Select allowClear placeholder="Todos" style={{ width: '100%' }}
-                  value={inv.filtroEstado || undefined} onChange={v => inv.setFiltroEstado(v || '')}>
-                  {Object.entries(ESTADO_UNIDAD_CONFIG).map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}
-                </Select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#8c8c8c', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>Tipo</span>
-                <Input placeholder="Ej: D" style={{ width: '100%' }} value={inv.filtroTipo} onChange={e => inv.setFiltroTipo(e.target.value)} allowClear />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#8c8c8c', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>Manzana</span>
-                <Input placeholder="Ej: A" style={{ width: '100%' }} value={inv.filtroManzana} onChange={e => inv.setFiltroManzana(e.target.value)} allowClear />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: '#8c8c8c', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>Piso</span>
-                <Input placeholder="Ej: 3" style={{ width: '100%' }} value={inv.filtroPiso} onChange={e => inv.setFiltroPiso(e.target.value)} allowClear />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontSize: 11, color: 'transparent', userSelect: 'none' }}>_</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Button type="primary" onClick={() => inv.cargarUnidades()} loading={inv.loading} style={{ flex: 1 }}>
-                    Aplicar
-                  </Button>
-                  {(inv.filtroEtapa || inv.filtroEstado || inv.filtroTipo || inv.filtroManzana || inv.filtroPiso) && (
-                    <Button onClick={() => { inv.setFiltroEtapa(''); inv.setFiltroEstado(''); inv.setFiltroTipo(''); inv.setFiltroManzana(''); inv.setFiltroPiso(''); inv.cargarUnidades(); }}>
-                      ✕
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            <Select allowClear placeholder="Etapa" style={{ width: isMobile ? '100%' : 150 }}
+              value={inv.filtroEtapa || undefined} 
+              onChange={v => { 
+                const nuevoValor = v || '';
+                inv.setFiltroEtapa(nuevoValor); 
+                inv.cargarUnidades(undefined, { etapa_id: nuevoValor });
+              }}>
+              {inv.etapas.map(e => <Option key={e.etapa_id} value={e.etapa_id}>{e.nombre}</Option>)}
+            </Select>
+            <Select allowClear placeholder="Estado" style={{ width: isMobile ? '100%' : 180 }}
+              value={inv.filtroEstado || undefined} 
+              onChange={v => { 
+                const nuevoValor = v || '';
+                inv.setFiltroEstado(nuevoValor); 
+                inv.cargarUnidades(undefined, { estado: nuevoValor });
+              }}>
+              {Object.entries(ESTADO_UNIDAD_CONFIG).map(([k, v]) => (
+                <Option key={k} value={k}>
+                  <Tooltip title={v.descripcion} placement="right">
+                    <span>{v.label}</span>
+                  </Tooltip>
+                </Option>
+              ))}
+            </Select>
+            <Input placeholder="Unidad (ej: 101)" style={{ width: isMobile ? '100%' : 140 }} 
+              value={inv.filtroUnidad} 
+              onChange={e => inv.setFiltroUnidad(e.target.value)} 
+              allowClear 
+              onClear={() => { inv.setFiltroUnidad(''); }} />
+            <Input placeholder="Tipo (ej: D)" style={{ width: isMobile ? '100%' : 120 }} 
+              value={inv.filtroTipo} 
+              onChange={e => inv.setFiltroTipo(e.target.value)} 
+              allowClear 
+              onClear={() => { inv.setFiltroTipo(''); }} />
+            <Input placeholder="Manzana (ej: A)" style={{ width: isMobile ? '100%' : 140 }} 
+              value={inv.filtroManzana} 
+              onChange={e => inv.setFiltroManzana(e.target.value)} 
+              allowClear 
+              onClear={() => { inv.setFiltroManzana(''); }} />
+            <Input placeholder="Piso (ej: 3)" style={{ width: isMobile ? '100%' : 120 }} 
+              value={inv.filtroPiso} 
+              onChange={e => inv.setFiltroPiso(e.target.value)} 
+              allowClear 
+              onClear={() => { inv.setFiltroPiso(''); }} />
+            {(inv.filtroEtapa || inv.filtroEstado || inv.filtroUnidad || inv.filtroTipo || inv.filtroManzana || inv.filtroPiso) && (
+              <Button onClick={() => { 
+                inv.setFiltroEtapa(''); 
+                inv.setFiltroEstado(''); 
+                inv.setFiltroUnidad(''); 
+                inv.setFiltroTipo(''); 
+                inv.setFiltroManzana(''); 
+                inv.setFiltroPiso(''); 
+                inv.cargarUnidades(undefined, { 
+                  etapa_id: '', 
+                  estado: '', 
+                  id_unidad: '', 
+                  tipo: '', 
+                  manzana: '', 
+                  piso: '' 
+                }); 
+              }}>
+                Limpiar
+              </Button>
+            )}
           </div>
 
           <TablaUnidades

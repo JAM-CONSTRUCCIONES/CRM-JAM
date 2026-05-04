@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Row, Col, Card, Select, Spin, Typography, Empty, Grid } from 'antd';
+import { Row, Col, Select, Spin, Typography, Empty, Grid } from 'antd';
 import {
   PieChart, Pie, Cell, Tooltip as RTooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
@@ -19,7 +19,6 @@ const { useBreakpoint } = Grid;
 const BLUE   = '#2E75B6';
 const ORANGE = '#ED7D31';
 const GREEN  = '#375623';
-const GRAY   = '#7F7F7F';
 
 // ── Tabla resumen estilo Excel ────────────────────────────────────────────────
 interface SummaryRow { label: string; value: number; bold?: boolean }
@@ -141,7 +140,6 @@ const DashboardPage = () => {
           isAdmin={isAdmin}
           isInterno={isInterno}
           inmoNombre={inmoNombre}
-          isMobile={isMobile}
         />
       )}
     </div>
@@ -150,13 +148,12 @@ const DashboardPage = () => {
 
 // ── Contenido ─────────────────────────────────────────────────────────────────
 const DashboardContent = ({
-  data, isAdmin, isInterno, inmoNombre, isMobile,
+  data, isAdmin, isInterno, inmoNombre,
 }: {
   data: AnalyticsData;
   isAdmin: boolean;
   isInterno: boolean;
   inmoNombre: (id: string) => string;
-  isMobile: boolean;
 }) => {
   const { unidad_stats, proceso_stats, cierres_mensuales, conversion_por_inmobiliaria,
           ventas_por_piso, ventas_por_metraje } = data;
@@ -234,12 +231,12 @@ const DashboardContent = ({
 
   // ── 6. Estatus contratos (torta) ──────────────────────────────────────────
   const contratoData = [
-    { name: 'CLIENTA LISTA PARA CONTRATO', value: proceso_stats.reserva,    color: BLUE   },
+    { name: 'CLIENTE LISTO PARA CONTRATO', value: proceso_stats.reserva,    color: BLUE   },
     { name: 'CONTRATO FIRMADO',            value: proceso_stats.separacion,  color: ORANGE },
   ].filter(d => d.value > 0);
   const totalContratos = proceso_stats.reserva + proceso_stats.separacion;
   const contratoRows: SummaryRow[] = [
-    { label: 'CLIENTA LISTA PARA CONTRATO', value: proceso_stats.reserva    },
+    { label: 'CLIENTE LISTO PARA CONTRATO', value: proceso_stats.reserva    },
     { label: 'CONTRATO FIRMADO',            value: proceso_stats.separacion  },
     { label: 'Total',                       value: totalContratos, bold: true },
   ];

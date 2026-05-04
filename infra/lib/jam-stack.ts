@@ -123,6 +123,11 @@ export class JamStack extends cdk.Stack {
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
     });
 
+    inventarioTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-proyecto-id-unidad',
+      partitionKey: { name: 'proyecto_id_unidad', type: dynamodb.AttributeType.STRING },
+    });
+
     // ─── LAMBDA jam-auth ────────────────────────────────────────────────────
 
     const authLambda = new lambda.Function(this, 'JamAuthLambda', {

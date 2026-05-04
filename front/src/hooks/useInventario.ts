@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { message } from 'antd';
 import {
   getProyectos, getUnidades, getEtapas,
@@ -33,10 +33,28 @@ export function useInventario() {
   // Filtros
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroEtapa, setFiltroEtapa] = useState('');
+  const [filtroUnidad, setFiltroUnidad] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroManzana, setFiltroManzana] = useState('');
   const [filtroPiso, setFiltroPiso] = useState('');
 
+  // Refs para evitar stale closure en cargarUnidades
+  const filtroEstadoRef = useRef(filtroEstado);
+  const filtroEtapaRef = useRef(filtroEtapa);
+  const filtroUnidadRef = useRef(filtroUnidad);
+  const filtroTipoRef = useRef(filtroTipo);
+  const filtroManzanaRef = useRef(filtroManzana);
+  const filtroPisoRef = useRef(filtroPiso);
+  const proyectoIdRef = useRef(proyectoId);
+
+  // Mantener refs sincronizados
+  filtroEstadoRef.current = filtroEstado;
+  filtroEtapaRef.current = filtroEtapa;
+  filtroUnidadRef.current = filtroUnidad;
+  filtroTipoRef.current = filtroTipo;
+  filtroManzanaRef.current = filtroManzana;
+  filtroPisoRef.current = filtroPiso;
+  proyectoIdRef.current = proyectoId;
   // Modales
   const [modalProyecto, setModalProyecto] = useState(false);
   const [modoProyecto, setModoProyecto] = useState<ModalMode>('crear');
@@ -60,22 +78,40 @@ export function useInventario() {
     } catch { message.error('Error al cargar proyectos'); }
   }, [usuario]);
 
-  const cargarUnidades = useCallback(async (pid?: string) => {
-    const id = pid || proyectoId;
+  const cargarUnidades = useCallback(async (pid?: string, filtros?: {
+    estado?: string;
+    etapa_id?: string;
+    id_unidad?: string;
+    tipo?: string;
+    manzana?: string;
+    piso?: string;
+  }) => {
+    const id = pid || proyectoIdRef.current;
     if (!id) return;
     setLoading(true);
     try {
+      // Usa refs para leer siempre el valor más reciente, sin stale closure
+      const estadoVal = filtros?.estado !== undefined ? filtros.estado : filtroEstadoRef.current;
+      const etapaVal = filtros?.etapa_id !== undefined ? filtros.etapa_id : filtroEtapaRef.current;
+      const unidadVal = filtros?.id_unidad !== undefined ? filtros.id_unidad : filtroUnidadRef.current;
+      const tipoVal = filtros?.tipo !== undefined ? filtros.tipo : filtroTipoRef.current;
+      const manzanaVal = filtros?.manzana !== undefined ? filtros.manzana : filtroManzanaRef.current;
+      const pisoVal = filtros?.piso !== undefined ? filtros.piso : filtroPisoRef.current;
+
       const data = await getUnidades(id, {
-        estado: filtroEstado || undefined,
-        etapa_id: filtroEtapa || undefined,
-        tipo: filtroTipo || undefined,
-        manzana: filtroManzana || undefined,
-        piso: filtroPiso || undefined,
+        estado: estadoVal || undefined,
+        etapa_id: etapaVal || undefined,
+        id_unidad: unidadVal || undefined,
+        tipo: tipoVal || undefined,
+        manzana: manzanaVal || undefined,
+        piso: pisoVal || undefined,
       });
       setUnidades(data);
     } catch { message.error('Error al cargar unidades'); }
     finally { setLoading(false); }
-  }, [proyectoId, filtroEstado, filtroEtapa, filtroTipo, filtroManzana, filtroPiso]);
+  // Sin dependencias de filtros — usa refs para leer siempre el valor actual
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     cargarProyectos();
@@ -84,7 +120,7 @@ export function useInventario() {
 
   const seleccionarProyecto = (id: string) => {
     setProyectoId(id);
-    setFiltroEstado(''); setFiltroEtapa(''); setFiltroTipo('');
+    setFiltroEstado(''); setFiltroEtapa(''); setFiltroUnidad(''); setFiltroTipo('');
     setFiltroManzana(''); setFiltroPiso('');
     setVista('unidades');
     getEtapas(id).then(setEtapas).catch(() => {});
@@ -190,18 +226,17 @@ export function useInventario() {
       message.success('Unidad eliminada');
       await cargarUnidades();
     } catch (err: any) {
+      console.error('Error al eliminar unidad:', err);
+      
+      // El mensaje ya viene procesado por handleApiError en api.ts
+      const errorMessage = err?.message || 'Error al eliminar unidad';
       const status = err?.response?.status ?? err?.response?.statusCode;
-      let msg = 'Error al eliminar unidad';
-      try {
-        const body = typeof err?.response?.body === 'string'
-          ? JSON.parse(err.response.body)
-          : await err?.response?.body?.json?.();
-        msg = body?.message || body?.error || msg;
-      } catch { /* usar msg por defecto */ }
+      
+      // Mostrar warning para errores de validación (400, 409)
       if (status === 409 || status === 400) {
-        message.warning(msg);
+        message.warning(errorMessage);
       } else {
-        message.error(msg);
+        message.error(errorMessage);
       }
     }
   };
@@ -218,7 +253,7 @@ export function useInventario() {
     proyectoActual, isAdmin, isInmobiliaria, canEdit,
     // Filtros
     filtroEstado, setFiltroEstado, filtroEtapa, setFiltroEtapa,
-    filtroTipo, setFiltroTipo, filtroManzana, setFiltroManzana, filtroPiso, setFiltroPiso,
+    filtroUnidad, setFiltroUnidad, filtroTipo, setFiltroTipo, filtroManzana, setFiltroManzana, filtroPiso, setFiltroPiso,
     // Modales
     modalProyecto, setModalProyecto, modoProyecto, setModoProyecto,
     proyectoEditando, setProyectoEditando, imagenFile, setImagenFile, uploadingImagen,

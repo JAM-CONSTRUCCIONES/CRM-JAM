@@ -5,7 +5,7 @@ import os
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found
-from utils.helpers import now
+from utils.helpers import now, decimal_to_number
 
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 
@@ -14,7 +14,9 @@ def listar(proyecto_id):
     result = inventario.query(
         KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('ETAPA#')
     )
-    items = sorted(result.get('Items', []), key=lambda x: x.get('orden', 0))
+    items = result.get('Items', [])
+    # Convertir Decimals a tipos serializables
+    items = decimal_to_number(items)
     return ok(items)
 
 
@@ -39,11 +41,12 @@ def crear(proyecto_id, event):
         'sk': f'ETAPA#{etapa_id}',
         'etapa_id': etapa_id,
         'nombre': nombre,
-        'orden': body.get('orden', 1),
         'activo': True,
         'creado_en': now(),
     }
     inventario.put_item(Item=item)
+    # Convertir Decimals a tipos serializables
+    item = decimal_to_number(item)
     return created(item)
 
 
@@ -55,10 +58,6 @@ def actualizar(proyecto_id, etapa_id, event):
         values[':nombre'] = body['nombre']
         updates.append('#nombre = :nombre')
         names['#nombre'] = 'nombre'
-    if 'orden' in body:
-        values[':orden'] = int(body['orden'])
-        updates.append('#orden = :orden')
-        names['#orden'] = 'orden'
 
     if not updates:
         return bad_request('No hay campos para actualizar')

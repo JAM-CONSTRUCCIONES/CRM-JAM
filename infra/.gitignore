@@ -1,0 +1,8 @@
+# Manejado por el .gitignore raíz del proyecto
+# Este archivo existe para compatibilidad con herramientas CDK
+*.js
+!jest.config.js
+*.d.ts
+node_modules
+.cdk.staging
+cdk.out

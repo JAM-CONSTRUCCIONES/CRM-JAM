@@ -1,0 +1,178 @@
+﻿{
+    "CallerReference":  "4f92f4d8-ae2b-cce9-27b0-3329a084fc1b",
+    "Aliases":  {
+                    "Quantity":  0
+                },
+    "DefaultRootObject":  "index.html",
+    "Origins":  {
+                    "Quantity":  2,
+                    "Items":  [
+                                  {
+                                      "Id":  "JamConstruccionesJamDistributionOrigin1F9F0D142",
+                                      "DomainName":  "jam-frontend-479324457361.s3.us-east-1.amazonaws.com",
+                                      "OriginPath":  "",
+                                      "CustomHeaders":  {
+                                                            "Quantity":  0
+                                                        },
+                                      "S3OriginConfig":  {
+                                                             "OriginAccessIdentity":  "",
+                                                             "OriginReadTimeout":  30
+                                                         },
+                                      "ConnectionAttempts":  3,
+                                      "ConnectionTimeout":  10,
+                                      "OriginShield":  {
+                                                           "Enabled":  false
+                                                       },
+                                      "OriginAccessControlId":  "E2PR10SRYR0YDN"
+                                  },
+                                  {
+                                      "Id":  "JamConstruccionesJamDistributionOrigin2140298CC",
+                                      "DomainName":  "jam-assets-479324457361.s3.us-east-1.amazonaws.com",
+                                      "OriginPath":  "",
+                                      "CustomHeaders":  {
+                                                            "Quantity":  0
+                                                        },
+                                      "S3OriginConfig":  {
+                                                             "OriginAccessIdentity":  "",
+                                                             "OriginReadTimeout":  30
+                                                         },
+                                      "ConnectionAttempts":  3,
+                                      "ConnectionTimeout":  10,
+                                      "OriginShield":  {
+                                                           "Enabled":  false
+                                                       },
+                                      "OriginAccessControlId":  "ERNZQCSBA19CU"
+                                  }
+                              ]
+                },
+    "OriginGroups":  {
+                         "Quantity":  0
+                     },
+    "DefaultCacheBehavior":  {
+                                 "TargetOriginId":  "JamConstruccionesJamDistributionOrigin1F9F0D142",
+                                 "TrustedSigners":  {
+                                                        "Enabled":  false,
+                                                        "Quantity":  0
+                                                    },
+                                 "TrustedKeyGroups":  {
+                                                          "Enabled":  false,
+                                                          "Quantity":  0
+                                                      },
+                                 "ViewerProtocolPolicy":  "redirect-to-https",
+                                 "AllowedMethods":  {
+                                                        "Quantity":  2,
+                                                        "Items":  [
+                                                                      "HEAD",
+                                                                      "GET"
+                                                                  ],
+                                                        "CachedMethods":  {
+                                                                              "Quantity":  2,
+                                                                              "Items":  [
+                                                                                            "HEAD",
+                                                                                            "GET"
+                                                                                        ]
+                                                                          }
+                                                    },
+                                 "SmoothStreaming":  false,
+                                 "Compress":  true,
+                                 "LambdaFunctionAssociations":  {
+                                                                    "Quantity":  0
+                                                                },
+                                 "FunctionAssociations":  {
+                                                              "Quantity":  0
+                                                          },
+                                 "FieldLevelEncryptionId":  "",
+                                 "CachePolicyId":  "658327ea-f89d-4fab-a63d-7e88639e58f6",
+                                 "GrpcConfig":  {
+                                                    "Enabled":  false
+                                                }
+                             },
+    "CacheBehaviors":  {
+                           "Quantity":  1,
+                           "Items":  [
+                                         {
+                                             "PathPattern":  "/assets/*",
+                                             "TargetOriginId":  "JamConstruccionesJamDistributionOrigin2140298CC",
+                                             "TrustedSigners":  {
+                                                                    "Enabled":  false,
+                                                                    "Quantity":  0
+                                                                },
+                                             "TrustedKeyGroups":  {
+                                                                      "Enabled":  false,
+                                                                      "Quantity":  0
+                                                                  },
+                                             "ViewerProtocolPolicy":  "redirect-to-https",
+                                             "AllowedMethods":  {
+                                                                    "Quantity":  2,
+                                                                    "Items":  [
+                                                                                  "HEAD",
+                                                                                  "GET"
+                                                                              ],
+                                                                    "CachedMethods":  {
+                                                                                          "Quantity":  2,
+                                                                                          "Items":  [
+                                                                                                        "HEAD",
+                                                                                                        "GET"
+                                                                                                    ]
+                                                                                      }
+                                                                },
+                                             "SmoothStreaming":  false,
+                                             "Compress":  true,
+                                             "LambdaFunctionAssociations":  {
+                                                                                "Quantity":  0
+                                                                            },
+                                             "FunctionAssociations":  {
+                                                                          "Quantity":  0
+                                                                      },
+                                             "FieldLevelEncryptionId":  "",
+                                             "CachePolicyId":  "658327ea-f89d-4fab-a63d-7e88639e58f6",
+                                             "GrpcConfig":  {
+                                                                "Enabled":  false
+                                                            }
+                                         }
+                                     ]
+                       },
+    "CustomErrorResponses":  {
+                                 "Quantity":  2,
+                                 "Items":  [
+                                               {
+                                                   "ErrorCode":  403,
+                                                   "ResponsePagePath":  "/index.html",
+                                                   "ResponseCode":  "200",
+                                                   "ErrorCachingMinTTL":  0
+                                               },
+                                               {
+                                                   "ErrorCode":  404,
+                                                   "ResponsePagePath":  "/index.html",
+                                                   "ResponseCode":  "200",
+                                                   "ErrorCachingMinTTL":  0
+                                               }
+                                           ]
+                             },
+    "Comment":  "",
+    "Logging":  {
+                    "Enabled":  false,
+                    "IncludeCookies":  false,
+                    "Bucket":  "",
+                    "Prefix":  ""
+                },
+    "PriceClass":  "PriceClass_All",
+    "Enabled":  true,
+    "ViewerCertificate":  {
+                              "CloudFrontDefaultCertificate":  true,
+                              "SSLSupportMethod":  "vip",
+                              "MinimumProtocolVersion":  "TLSv1",
+                              "CertificateSource":  "cloudfront"
+                          },
+    "Restrictions":  {
+                         "GeoRestriction":  {
+                                                "RestrictionType":  "none",
+                                                "Quantity":  0
+                                            }
+                     },
+    "WebACLId":  "",
+    "HttpVersion":  "http2",
+    "IsIPV6Enabled":  true,
+    "ContinuousDeploymentPolicyId":  "",
+    "Staging":  false
+}

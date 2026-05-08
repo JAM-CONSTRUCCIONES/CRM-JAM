@@ -1,0 +1,42 @@
+# ─── CDK ────────────────────────────────────────────
+infra/cdk.out/
+infra/.cdk.staging
+infra/*.js
+infra/*.d.ts
+!infra/jest.config.js
+infra/node_modules/
+
+# ─── Frontend ────────────────────────────────────────
+front/node_modules/
+front/dist/
+front/.env
+front/.env.local
+
+# ─── Python / Lambdas ────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+lambdas/**/__pycache__/
+lambdas/**/*.pyc
+
+# ─── Variables de entorno ────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── AWS ─────────────────────────────────────────────
+.aws-sam/
+samconfig.toml
+
+# ─── OS ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── IDEs ────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo

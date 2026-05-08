@@ -374,9 +374,16 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
         return bad_request('inmobiliaria_id es requerido')
 
     pk = f'PROCESO#{cedula}#{inmobiliaria_id}'
+    
+    # Intentar primero con formato corto: UNIDAD#{unidad_id}
     sk = f'UNIDAD#{unidad_id}'
-
     proceso = procesos_table.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
+    
+    # Si no se encuentra, intentar con formato largo: PROYECTO#{proyecto_id}#UNIDAD#{unidad_id}
+    if not proceso:
+        sk = f'PROYECTO#{proyecto_id}#UNIDAD#{unidad_id}'
+        proceso = procesos_table.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
+    
     if not proceso:
         return not_found('Proceso no encontrado para este cliente y unidad')
 

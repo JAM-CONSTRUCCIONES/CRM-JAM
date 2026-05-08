@@ -221,27 +221,27 @@ const Sidebar = ({ onSelect }: Props) => {
           padding: '10px 12px',
           borderRadius: 10,
           cursor: 'pointer',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: '#1677ff',
           color: '#fff',
           fontSize: 13,
           fontWeight: 600,
           marginTop: 12,
           transition: 'all 0.2s',
-          boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
+          boxShadow: '0 2px 8px rgba(22,119,255,0.28)',
         }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
-          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+          (e.currentTarget as HTMLDivElement).style.background = '#0958d9';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 14px rgba(22,119,255,0.38)';
         }}
         onMouseLeave={e => {
-          (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
+          (e.currentTarget as HTMLDivElement).style.background = '#1677ff';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(22,119,255,0.28)';
         }}
       >
         <MessageOutlined style={{ fontSize: 16 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 700 }}>Asistente IA</div>
-          <div style={{ fontSize: 10, opacity: 0.9 }}>Pregúntame lo que quieras</div>
+          <div style={{ fontSize: 10, opacity: 0.85 }}>Pregúntame lo que quieras</div>
         </div>
       </div>
 

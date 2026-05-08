@@ -37,6 +37,7 @@ def bloquear(event):
     body = json.loads(event.get('body') or '{}')
     proyecto_id = body.get('proyecto_id')
     unidad_id = body.get('unidad_id')
+    forzar_admin = body.get('forzar_admin', False)  # Nuevo parámetro para saltarse validaciones
 
     # Datos del cliente (opcionales — puede bloquearse sin cliente)
     cedula = (body.get('cedula') or '').strip()
@@ -47,8 +48,16 @@ def bloquear(event):
     if not all([proyecto_id, unidad_id]):
         return bad_request('proyecto_id y unidad_id son requeridos')
 
-    inmobiliaria_id = get_inmobiliaria_id(event)
-    inmo_id, inmo_nombre = _get_inmobiliaria_info(inmobiliaria_id)
+    # Si es admin y especifica inmobiliaria_id, usar esa; sino, usar la del usuario
+    es_admin = require_admin(event)
+    if es_admin and body.get('inmobiliaria_id'):
+        inmo_id = body.get('inmobiliaria_id').replace('INMOBILIARIA#', '')
+        # Obtener nombre de la inmobiliaria
+        inmo_info = usuarios.get_item(Key={'pk': f'INMOBILIARIA#{inmo_id}', 'sk': 'METADATA'}).get('Item', {})
+        inmo_nombre = inmo_info.get('nombre', inmo_id)
+    else:
+        inmobiliaria_id = get_inmobiliaria_id(event)
+        inmo_id, inmo_nombre = _get_inmobiliaria_info(inmobiliaria_id)
 
     # Normalizar proyecto_id (sin prefijo para claves, con prefijo para inventario)
     proyecto_id_clean = proyecto_id.replace('PROYECTO#', '') if proyecto_id else proyecto_id
@@ -74,8 +83,8 @@ def bloquear(event):
         inmo_id = inmo_id_real
         inmo_nombre = inmo_info.get('nombre', inmo_id_real)
 
-    # Validar exclusividad del cliente ANTES de bloquear
-    if tiene_cliente:
+    # Validar exclusividad del cliente ANTES de bloquear (solo si NO es forzar_admin)
+    if tiene_cliente and not forzar_admin:
         clientes_table_name = os.environ.get('CLIENTES_TABLE')
         if clientes_table_name:
             clientes_t = dynamodb.Table(clientes_table_name)

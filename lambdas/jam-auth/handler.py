@@ -70,6 +70,9 @@ def handler(event, context):
     if method == 'PUT' and inmo_id and path.endswith(f'/{inmo_id}'):
         return inmobiliarias.actualizar(inmo_id, event)
 
+    if method == 'POST' and inmo_id and path.endswith('/imagen'):
+        return inmobiliarias.presigned_imagen(inmo_id, event)
+
     if method == 'PUT' and inmo_id and path.endswith('/deshabilitar') and not usuario_id:
         return inmobiliarias.deshabilitar(inmo_id)
 

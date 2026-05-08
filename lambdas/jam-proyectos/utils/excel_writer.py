@@ -34,6 +34,14 @@ def escribir_migracion(proyecto_id, filas):
     SIN torres — unidades van directo al proyecto.
     SIN schedules de EventBridge — datos históricos.
     """
+    # Diagnóstico de variables de entorno
+    print(f'=== INICIO MIGRACIÓN ===')
+    print(f'Proyecto: {proyecto_id}')
+    print(f'Total filas: {len(filas)}')
+    print(f'LAMBDA_ARN: {LAMBDA_ARN}')
+    print(f'SCHEDULER_ROLE_ARN: {SCHEDULER_ROLE_ARN}')
+    print(f'SQS_URL: {SQS_URL}')
+    
     inmos_cache = {}  # nombre_excel → inmobiliaria_id
     ahora       = now()
 
@@ -68,12 +76,17 @@ def escribir_migracion(proyecto_id, filas):
             })
 
         if fila.get('estado') == 'bloqueada' and inmo_id:
+            print(f'Procesando bloqueo para unidad {id_unidad} (fila {fila_num})')
             _escribir_historial(proyecto_id, fila, inmo_id, cedula, ahora)
             _crear_schedules_bloqueo(fila, proyecto_id)
             _enviar_notificacion_bloqueo(fila, proyecto_id, inmo_id, cedula, id_unidad)
 
         stats['unidades_cargadas'] += 1
 
+    print(f'=== FIN MIGRACIÓN ===')
+    print(f'Unidades cargadas: {stats["unidades_cargadas"]}')
+    print(f'Clientes creados: {stats["clientes_creados"]}')
+    
     return stats
 
 
@@ -308,17 +321,23 @@ def _crear_schedules_bloqueo(fila, proyecto_id):
     Similar a bloqueos.py pero con duración de 24h.
     """
     if not LAMBDA_ARN or not SCHEDULER_ROLE_ARN:
-        print(f'_crear_schedules_bloqueo: LAMBDA_ARN o SCHEDULER_ROLE_ARN no configurados, omitiendo schedules')
+        print(f'⚠ _crear_schedules_bloqueo: LAMBDA_ARN o SCHEDULER_ROLE_ARN no configurados')
+        print(f'  LAMBDA_ARN: {LAMBDA_ARN}')
+        print(f'  SCHEDULER_ROLE_ARN: {SCHEDULER_ROLE_ARN}')
         return
     
     unidad_id = fila.get('_unidad_id', '')
     if not unidad_id:
+        print(f'⚠ _crear_schedules_bloqueo: unidad_id no encontrado en fila')
         return
     
     ts_liberacion = fila.get('_fecha_liberacion_calculada', '')
     ts_bloqueo = fila.get('_fecha_bloqueo_calculada', '')
     
     if not ts_liberacion or not ts_bloqueo:
+        print(f'⚠ _crear_schedules_bloqueo: fechas no encontradas para {unidad_id}')
+        print(f'  ts_bloqueo: {ts_bloqueo}')
+        print(f'  ts_liberacion: {ts_liberacion}')
         return
     
     # Calcular timestamp de alerta (5 horas antes de liberación)
@@ -326,20 +345,23 @@ def _crear_schedules_bloqueo(fila, proyecto_id):
         dt_bloqueo = datetime.fromisoformat(ts_bloqueo.replace('Z', '+00:00'))
         dt_alerta = dt_bloqueo + timedelta(hours=HORAS_ALERTA_MIGRACION)
         ts_alerta = dt_alerta.isoformat()[:19]  # formato para EventBridge: YYYY-MM-DDTHH:MM:SS
-    except Exception:
+    except Exception as e:
+        print(f'✗ _crear_schedules_bloqueo: error calculando alerta para {unidad_id}: {type(e).__name__}: {e}')
         return
     
     ts_liberacion_eb = ts_liberacion[:19]  # formato para EventBridge
     
     payload_base = {'unidad_id': unidad_id, 'proyecto_id': proyecto_id}
     
+    schedules_creados = 0
     for suffix, at_time, accion in [
         ('alerta', ts_alerta, 'alerta_vencimiento'),
         ('liberacion', ts_liberacion_eb, 'liberar_automatico'),
     ]:
         try:
+            schedule_name = _schedule_name(unidad_id, suffix)
             scheduler.create_schedule(
-                Name=_schedule_name(unidad_id, suffix),
+                Name=schedule_name,
                 ScheduleExpression=f"at({at_time})",
                 ScheduleExpressionTimezone='UTC',
                 FlexibleTimeWindow={'Mode': 'OFF'},
@@ -350,9 +372,20 @@ def _crear_schedules_bloqueo(fila, proyecto_id):
                 },
                 ActionAfterCompletion='DELETE',
             )
-            print(f'Schedule creado: {_schedule_name(unidad_id, suffix)} at {at_time}')
+            schedules_creados += 1
+            print(f'✓ Schedule creado: {schedule_name} at {at_time} (accion: {accion})')
         except Exception as e:
-            print(f'_crear_schedules_bloqueo error ({suffix}): {type(e).__name__}: {e}')
+            print(f'✗ _crear_schedules_bloqueo error ({suffix}): {type(e).__name__}: {e}')
+            print(f'  unidad_id: {unidad_id}')
+            print(f'  schedule_name: {_schedule_name(unidad_id, suffix)}')
+            print(f'  at_time: {at_time}')
+    
+    if schedules_creados == 2:
+        print(f'✓ Ambos schedules creados exitosamente para unidad {unidad_id}')
+    elif schedules_creados == 1:
+        print(f'⚠ Solo 1 de 2 schedules creado para unidad {unidad_id}')
+    else:
+        print(f'✗ No se crearon schedules para unidad {unidad_id}')
 
 
 def _enviar_notificacion_bloqueo(fila, proyecto_id, inmo_id, cedula, id_unidad):
@@ -361,7 +394,7 @@ def _enviar_notificacion_bloqueo(fila, proyecto_id, inmo_id, cedula, id_unidad):
     Similar a bloqueos.py.
     """
     if not SQS_URL:
-        print(f'_enviar_notificacion_bloqueo: SQS_URL no configurado, omitiendo notificación')
+        print(f'⚠ _enviar_notificacion_bloqueo: SQS_URL no configurado, omitiendo notificación')
         return
     
     unidad_id = fila.get('_unidad_id', '')
@@ -369,6 +402,7 @@ def _enviar_notificacion_bloqueo(fila, proyecto_id, inmo_id, cedula, id_unidad):
     ts_liberacion = fila.get('_fecha_liberacion_calculada', '')
     
     if not unidad_id:
+        print(f'⚠ _enviar_notificacion_bloqueo: unidad_id no encontrado')
         return
     
     try:
@@ -389,6 +423,8 @@ def _enviar_notificacion_bloqueo(fila, proyecto_id, inmo_id, cedula, id_unidad):
                 },
             }),
         )
-        print(f'Notificación SQS enviada para bloqueo de unidad {id_unidad}')
+        print(f'✓ Notificación SQS enviada para bloqueo de unidad {id_unidad}')
     except Exception as e:
-        print(f'_enviar_notificacion_bloqueo error: {type(e).__name__}: {e}')
+        print(f'✗ _enviar_notificacion_bloqueo error: {type(e).__name__}: {e}')
+        print(f'  unidad_id: {unidad_id}')
+        print(f'  SQS_URL: {SQS_URL}')

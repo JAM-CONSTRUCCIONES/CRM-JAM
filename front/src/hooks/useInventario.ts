@@ -144,7 +144,8 @@ export function useInventario() {
         const { upload_url, public_url } = await getPresignedImagenProyecto(proyectoId, contentType);
         const res = await fetch(upload_url, { method: 'PUT', body: archivoImagen, headers: { 'Content-Type': contentType } });
         if (!res.ok) throw new Error(`Error subiendo imagen a S3: ${res.status} ${res.statusText}`);
-        return `${public_url}?t=${Date.now()}`;
+        // Usar la URL tal cual viene del backend (ya incluye ?v=timestamp para cache busting)
+        return public_url;
       };
 
       if (modoProyecto === 'crear') {

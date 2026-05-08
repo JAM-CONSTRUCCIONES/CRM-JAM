@@ -160,7 +160,26 @@ def presigned_imagen(proyecto_id, event=None):
         'image/gif': 'gif',
     }
     ext = ext_map.get(content_type, 'jpg')
-    key = f'assets/proyectos/{proyecto_id}/portada.{ext}'
+    
+    # Usar timestamp en el nombre del archivo para evitar caché de CloudFront
+    import time
+    timestamp = int(time.time())
+    key = f'assets/proyectos/{proyecto_id}/portada-{timestamp}.{ext}'
+
+    # BORRAR todas las imágenes anteriores del proyecto
+    # Listar y borrar todos los archivos que empiecen con "portada"
+    try:
+        response = s3_client.list_objects_v2(
+            Bucket=ASSETS_BUCKET,
+            Prefix=f'assets/proyectos/{proyecto_id}/portada'
+        )
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                old_key = obj['Key']
+                s3_client.delete_object(Bucket=ASSETS_BUCKET, Key=old_key)
+                print(f"[presigned_imagen] ✓ Borrada imagen anterior: {old_key}")
+    except Exception as e:
+        print(f"[presigned_imagen] ⚠ Error borrando imágenes anteriores: {e}")
 
     presigned = s3_client.generate_presigned_url(
         'put_object',
@@ -168,10 +187,12 @@ def presigned_imagen(proyecto_id, event=None):
             'Bucket': ASSETS_BUCKET,
             'Key': key,
             'ContentType': content_type,
+            'CacheControl': 'public, max-age=31536000, immutable',  # Caché agresivo porque el nombre cambia
         },
         ExpiresIn=300,
     )
 
+    # URL pública sin query string (el timestamp está en el nombre del archivo)
     public_url = f'{CLOUDFRONT_URL}/{key}'
     print(f"[presigned_imagen] public_url={public_url}")
 

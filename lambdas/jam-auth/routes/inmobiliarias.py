@@ -8,8 +8,11 @@ from utils.response import ok, created, bad_request, not_found, _build
 from utils.helpers import now
 
 dynamodb = boto3.resource('dynamodb')
+s3_client = boto3.client('s3')
 USUARIOS_TABLE = os.environ['USUARIOS_TABLE']
 USER_POOL_ID = os.environ['USER_POOL_ID']
+ASSETS_BUCKET = os.environ.get('ASSETS_BUCKET', '')
+CLOUDFRONT_URL = os.environ.get('CLOUDFRONT_URL', '')
 
 
 def listar():
@@ -58,6 +61,9 @@ def actualizar(inmo_id, event):
     if 'proyectos' in body:
         updates.append('proyectos = :proyectos')
         values[':proyectos'] = body['proyectos']
+    if 'imagen_url' in body:
+        updates.append('imagen_url = :imagen_url')
+        values[':imagen_url'] = body['imagen_url']
 
     if not updates:
         return bad_request('Nada que actualizar')
@@ -173,3 +179,60 @@ def _set_activo(inmo_id, activo):
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
             return not_found('Inmobiliaria no encontrada')
         raise
+
+
+def presigned_imagen(inmo_id, event=None):
+    """Genera una presigned URL para subir imagen de portada de la inmobiliaria a S3."""
+    if not ASSETS_BUCKET:
+        return bad_request('ASSETS_BUCKET no configurado')
+
+    body = json.loads((event or {}).get('body') or '{}')
+    content_type = body.get('content_type', 'image/jpeg')
+
+    ext_map = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+    }
+    ext = ext_map.get(content_type, 'jpg')
+    
+    # Usar timestamp en el nombre del archivo para evitar caché de CloudFront
+    import time
+    timestamp = int(time.time())
+    key = f'assets/inmobiliarias/{inmo_id}/portada-{timestamp}.{ext}'
+
+    # BORRAR todas las imágenes anteriores de la inmobiliaria
+    # Listar y borrar todos los archivos que empiecen con "portada"
+    try:
+        response = s3_client.list_objects_v2(
+            Bucket=ASSETS_BUCKET,
+            Prefix=f'assets/inmobiliarias/{inmo_id}/portada'
+        )
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                old_key = obj['Key']
+                s3_client.delete_object(Bucket=ASSETS_BUCKET, Key=old_key)
+                print(f"[presigned_imagen] ✓ Borrada imagen anterior: {old_key}")
+    except Exception as e:
+        print(f"[presigned_imagen] ⚠ Error borrando imágenes anteriores: {e}")
+
+    presigned = s3_client.generate_presigned_url(
+        'put_object',
+        Params={
+            'Bucket': ASSETS_BUCKET,
+            'Key': key,
+            'ContentType': content_type,
+            'CacheControl': 'public, max-age=31536000, immutable',  # Caché agresivo porque el nombre cambia
+        },
+        ExpiresIn=300,
+    )
+
+    # URL pública sin query string (el timestamp está en el nombre del archivo)
+    public_url = f'{CLOUDFRONT_URL}/{key}'
+
+    return ok({
+        'upload_url': presigned,
+        'public_url': public_url,
+        'key': key,
+    })

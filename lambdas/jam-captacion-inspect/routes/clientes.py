@@ -283,7 +283,7 @@ def listar_admin(event):
     proyecto_id = qs.get('proyecto_id')
     inmobiliaria_id = qs.get('inmobiliaria_id')
     next_token = qs.get('next_token')
-    limit = int(qs.get('limit', 50))
+    limit = min(int(qs.get('limit', 100)), 200)
 
     kwargs = {'Limit': limit}
     if next_token:

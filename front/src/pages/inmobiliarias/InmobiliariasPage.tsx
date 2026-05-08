@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
   Button, Modal, Form, Input, Tag, Space, Popconfirm,
-  Typography, Tooltip, Select, message, Row, Col, Avatar, Badge,
+  Typography, Tooltip, Select, message, Row, Col, Avatar, Badge, Upload,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, StopOutlined, CheckOutlined,
   DeleteOutlined, UserOutlined, TeamOutlined, MailOutlined, ReloadOutlined,
-  LinkOutlined, EyeOutlined,
+  LinkOutlined, EyeOutlined, UploadOutlined, BankOutlined,
 } from '@ant-design/icons';
+import type { UploadFile } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   getInmobiliarias, crearInmobiliaria, actualizarInmobiliaria,
   deshabilitarInmobiliaria, habilitarInmobiliaria, eliminarInmobiliaria,
   getUsuariosInmobiliaria, crearUsuarioInmobiliaria,
   deshabilitarUsuario, habilitarUsuario, eliminarUsuarioInmobiliaria,
+  getPresignedImagenInmobiliaria,
   type Inmobiliaria, type UsuarioInmo,
 } from '../../services/inmobiliarias.service';
 import { getProyectos } from '../../services/proyectos.service';
@@ -41,6 +43,8 @@ const InmobiliariasPage = () => {
   const [modoInmo, setModoInmo] = useState<ModalMode>('crear');
   const [inmoEditando, setInmoEditando] = useState<Inmobiliaria | null>(null);
   const [formInmo] = Form.useForm();
+  const [imagenFile, setImagenFile] = useState<UploadFile | null>(null);
+  const [uploadingImagen, setUploadingImagen] = useState(false);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [inmoSeleccionada, setInmoSeleccionada] = useState<Inmobiliaria | null>(null);
@@ -62,25 +66,44 @@ const InmobiliariasPage = () => {
 
   const abrirCrear = () => {
     setModoInmo('crear'); setInmoEditando(null);
-    formInmo.resetFields(); setModalInmo(true);
+    formInmo.resetFields(); setImagenFile(null); setModalInmo(true);
   };
 
   const abrirEditar = (inmo: Inmobiliaria, e: React.MouseEvent) => {
     e.stopPropagation();
     setModoInmo('editar'); setInmoEditando(inmo);
     formInmo.setFieldsValue({ nombre: inmo.nombre, correos: inmo.correos, proyectos: inmo.proyectos });
-    setModalInmo(true);
+    setImagenFile(null); setModalInmo(true);
   };
 
   const handleGuardarInmo = async (values: { nombre: string; correos: string[]; proyectos: string[] }) => {
     try {
+      setUploadingImagen(true);
+
+      const uploadImagen = async (inmoId: string) => {
+        if (!imagenFile?.originFileObj) return undefined;
+        const contentType = imagenFile.originFileObj.type || 'image/jpeg';
+        const { upload_url, public_url } = await getPresignedImagenInmobiliaria(inmoId, contentType);
+        const res = await fetch(upload_url, { method: 'PUT', body: imagenFile.originFileObj, headers: { 'Content-Type': contentType } });
+        if (!res.ok) throw new Error(`Error subiendo imagen: ${res.status}`);
+        // Usar la URL tal cual viene del backend (ya incluye ?v=timestamp para cache busting)
+        return public_url;
+      };
+
       if (modoInmo === 'crear') {
-        await crearInmobiliaria(values); message.success('Inmobiliaria creada');
+        const inmo = await crearInmobiliaria(values);
+        const id = inmo.pk.replace('INMOBILIARIA#', '');
+        const imagen_url = await uploadImagen(id);
+        if (imagen_url) await actualizarInmobiliaria(inmo.pk, { imagen_url });
+        message.success('Inmobiliaria creada');
       } else if (inmoEditando) {
-        await actualizarInmobiliaria(inmoEditando.pk, values); message.success('Inmobiliaria actualizada');
+        const imagen_url = await uploadImagen(inmoEditando.pk.replace('INMOBILIARIA#', ''));
+        await actualizarInmobiliaria(inmoEditando.pk, { ...values, ...(imagen_url ? { imagen_url } : {}) });
+        message.success('Inmobiliaria actualizada');
       }
-      setModalInmo(false); await cargar();
+      setModalInmo(false); setImagenFile(null); await cargar();
     } catch { message.error('Error al guardar'); }
+    finally { setUploadingImagen(false); }
   };
 
   const handleToggleInmo = async (inmo: Inmobiliaria, e: React.MouseEvent) => {
@@ -189,32 +212,23 @@ const InmobiliariasPage = () => {
                   (e.currentTarget as HTMLDivElement).style.borderColor = '#f0f0f0';
                 }}
               >
-                {/* Banda de color */}
-                <div style={{ height: 6, background: c }} />
-
-                <div style={{ padding: '16px 16px 14px' }}>
-                  {/* Top row */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                      <Avatar
-                        size={44}
-                        style={{ background: `${c}20`, color: c, fontWeight: 700, fontSize: 18, flexShrink: 0 }}
-                      >
-                        {inmo.nombre.charAt(0).toUpperCase()}
-                      </Avatar>
-                      <div>
-                        <Text strong style={{ fontSize: 14, display: 'block' }}>{inmo.nombre}</Text>
-                        <Badge
-                          status={inmo.activo ? 'success' : 'error'}
-                          text={<Text style={{ fontSize: 12, color: inmo.activo ? '#52c41a' : '#ff4d4f' }}>
-                            {inmo.activo ? 'Activa' : 'Inactiva'}
-                          </Text>}
-                        />
-                      </div>
-                    </div>
-                    <Space onClick={e => e.stopPropagation()}>
+                {/* Imagen / banner */}
+                <div style={{
+                  height: 140, background: inmo.imagen_url ? undefined : `linear-gradient(135deg, ${c}cc 0%, ${c}66 100%)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'relative', overflow: 'hidden',
+                }}>
+                  {inmo.imagen_url
+                    ? <img src={inmo.imagen_url} alt={inmo.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <BankOutlined style={{ fontSize: 44, color: 'rgba(255,255,255,0.55)' }} />
+                  }
+                  {/* Botones de acción sobre la imagen */}
+                  <div style={{ position: 'absolute', top: 8, right: 8 }} onClick={e => e.stopPropagation()}>
+                    <Space size={4}>
                       <Tooltip title="Editar">
-                        <Button size="small" type="text" icon={<EditOutlined />} onClick={e => abrirEditar(inmo, e)} />
+                        <Button size="small" type="text" icon={<EditOutlined />}
+                          style={{ color: '#fff', background: 'rgba(0,0,0,0.28)', borderRadius: 6 }}
+                          onClick={e => abrirEditar(inmo, e)} />
                       </Tooltip>
                       <Popconfirm
                         title={inmo.activo ? '¿Deshabilitar inmobiliaria?' : '¿Habilitar inmobiliaria?'}
@@ -223,17 +237,34 @@ const InmobiliariasPage = () => {
                       >
                         <Tooltip title={inmo.activo ? 'Deshabilitar' : 'Habilitar'}>
                           <Button size="small" type="text" danger={inmo.activo}
+                            style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 6, color: inmo.activo ? '#ff7875' : '#95de64' }}
                             icon={inmo.activo ? <StopOutlined /> : <CheckOutlined />} />
                         </Tooltip>
                       </Popconfirm>
                       <Popconfirm title="¿Eliminar inmobiliaria?" okText="Sí" cancelText="No" okButtonProps={{ danger: true }}
                         onConfirm={() => handleEliminarInmo(inmo)}>
                         <Tooltip title="Eliminar">
-                          <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                          <Button size="small" type="text" danger
+                            style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 6 }}
+                            icon={<DeleteOutlined />} />
                         </Tooltip>
                       </Popconfirm>
                     </Space>
                   </div>
+                  {/* Badge estado */}
+                  <div style={{ position: 'absolute', top: 8, left: 8 }}>
+                    <Badge
+                      status={inmo.activo ? 'success' : 'error'}
+                      text={<Text style={{ fontSize: 11, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                        {inmo.activo ? 'Activa' : 'Inactiva'}
+                      </Text>}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ padding: '14px 16px 14px' }}>
+                  {/* Nombre */}
+                  <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>{inmo.nombre}</Text>
 
                   {/* Proyectos */}
                   {inmo.proyectos?.length > 0 ? (
@@ -307,11 +338,12 @@ const InmobiliariasPage = () => {
       <Modal
         title={modoInmo === 'crear' ? 'Nueva inmobiliaria' : 'Editar inmobiliaria'}
         open={modalInmo}
-        onCancel={() => setModalInmo(false)}
+        onCancel={() => { setModalInmo(false); setImagenFile(null); }}
         onOk={() => formInmo.submit()}
         okText={modoInmo === 'crear' ? 'Crear' : 'Guardar'}
         cancelText="Cancelar"
         width={520}
+        confirmLoading={uploadingImagen}
       >
         <Form form={formInmo} layout="vertical" onFinish={handleGuardarInmo}>
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true, message: 'Requerido' }]}>
@@ -326,6 +358,24 @@ const InmobiliariasPage = () => {
                 <Select.Option key={p.proyecto_id} value={p.proyecto_id}>{p.nombre}</Select.Option>
               ))}
             </Select>
+          </Form.Item>
+          <Form.Item label="Imagen (opcional)">
+            {inmoEditando?.imagen_url && !imagenFile && (
+              <img src={inmoEditando.imagen_url} alt="portada actual"
+                style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+            )}
+            <Upload
+              onChange={({ fileList }) => setImagenFile(fileList[0] ?? null)}
+              maxCount={1}
+              accept="image/jpeg,image/png,image/webp"
+              beforeUpload={() => false}
+              fileList={imagenFile ? [imagenFile] : []}
+              listType="picture"
+            >
+              <Button icon={<UploadOutlined />}>
+                {inmoEditando?.imagen_url && !imagenFile ? 'Cambiar imagen' : 'Seleccionar imagen'}
+              </Button>
+            </Upload>
           </Form.Item>
         </Form>
       </Modal>
@@ -346,9 +396,14 @@ const InmobiliariasPage = () => {
               <div style={{ height: 4, background: color, borderRadius: 2, marginBottom: 16 }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <Avatar size={48} style={{ background: `${color}20`, color, fontWeight: 700, fontSize: 20 }}>
-                    {inmoSeleccionada.nombre.charAt(0).toUpperCase()}
-                  </Avatar>
+                  {inmoSeleccionada.imagen_url ? (
+                    <img src={inmoSeleccionada.imagen_url} alt={inmoSeleccionada.nombre}
+                      style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                  ) : (
+                    <Avatar size={48} style={{ background: `${color}20`, color, fontWeight: 700, fontSize: 20 }}>
+                      {inmoSeleccionada.nombre.charAt(0).toUpperCase()}
+                    </Avatar>
+                  )}
                   <div>
                     <Text strong style={{ fontSize: 16, display: 'block' }}>{inmoSeleccionada.nombre}</Text>
                     <Text type="secondary" style={{ fontSize: 12 }}>{usuarios.length} usuario{usuarios.length !== 1 ? 's' : ''}</Text>

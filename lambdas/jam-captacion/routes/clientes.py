@@ -331,7 +331,7 @@ def listar_admin(event):
     proyecto_id = qs.get('proyecto_id')
     inmobiliaria_id = qs.get('inmobiliaria_id')
     next_token = qs.get('next_token')
-    limit = int(qs.get('limit', 50))
+    limit = min(int(qs.get('limit', 100)), 200)
 
     kwargs = {'Limit': limit}
     if next_token:
@@ -565,3 +565,167 @@ def listar_proyectos_publico(event):
     except Exception as e:
         print(f'ERROR listar_proyectos_publico: {type(e).__name__}: {e}')
         return bad_request('Error al obtener proyectos')
+
+
+def buscar_clientes_admin(event):
+    """GET /admin/clientes/buscar?q=texto&tipo=nombre|cedula&proyecto_id=xxx&inmobiliaria_id=xxx — búsqueda en todos los clientes."""
+    qs = event.get('queryStringParameters') or {}
+    query = qs.get('q', '').strip()
+    tipo = qs.get('tipo', 'nombre').lower()  # 'nombre' o 'cedula'
+    proyecto_id = qs.get('proyecto_id')
+    inmobiliaria_id = qs.get('inmobiliaria_id')
+    
+    print(f'DEBUG buscar_clientes_admin: query={query}, tipo={tipo}, proyecto_id={proyecto_id}, inmobiliaria_id={inmobiliaria_id}')
+    
+    if not query or len(query) < 2:
+        return bad_request('Query debe tener al menos 2 caracteres')
+    
+    query_lower = query.lower()
+    items = []
+    
+    if tipo == 'cedula':
+        # Búsqueda por cédula - usar GSI para búsqueda exacta o scan para búsqueda parcial
+        cedula_busqueda = query.strip()
+        
+        print(f'DEBUG búsqueda por cédula: query={cedula_busqueda}')
+        
+        try:
+            # Intentar primero con GSI (búsqueda exacta - más rápido)
+            if proyecto_id:
+                # Si hay proyecto, usar GSI con cédula + proyecto
+                print(f'DEBUG usando GSI con proyecto: cedula={cedula_busqueda}, proyecto={proyecto_id}')
+                query_kwargs = {
+                    'IndexName': 'gsi-cedula-proyecto',
+                    'KeyConditionExpression': Key('cedula').eq(cedula_busqueda) & Key('sk').eq(f'PROYECTO#{proyecto_id}')
+                }
+                
+                while True:
+                    result = clientes.query(**query_kwargs)
+                    items.extend(result.get('Items', []))
+                    
+                    if 'LastEvaluatedKey' not in result:
+                        break
+                    query_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+                
+                print(f'DEBUG GSI con proyecto encontró: {len(items)} items')
+                
+                # Si no encuentra nada con búsqueda exacta, intentar búsqueda parcial con scan
+                if not items:
+                    print(f'DEBUG GSI no encontró nada, intentando scan parcial')
+                    filter_expr = Attr('cedula').contains(cedula_busqueda) & Attr('proyecto_id').eq(proyecto_id)
+                    scan_kwargs = {'FilterExpression': filter_expr}
+                    
+                    while True:
+                        result = clientes.scan(**scan_kwargs)
+                        items.extend(result.get('Items', []))
+                        
+                        if 'LastEvaluatedKey' not in result:
+                            break
+                        scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+                    
+                    print(f'DEBUG scan parcial encontró: {len(items)} items')
+            else:
+                # Sin proyecto, usar GSI solo con cédula
+                print(f'DEBUG usando GSI sin proyecto: cedula={cedula_busqueda}')
+                query_kwargs = {
+                    'IndexName': 'gsi-cedula-proyecto',
+                    'KeyConditionExpression': Key('cedula').eq(cedula_busqueda)
+                }
+                
+                while True:
+                    result = clientes.query(**query_kwargs)
+                    items.extend(result.get('Items', []))
+                    
+                    if 'LastEvaluatedKey' not in result:
+                        break
+                    query_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+                
+                print(f'DEBUG GSI sin proyecto encontró: {len(items)} items')
+                
+                # Si no encuentra nada con búsqueda exacta, intentar búsqueda parcial con scan
+                if not items:
+                    print(f'DEBUG GSI no encontró nada, intentando scan parcial')
+                    filter_expr = Attr('cedula').contains(cedula_busqueda)
+                    scan_kwargs = {'FilterExpression': filter_expr}
+                    
+                    while True:
+                        result = clientes.scan(**scan_kwargs)
+                        items.extend(result.get('Items', []))
+                        
+                        if 'LastEvaluatedKey' not in result:
+                            break
+                        scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+                    
+                    print(f'DEBUG scan parcial encontró: {len(items)} items')
+        except Exception as e:
+            print(f'ERROR en búsqueda por cédula: {e}')
+            import traceback
+            print(f'TRACEBACK: {traceback.format_exc()}')
+            items = []
+        
+        print(f'DEBUG total items cédula: {len(items)}')
+    else:
+        # Búsqueda por nombre - usar scan completo con paginación automática (SIN LÍMITES)
+        # DynamoDB contains es case-sensitive, así que buscamos en múltiples variaciones
+        
+        # Buscar en minúsculas, Title Case y MAYÚSCULAS
+        query_lower = query_lower.lower()
+        query_title = query_lower.title()  # "liliana" -> "Liliana"
+        query_upper = query.upper()
+        
+        filter_expr = (
+            Attr('nombres').contains(query_lower) | 
+            Attr('apellidos').contains(query_lower) |
+            Attr('nombres').contains(query_title) | 
+            Attr('apellidos').contains(query_title) |
+            Attr('nombres').contains(query_upper) | 
+            Attr('apellidos').contains(query_upper)
+        )
+        
+        if proyecto_id:
+            filter_expr = filter_expr & Attr('proyecto_id').eq(proyecto_id)
+        
+        try:
+            # Scan completo con paginación automática - SIN LÍMITE
+            scan_kwargs = {
+                'FilterExpression': filter_expr
+            }
+            
+            # Paginar hasta obtener TODOS los resultados
+            while True:
+                result = clientes.scan(**scan_kwargs)
+                items.extend(result.get('Items', []))
+                
+                print(f'DEBUG scan página: {len(result.get("Items", []))} items, total acumulado: {len(items)}')
+                
+                # Si no hay más páginas, salir
+                if 'LastEvaluatedKey' not in result:
+                    print(f'DEBUG scan completado, no hay más páginas')
+                    break
+                    
+                # Continuar con la siguiente página
+                scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+            
+            print(f'DEBUG scan total encontró: {len(items)} items')
+        except Exception as e:
+            print(f'ERROR en scan: {e}')
+            import traceback
+            print(f'TRACEBACK: {traceback.format_exc()}')
+            items = []
+    
+    # Filtrar por inmobiliaria si se especificó
+    if inmobiliaria_id:
+        inmo_norm = inmobiliaria_id.replace('INMOBILIARIA#', '')
+        items_antes = len(items)
+        items = [
+            i for i in items 
+            if i.get('inmobiliaria_id') == inmo_norm or 
+               i.get('inmobiliaria_id') == f'INMOBILIARIA#{inmo_norm}' or
+               i.get('inmobiliaria_id') == inmobiliaria_id
+        ]
+        print(f'DEBUG filtro inmobiliaria: {items_antes} -> {len(items)} items')
+    
+    # Devolver TODOS los resultados encontrados (sin límite)
+    print(f'DEBUG buscar_clientes_admin: devolviendo {len(items)} items')
+    
+    return ok(items)

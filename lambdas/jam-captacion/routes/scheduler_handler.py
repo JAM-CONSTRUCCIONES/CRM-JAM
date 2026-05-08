@@ -9,6 +9,7 @@ dynamodb = boto3.resource('dynamodb')
 clientes = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 
 sqs_client = boto3.client('sqs')
+scheduler = boto3.client('scheduler')
 SQS_URL = os.environ.get('SQS_URL')
 
 
@@ -34,11 +35,16 @@ def _publicar_evento(tipo, proyecto_id, inmobiliaria_id, metadata=None):
 def handle(event):
     accion = event.get('accion')
     if accion == 'vencer_exclusividad':
-        return _vencer(
-            event.get('cedula'),
-            event.get('inmobiliaria_id'),
-            event.get('proyecto_id'),
-        )
+        cedula = event.get('cedula')
+        inmobiliaria_id = event.get('inmobiliaria_id')
+        proyecto_id = event.get('proyecto_id')
+        
+        result = _vencer(cedula, inmobiliaria_id, proyecto_id)
+        
+        # Eliminar schedule después de ejecutar
+        _eliminar_schedule_post_ejecucion(cedula, inmobiliaria_id, proyecto_id)
+        
+        return result
 
 
 def _vencer(cedula, inmobiliaria_id, proyecto_id):
@@ -68,3 +74,23 @@ def _vencer(cedula, inmobiliaria_id, proyecto_id):
         )
 
     _publicar_evento('exclusividad_vencida', proyecto_id, inmobiliaria_id, {'cedula': cedula})
+
+
+def _schedule_name(cedula, inmobiliaria_id, proyecto_id):
+    """Genera nombre de schedule consistente con utils/scheduler.py"""
+    safe_cedula = cedula.replace('/', '-').replace('#', '-')
+    safe_inmo = inmobiliaria_id.replace('/', '-').replace('#', '-').replace('INMOBILIARIA', 'I')
+    safe_proy = proyecto_id.replace('/', '-').replace('#', '-').replace('PROYECTO', 'P')
+    return f"exclusividad-{safe_cedula}-{safe_inmo}-{safe_proy}"
+
+
+def _eliminar_schedule_post_ejecucion(cedula, inmobiliaria_id, proyecto_id):
+    """Elimina el schedule después de ejecutar el vencimiento."""
+    try:
+        name = _schedule_name(cedula, inmobiliaria_id, proyecto_id)
+        scheduler.delete_schedule(Name=name)
+        print(f'✓ Schedule eliminado post-ejecución: {name}')
+    except scheduler.exceptions.ResourceNotFoundException:
+        print(f'⚠ Schedule ya eliminado: {_schedule_name(cedula, inmobiliaria_id, proyecto_id)}')
+    except Exception as e:
+        print(f'✗ Error eliminando schedule de exclusividad para {cedula}: {type(e).__name__}: {e}')

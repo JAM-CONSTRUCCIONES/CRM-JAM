@@ -41,7 +41,7 @@ const HistorialEstatusDrawer = ({ open, proceso, clienteNombre, onClose }: Props
       }
       open={open}
       onClose={onClose}
-      width={420}
+      size="default"
     >
       {historial.length === 0 ? (
         <Empty description="Sin cambios de estatus aún" />

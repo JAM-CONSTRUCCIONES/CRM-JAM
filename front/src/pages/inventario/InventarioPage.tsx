@@ -7,6 +7,7 @@ import TablaUnidades from '../../components/inventario/TablaUnidades';
 import DrawerEtapas from '../../components/inventario/DrawerEtapas';
 import ModalUnidad from '../../components/inventario/ModalUnidad';
 import ModalBloqueo from '../../components/inventario/ModalBloqueo';
+import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloqueoAdmin';
 import { ESTADO_UNIDAD_CONFIG, projectGradient } from '../../constants/estados';
 import { eliminarProyecto } from '../../services/proyectos.service';
 import { bloquearUnidad } from '../../services/bloqueos.service';
@@ -50,6 +51,10 @@ const InventarioPage = () => {
   const [guardandoBloqueo, setGuardandoBloqueo] = useState(false);
   const [clienteEncontrado, setClienteEncontrado] = useState<Cliente | null>(null);
   const [buscandoCliente, setBuscandoCliente] = useState(false);
+
+  // Modal crear bloqueo admin (manual)
+  const [modalCrearBloqueoAdmin, setModalCrearBloqueoAdmin] = useState(false);
+  const [unidadParaBloqueoAdmin, setUnidadParaBloqueoAdmin] = useState<Unidad | null>(null);
 
   // Form refs para modales que necesitan reset externo
   const [formProyecto] = Form.useForm();
@@ -135,6 +140,46 @@ const InventarioPage = () => {
       const s = err?.response?.statusCode ?? err?.response?.status;
       const msg = err?.response?.data?.message || err?.message;
       if (s === 409) message.error(msg || 'La unidad ya no está disponible o el cliente tiene exclusividad con otra inmobiliaria');
+      else if (s === 429) message.warning(msg || 'No puedes re-bloquear esta unidad antes de 24h');
+      else message.error(msg || 'Error al procesar la operación');
+    } finally { setGuardandoBloqueo(false); }
+  };
+
+  const handleCrearBloqueoAdmin = async (values: any) => {
+    if (!unidadParaBloqueoAdmin) return;
+    setGuardandoBloqueo(true);
+    try {
+      const payload: any = {
+        proyecto_id: inv.proyectoId,
+        unidad_id: unidadParaBloqueoAdmin.unidad_id,
+        forzar_admin: true, // El admin puede saltarse validaciones de exclusividad
+        ...values,
+      };
+      
+      let intentos = 0;
+      while (intentos < 2) {
+        try { await bloquearUnidad(payload); break; }
+        catch (err: any) {
+          const s = err?.response?.statusCode ?? err?.response?.status;
+          if ((s === 502 || s === 503) && intentos === 0) { intentos++; await new Promise(r => setTimeout(r, 1500)); continue; }
+          throw err;
+        }
+      }
+      
+      const tieneCliente = values.cedula;
+      message.success(
+        tieneCliente 
+          ? `Unidad ${unidadParaBloqueoAdmin.id_unidad} bloqueada y cliente asignado`
+          : `Unidad ${unidadParaBloqueoAdmin.id_unidad} bloqueada sin cliente`
+      );
+      
+      setModalCrearBloqueoAdmin(false);
+      setUnidadParaBloqueoAdmin(null);
+      await inv.cargarUnidades();
+    } catch (err: any) {
+      const s = err?.response?.statusCode ?? err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message;
+      if (s === 409) message.error(msg || 'La unidad ya no está disponible');
       else if (s === 429) message.warning(msg || 'No puedes re-bloquear esta unidad antes de 24h');
       else message.error(msg || 'Error al procesar la operación');
     } finally { setGuardandoBloqueo(false); }
@@ -332,6 +377,7 @@ const InventarioPage = () => {
             onEditar={abrirEditarUnidad}
             onEliminar={inv.handleEliminarUnidad}
             onBloquear={isPreview ? undefined : (u => { setUnidadABloquear(u); setClienteEncontrado(null); setModalBloqueo(true); })}
+            onCrearBloqueoAdmin={isPreview || !inv.isAdmin ? undefined : (u => { setUnidadParaBloqueoAdmin(u); setModalCrearBloqueoAdmin(true); })}
           />
         </>
       )}
@@ -377,6 +423,16 @@ const InventarioPage = () => {
         onCancel={() => { setModalBloqueo(false); setClienteEncontrado(null); }}
         onBuscar={buscarCliente}
         onBloquear={handleBloquear}
+      />
+
+      <ModalCrearBloqueoAdmin
+        open={modalCrearBloqueoAdmin}
+        unidad={unidadParaBloqueoAdmin}
+        proyectoId={inv.proyectoId}
+        inmobiliarias={inv.inmobiliarias}
+        onCancel={() => { setModalCrearBloqueoAdmin(false); setUnidadParaBloqueoAdmin(null); }}
+        onBloquear={handleCrearBloqueoAdmin}
+        guardando={guardandoBloqueo}
       />
     </div>
   );

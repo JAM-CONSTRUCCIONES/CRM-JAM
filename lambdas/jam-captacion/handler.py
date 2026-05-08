@@ -41,10 +41,15 @@ def handler(event, context):
     if is_admin and not require_admin(event):
         return forbidden()
 
+    if method == 'GET' and path == '/admin/clientes/buscar':
+        # Nuevo endpoint de búsqueda general
+        return clientes.buscar_clientes_admin(event)
+
     if method == 'GET' and path == '/admin/clientes':
         return clientes.listar_admin(event)
 
-    if method == 'GET' and path == '/admin/clientes/buscar':
+    if method == 'GET' and path == '/admin/clientes/buscar-cedula':
+        # Endpoint legacy para búsqueda por cédula específica
         qs_params = event.get('queryStringParameters') or {}
         cedula_buscar = qs_params.get('cedula', '').strip()
         if not cedula_buscar:

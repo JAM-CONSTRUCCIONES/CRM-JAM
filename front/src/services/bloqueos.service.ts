@@ -4,6 +4,8 @@ import type { Bloqueo, HistorialBloqueo } from '../types';
 export const bloquearUnidad = (data: {
   proyecto_id: string;
   unidad_id: string;
+  inmobiliaria_id?: string; // Para que el admin pueda especificar la inmobiliaria
+  forzar_admin?: boolean; // Para que el admin pueda saltarse validaciones de exclusividad
   // Datos del cliente — opcionales si se bloquea sin cliente
   cedula?: string;
   nombres?: string;

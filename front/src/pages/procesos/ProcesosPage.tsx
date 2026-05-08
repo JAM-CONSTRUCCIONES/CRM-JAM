@@ -382,6 +382,15 @@ const ProcesosPage = () => {
     const { vencida, proxima, dias } = alertaInfo(p);
     const puedeAvanzar = !esInmobiliaria && p.estado !== 'vendida' && p.estado !== 'desvinculado';
     const esBloqueada = p.estado_unidad === 'bloqueada';
+    
+    // Calcular tiempo restante si está bloqueada
+    let tiempoRestante = 0;
+    let colorTiempo = '#52c41a';
+    if (esBloqueada && p.fecha_liberacion_unidad) {
+      tiempoRestante = Math.max(0, Math.floor((new Date(p.fecha_liberacion_unidad).getTime() - Date.now()) / 1000));
+      colorTiempo = tiempoRestante <= 0 ? '#ff4d4f' : tiempoRestante < 5 * 3600 ? '#faad14' : '#52c41a';
+    }
+    
     const menuItems = [
       ...(puedeAvanzar ? [{ key: 'estatus', icon: <SwapOutlined />, label: 'Cambiar estatus', onClick: () => setEstatusModal(p) }] : []),
       { key: 'historial', icon: <HistoryOutlined />, label: 'Ver historial', onClick: () => { setHistorialProceso(p); setHistorialNombre(nombreCliente(p)); } },
@@ -425,6 +434,11 @@ const ProcesosPage = () => {
                 <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
               </Tooltip>
               {renderTagUnidad(p)}
+              {esBloqueada && p.fecha_liberacion_unidad && (
+                <Text style={{ fontSize: 12, color: colorTiempo, fontWeight: 600 }}>
+                  <ClockCircleOutlined style={{ marginRight: 4 }} />{formatTiempo(tiempoRestante)}
+                </Text>
+              )}
             </Space>
             <div style={{ marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <Text type="secondary" style={{ fontSize: 11 }}>{proyectoNombre(p.proyecto_id)}</Text>
@@ -444,6 +458,15 @@ const ProcesosPage = () => {
     const { vencida, proxima } = alertaInfo(p);
     const puedeAvanzar = !esInmobiliaria && p.estado !== 'vendida' && p.estado !== 'desvinculado';
     const esBloqueada = p.estado_unidad === 'bloqueada';
+    
+    // Calcular tiempo restante si está bloqueada
+    let tiempoRestante = 0;
+    let colorTiempo = '#52c41a';
+    if (esBloqueada && p.fecha_liberacion_unidad) {
+      tiempoRestante = Math.max(0, Math.floor((new Date(p.fecha_liberacion_unidad).getTime() - Date.now()) / 1000));
+      colorTiempo = tiempoRestante <= 0 ? '#ff4d4f' : tiempoRestante < 5 * 3600 ? '#faad14' : '#52c41a';
+    }
+    
     return (
       <div key={`${p.pk}#${p.sk}`} style={{
         display: 'grid',
@@ -463,6 +486,11 @@ const ProcesosPage = () => {
               <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
             </Tooltip>
             {renderTagUnidad(p)}
+            {esBloqueada && p.fecha_liberacion_unidad && (
+              <Text style={{ fontSize: 12, color: colorTiempo, fontWeight: 600 }}>
+                <ClockCircleOutlined style={{ marginRight: 4 }} />{formatTiempo(tiempoRestante)}
+              </Text>
+            )}
             {vencida && <Tooltip title="Separación vencida (30 días sin pago)"><span style={{ fontSize: 12, color: '#cf1322' }}>⚠️</span></Tooltip>}
             {proxima && <Tooltip title="Próximo a vencer"><span style={{ fontSize: 12, color: '#d46b08' }}>⏰</span></Tooltip>}
           </Space>

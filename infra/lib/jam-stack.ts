@@ -12,6 +12,8 @@ import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as backup from 'aws-cdk-lib/aws-backup';
 import * as events from 'aws-cdk-lib/aws-events';
+import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
+import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
@@ -381,6 +383,23 @@ export class JamStack extends cdk.Stack {
       resources: [captacionLambdaArn],
     }));
 
+    // Agregar variables de entorno y permisos para schedules en jam-proyectos
+    proyectosLambda.addEnvironment('HISTORIAL_TABLE', historialTable.tableName);
+    proyectosLambda.addEnvironment('SCHEDULER_ROLE_ARN', schedulerRole.roleArn);
+    proyectosLambda.addEnvironment('BLOQUEOS_LAMBDA_ARN', bloqueosLambdaArn);
+    historialTable.grantReadWriteData(proyectosLambda);
+
+    // Permisos para crear y eliminar schedules en jam-proyectos
+    proyectosLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['scheduler:CreateSchedule', 'scheduler:DeleteSchedule'],
+      resources: ['*'],
+    }));
+
+    proyectosLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [schedulerRole.roleArn],
+    }));
+
     // ─── LAMBDA jam-crm ──────────────────────────────────────────────────────
 
     const crmLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:jam-crm`;
@@ -420,6 +439,153 @@ export class JamStack extends cdk.Stack {
       actions: ['lambda:InvokeFunction'],
       resources: [crmLambdaArn],
     }));
+
+    // ─── LAMBDA jam-transferir-cliente ───────────────────────────────────────
+
+    const transferirClienteLambda = new lambda.Function(this, 'JamTransferirClienteLambda', {
+      functionName: 'jam-transferir-cliente',
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-transferir-cliente')),
+      timeout: cdk.Duration.seconds(60),
+      environment: {
+        CLIENTES_TABLE: clientesTable.tableName,
+        PROCESOS_TABLE: procesosTable.tableName,
+        INVENTARIO_TABLE: inventarioTable.tableName,
+        BLOQUEOS_LAMBDA_ARN: bloqueosLambdaArn,
+        SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
+      },
+    });
+
+    clientesTable.grantReadWriteData(transferirClienteLambda);
+    procesosTable.grantReadWriteData(transferirClienteLambda);
+    inventarioTable.grantReadWriteData(transferirClienteLambda);
+    
+    // Permisos para crear schedules
+    transferirClienteLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['scheduler:CreateSchedule', 'scheduler:DeleteSchedule'],
+      resources: ['*'],
+    }));
+    
+    transferirClienteLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [schedulerRole.roleArn],
+    }));
+
+    // ─── STEP FUNCTION: Transferir Cliente ───────────────────────────────────
+
+    // Paso 1: Validar
+    const validarStep = new tasks.LambdaInvoke(this, 'ValidarTransferencia', {
+      lambdaFunction: transferirClienteLambda,
+      payload: sfn.TaskInput.fromObject({
+        action: 'validar',
+        'cedula.$': '$.cedula',
+        'proyecto_id.$': '$.proyecto_id',
+        'inmobiliaria_origen.$': '$.inmobiliaria_origen',
+        'inmobiliaria_destino.$': '$.inmobiliaria_destino',
+      }),
+      resultPath: '$.validacion',
+      outputPath: '$.validacion.Payload',
+    });
+
+    // Paso 2: Eliminar registros antiguos
+    const eliminarStep = new tasks.LambdaInvoke(this, 'EliminarRegistros', {
+      lambdaFunction: transferirClienteLambda,
+      payload: sfn.TaskInput.fromObject({
+        action: 'eliminar',
+        'cedula.$': '$.cedula',
+        'proyecto_id.$': '$.proyecto_id',
+        'inmobiliaria_origen.$': '$.inmobiliaria_origen',
+        'inmobiliaria_destino.$': '$.inmobiliaria_destino',
+        'cliente.$': '$.cliente',
+        'procesos.$': '$.procesos',
+        'bloqueos.$': '$.bloqueos',
+      }),
+      resultPath: '$.eliminacion',
+      outputPath: '$.eliminacion.Payload',
+    });
+
+    // Paso 3: Crear registros nuevos
+    const crearStep = new tasks.LambdaInvoke(this, 'CrearRegistros', {
+      lambdaFunction: transferirClienteLambda,
+      payload: sfn.TaskInput.fromObject({
+        action: 'crear',
+        'cedula.$': '$.cedula',
+        'proyecto_id.$': '$.proyecto_id',
+        'inmobiliaria_origen.$': '$.inmobiliaria_origen',
+        'inmobiliaria_destino.$': '$.inmobiliaria_destino',
+        'cliente.$': '$.cliente',
+        'procesos.$': '$.procesos',
+        'bloqueos.$': '$.bloqueos',
+      }),
+      resultPath: '$.creacion',
+      outputPath: '$.creacion.Payload',
+    });
+
+    // Manejo de error en validación
+    const validacionFallida = new sfn.Fail(this, 'ValidacionFallida', {
+      cause: 'La validación de la transferencia falló',
+      error: 'VALIDACION_ERROR',
+    });
+
+    // Encadenar eliminar -> crear
+    eliminarStep.next(crearStep);
+
+    // Choice para verificar si la validación fue exitosa
+    const verificarValidacion = new sfn.Choice(this, 'VerificarValidacion')
+      .when(sfn.Condition.booleanEquals('$.valido', false), validacionFallida)
+      .otherwise(eliminarStep);
+
+    // Definir el flujo: validar -> verificar -> (eliminar -> crear) o (fail)
+    const definition = validarStep.next(verificarValidacion);
+
+    const transferirClienteStateMachine = new sfn.StateMachine(this, 'TransferirClienteStateMachine', {
+      stateMachineName: 'jam-transferir-cliente-workflow',
+      definition,
+      timeout: cdk.Duration.minutes(5),
+    });
+
+    // Lambda para iniciar la Step Function desde API Gateway
+    const iniciarTransferenciaLambda = new lambda.Function(this, 'JamIniciarTransferenciaLambda', {
+      functionName: 'jam-iniciar-transferencia',
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'index.handler',
+      code: lambda.Code.fromInline(`
+import json
+import boto3
+import os
+
+sfn = boto3.client('stepfunctions')
+STATE_MACHINE_ARN = os.environ['STATE_MACHINE_ARN']
+
+def handler(event, context):
+    body = json.loads(event.get('body', '{}'))
+    
+    # Iniciar la ejecución de la Step Function
+    response = sfn.start_execution(
+        stateMachineArn=STATE_MACHINE_ARN,
+        input=json.dumps(body)
+    )
+    
+    return {
+        'statusCode': 200,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+        },
+        'body': json.dumps({
+            'message': 'Transferencia iniciada',
+            'execution_arn': response['executionArn']
+        })
+    }
+`),
+      timeout: cdk.Duration.seconds(10),
+      environment: {
+        STATE_MACHINE_ARN: transferirClienteStateMachine.stateMachineArn,
+      },
+    });
+
+    transferirClienteStateMachine.grantStartExecution(iniciarTransferenciaLambda);
 
     // ─── API GATEWAY ────────────────────────────────────────────────────────
 
@@ -560,6 +726,12 @@ export class JamStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // /admin/inmobiliarias/{inmo_id}/imagen (presigned URL para subir imagen)
+    adminInmoResource.addResource('imagen').addMethod('POST', authLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     const adminInmoUsuariosResource = adminInmoResource.addResource('usuarios');
     adminInmoUsuariosResource.addMethod('GET', authLambdaIntegration, {
       authorizer: cognitoAuthorizer,
@@ -674,6 +846,13 @@ export class JamStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
     adminClienteProcesosResource.addMethod('POST', crmLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
+    // /admin/clientes/{cedula}/proyecto/{proyecto_id}/transferir
+    const iniciarTransferenciaIntegration = new apigateway.LambdaIntegration(iniciarTransferenciaLambda);
+    adminClienteProyectoResource.addResource('transferir').addMethod('POST', iniciarTransferenciaIntegration, {
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
@@ -876,9 +1055,16 @@ export class JamStack extends cdk.Stack {
     proyectosLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
     proyectosLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
 
+    // Permisos: authLambda puede generar presigned URLs para imágenes de inmobiliarias
+    assetsBucket.grantReadWrite(authLambda);
+    authLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
+    authLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
+
     // Permisos: proyectosLambda puede leer/escribir en archivos (Excel migrations)
     archivosBucket.grantReadWrite(proyectosLambda);
     proyectosLambda.addEnvironment('ARCHIVOS_BUCKET', archivosBucket.bucketName);
+    proyectosLambda.addEnvironment('SQS_URL', notificacionesQueue.queueUrl);
+    notificacionesQueue.grantSendMessages(proyectosLambda);
     // Permisos adicionales para DynamoDB (clientes, procesos, historial, usuarios write)
     clientesTable.grantReadWriteData(proyectosLambda);
     procesosTable.grantReadWriteData(proyectosLambda);
@@ -991,8 +1177,8 @@ export class JamStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-notificaciones')),
       timeout: cdk.Duration.seconds(30),
       environment: {
-        ADMIN_EMAIL: 'alvarez@methodicatechnology.com',
-        FROM_EMAIL: 'alvarez@methodicatechnology.com',
+        ADMIN_EMAIL: 'Venta@jamconstruccionesrl.com',
+        FROM_EMAIL: 'Venta@jamconstruccionesrl.com',
         USUARIOS_TABLE: usuariosTable.tableName,
         CLIENTES_TABLE: clientesTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,

@@ -7,6 +7,7 @@ export interface Inmobiliaria {
   proyectos: string[];
   activo: boolean;
   creado_en: string;
+  imagen_url?: string;
 }
 
 export interface UsuarioInmo {
@@ -27,8 +28,11 @@ export const getInmobiliarias = (): Promise<Inmobiliaria[]> =>
 export const crearInmobiliaria = (data: { nombre: string; correos: string[]; proyectos: string[] }): Promise<Inmobiliaria> =>
   apiPost('/admin/inmobiliarias', data);
 
-export const actualizarInmobiliaria = (pk: string, data: { nombre?: string; correos?: string[]; proyectos?: string[] }): Promise<void> =>
+export const actualizarInmobiliaria = (pk: string, data: { nombre?: string; correos?: string[]; proyectos?: string[]; imagen_url?: string }): Promise<void> =>
   apiPut(`/admin/inmobiliarias/${inmoId(pk)}`, data);
+
+export const getPresignedImagenInmobiliaria = (pk: string, contentType = 'image/jpeg'): Promise<{ upload_url: string; public_url: string; key: string }> =>
+  apiPost(`/admin/inmobiliarias/${inmoId(pk)}/imagen`, { content_type: contentType });
 
 export const deshabilitarInmobiliaria = (pk: string): Promise<void> =>
   apiPut(`/admin/inmobiliarias/${inmoId(pk)}/deshabilitar`, {});

@@ -70,9 +70,24 @@ const handleApiError = async (error: any): Promise<never> => {
 
 export const apiGet = async <T>(path: string): Promise<T> => {
   try {
+    // Separar path y query params si existen
+    const [basePath, queryString] = path.split('?');
+    const queryParams: Record<string, string> = {};
+    
+    if (queryString) {
+      const params = new URLSearchParams(queryString);
+      params.forEach((value, key) => {
+        queryParams[key] = value;
+      });
+    }
+    
     const { body } = await get({
-      apiName: API_NAME, path,
-      options: { headers: await authHeaders() },
+      apiName: API_NAME, 
+      path: basePath,
+      options: { 
+        headers: await authHeaders(),
+        queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+      },
     }).response;
     return (await body.json()) as T;
   } catch (error) {

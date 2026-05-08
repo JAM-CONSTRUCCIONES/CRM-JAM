@@ -24,13 +24,15 @@ interface Props {
   onEditar: (u: Unidad) => void;
   onEliminar: (u: Unidad) => void;
   onBloquear?: (u: Unidad) => void;
+  onCrearBloqueoAdmin?: (u: Unidad) => void;
 }
 
 // ── Card móvil ────────────────────────────────────────────────────────────────
-const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear }: {
+const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: {
   u: Unidad; etapas: Etapa[]; isAdmin: boolean; isInmobiliaria: boolean; canEdit?: boolean;
   inmoNombre: (id: string) => string;
   onEditar: (u: Unidad) => void; onEliminar: (u: Unidad) => void; onBloquear?: (u: Unidad) => void;
+  onCrearBloqueoAdmin?: (u: Unidad) => void;
 }) => {
   const cfg = ESTADO_UNIDAD_CONFIG[u.estado] ?? { label: u.estado, tagColor: 'default' };
   const etapa = etapas.find(e => e.etapa_id === u.etapa_id);
@@ -130,13 +132,20 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
         {isInmobiliaria && u.estado === 'bloqueada' && (
           <Tag icon={<LockOutlined />} color="warning" style={{ width: '100%', textAlign: 'center', padding: '4px 0' }}>Bloqueada</Tag>
         )}
+        
+        {/* Crear bloqueo button (admin) */}
+        {isAdmin && !isInmobiliaria && u.estado === 'disponible' && onCrearBloqueoAdmin && (
+          <Button size="small" icon={<LockOutlined />} type="primary" block onClick={() => onCrearBloqueoAdmin(u)}>
+            Crear bloqueo
+          </Button>
+        )}
       </div>
     </div>
   );
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
-const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear }: Props) => {
+const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: Props) => {
   const { md } = useBreakpoint();
 
   // Móvil → cards
@@ -148,7 +157,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
         {unidades.map(u => (
           <UnidadCard key={u.unidad_id} u={u} etapas={etapas}
             isAdmin={isAdmin} isInmobiliaria={isInmobiliaria} canEdit={canEdit} inmoNombre={inmoNombre}
-            onEditar={onEditar} onEliminar={onEliminar} onBloquear={onBloquear} />
+            onEditar={onEditar} onEliminar={onEliminar} onBloquear={onBloquear} onCrearBloqueoAdmin={onCrearBloqueoAdmin} />
         ))}
       </div>
     );
@@ -250,6 +259,13 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
       render: (_: any, u: Unidad) => {
         if (u.estado !== 'disponible') return null;
         return <Button size="small" icon={<LockOutlined />} type="primary" ghost onClick={() => onBloquear?.(u)}>Bloquear</Button>;
+      },
+    }] : []),
+    ...(isAdmin && !isInmobiliaria && onCrearBloqueoAdmin ? [{
+      title: '', key: 'crear_bloqueo', width: 130,
+      render: (_: any, u: Unidad) => {
+        if (u.estado !== 'disponible') return null;
+        return <Button size="small" icon={<LockOutlined />} type="primary" onClick={() => onCrearBloqueoAdmin(u)}>Crear bloqueo</Button>;
       },
     }] : []),
   ];

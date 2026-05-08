@@ -1,16 +1,17 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Typography, Table, Tag, Button, Modal, Form, Input, Select,
-  DatePicker, message, Space, Tooltip, Spin, Grid,
+  DatePicker, message, Space, Tooltip, Spin, Grid, Alert, Progress,
 } from 'antd';
 import {
   PlusOutlined, ReloadOutlined, UserOutlined, HistoryOutlined,
-  SwapOutlined, SearchOutlined, EditOutlined, EyeOutlined,
+  SwapOutlined, SearchOutlined, EditOutlined, EyeOutlined, BankOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
-  getClientes, getClientesAdmin, buscarClienteAdmin,
-  registrarCliente, actualizarClienteAdmin,
+  getClientes, getClientesAdmin, buscarClienteAdmin, buscarClientesAdmin,
+  registrarCliente, actualizarClienteAdmin, transferirClienteInmobiliaria,
 } from '../../services/clientes.service';
 import { getProcesosCliente, getMisProcesos, cambiarEstatus } from '../../services/crm.service';
 import { getProyectos } from '../../services/proyectos.service';
@@ -25,6 +26,23 @@ import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { useBreakpoint } = Grid;
+
+// Función para calcular días restantes de exclusividad
+const calcularDiasRestantes = (fechaVencimiento: string): number => {
+  const ahora = new Date();
+  const vencimiento = new Date(fechaVencimiento);
+  const diff = vencimiento.getTime() - ahora.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+};
+
+// Función para obtener color según días restantes
+const getColorExclusividad = (dias: number): string => {
+  if (dias <= 0) return '#ff4d4f'; // Rojo - vencida
+  if (dias <= 15) return '#faad14'; // Naranja - próxima a vencer
+  if (dias <= 30) return '#1677ff'; // Azul - menos de 1 mes
+  return '#52c41a'; // Verde - más de 1 mes
+};
+
 interface ClienteAgrupado {
   cedula: string;
   nombres: string;
@@ -58,6 +76,8 @@ const ClientesPage = () => {
   const [busqueda, setBusqueda] = useState('');
   const [proyectoFiltro, setProyectoFiltro] = useState<string | undefined>();
   const [inmoFiltro, setInmoFiltro] = useState<string | undefined>();
+  const [modoVista, setModoVista] = useState<'lista' | 'busqueda'>('lista');
+  const [tipoBusqueda, setTipoBusqueda] = useState<'nombre' | 'cedula'>('nombre');
 
   // Drawer de detalle por cédula (admin)
   const [drawerCedula, setDrawerCedula] = useState<string | null>(null);
@@ -78,6 +98,15 @@ const ClientesPage = () => {
   const [estatusCliente, setEstatusCliente] = useState<Cliente | null>(null);
   const [historialProceso, setHistorialProceso] = useState<Proceso | null>(null);
   const [historialNombre, setHistorialNombre] = useState('');
+  
+  // Modal transferir inmobiliaria
+  const [transferirModal, setTransferirModal] = useState(false);
+  const [clienteTransferir, setClienteTransferir] = useState<Cliente | null>(null);
+  const [formTransferir] = Form.useForm();
+  const [transfiriendo, setTransfiriendo] = useState(false);
+
+  // Ref para debounce de búsqueda
+  const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const cargar = useCallback(async (proyId?: string, inmoId?: string, token?: string) => {
     setLoading(true);
@@ -113,8 +142,77 @@ const ClientesPage = () => {
     )?.nombre ?? id;
   };
 
-  // Filtro local por búsqueda
-  const clientesFiltrados = busqueda.trim()
+  // Manejar búsqueda con lógica híbrida
+  const handleBusqueda = (valor: string) => {
+    setBusqueda(valor);
+    
+    // Limpiar timer anterior
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Sin búsqueda: volver a modo lista
+    if (valor.trim().length === 0) {
+      setModoVista('lista');
+      setNextToken(undefined);
+      cargar(proyectoFiltro, inmoFiltro);
+      return;
+    }
+    
+    // Búsqueda muy corta (1 carácter): filtrar localmente sin hacer request
+    if (valor.trim().length < 2) {
+      setModoVista('lista');
+      return;
+    }
+    
+    // Búsqueda >= 2 caracteres: buscar en backend
+    setModoVista('busqueda');
+    
+    debounceTimerRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const resultados = await buscarClientesAdmin(
+          valor,
+          tipoBusqueda,
+          proyectoFiltro,
+          inmoFiltro
+        );
+        setClientes(resultados);
+        setNextToken(undefined); // No hay paginación en búsqueda
+      } catch {
+        message.error('Error en la búsqueda');
+      } finally {
+        setLoading(false);
+      }
+    }, 500); // Espera 500ms después de que el usuario deje de escribir
+  };
+
+  // Función para re-ejecutar búsqueda cuando cambian los filtros
+  // const reejecutarBusqueda = useCallback(() => {
+  //   if (modoVista === 'busqueda' && busqueda.trim().length >= 2) {
+  //     // Si estamos en modo búsqueda, re-ejecutar la búsqueda con los nuevos filtros
+  //     setLoading(true);
+  //     buscarClientesAdmin(
+  //       busqueda,
+  //       tipoBusqueda,
+  //       proyectoFiltro,
+  //       inmoFiltro
+  //     ).then(resultados => {
+  //       setClientes(resultados);
+  //       setNextToken(undefined);
+  //     }).catch(() => {
+  //       message.error('Error en la búsqueda');
+  //     }).finally(() => {
+  //       setLoading(false);
+  //     });
+  //   } else {
+  //     // Si no estamos en búsqueda, cargar normalmente
+  //     cargar(proyectoFiltro, inmoFiltro);
+  //   }
+  // }, [modoVista, busqueda, tipoBusqueda, proyectoFiltro, inmoFiltro, cargar]);
+
+  // Filtro local por búsqueda (solo para búsquedas de 1 carácter)
+  const clientesFiltrados = (busqueda.trim().length === 1 && modoVista === 'lista')
     ? clientes.filter(c =>
         c.cedula.toLowerCase().includes(busqueda.toLowerCase()) ||
         `${c.nombres} ${c.apellidos}`.toLowerCase().includes(busqueda.toLowerCase())
@@ -224,6 +322,42 @@ const ClientesPage = () => {
     }
   };
 
+  const abrirTransferir = (cliente: Cliente) => {
+    setClienteTransferir(cliente);
+    formTransferir.resetFields();
+    setTransferirModal(true);
+  };
+
+  const handleTransferir = async (values: { inmobiliaria_destino: string }) => {
+    if (!clienteTransferir) return;
+    setTransfiriendo(true);
+    try {
+      await transferirClienteInmobiliaria(
+        clienteTransferir.cedula,
+        clienteTransferir.proyecto_id,
+        clienteTransferir.inmobiliaria_id,
+        values.inmobiliaria_destino
+      );
+      message.success('Transferencia completada exitosamente. Actualizando datos...');
+      setTransferirModal(false);
+      setClienteTransferir(null);
+      // Esperar 5 segundos para que la Step Function complete todos los pasos
+      setTimeout(() => {
+        if (drawerCedula) {
+          abrirDetalleCedula(drawerCedula);
+        }
+        cargar(proyectoFiltro, inmoFiltro);
+        message.info('Datos actualizados. Los bloqueos se han recreado con 48 horas adicionales.');
+      }, 5000);
+    } catch (err: any) {
+      console.error('Error al transferir cliente:', err);
+      const errorMessage = err?.message || 'Error al transferir cliente';
+      message.error(errorMessage);
+    } finally {
+      setTransfiriendo(false);
+    }
+  };
+
   // ── Columnas tabla admin (agrupada por cédula) ──
   const columnasAdmin = [
     {
@@ -278,9 +412,20 @@ const ClientesPage = () => {
     { title: 'Proyecto', key: 'proyecto', render: (_: unknown, r: Cliente) => proyectoNombre(r.proyecto_id) },
     {
       title: 'Exclusividad', key: 'excl',
-      render: (_: unknown, r: Cliente) => r.exclusividad_activa
-        ? <Tag color="green">Activa hasta {dayjs(r.fecha_vencimiento).format('DD/MM/YYYY')}</Tag>
-        : <Tag>Vencida</Tag>,
+      render: (_: unknown, r: Cliente) => {
+        if (!r.exclusividad_activa) {
+          return <Tag color="default">Vencida</Tag>;
+        }
+        const diasRestantes = calcularDiasRestantes(r.fecha_vencimiento);
+        const color = getColorExclusividad(diasRestantes);
+        return (
+          <Tooltip title={`Vence: ${dayjs(r.fecha_vencimiento).format('DD/MM/YYYY HH:mm')}`}>
+            <Tag color={color} icon={<ClockCircleOutlined />}>
+              {diasRestantes > 0 ? `${diasRestantes} día${diasRestantes !== 1 ? 's' : ''}` : 'Vencida'}
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     { title: 'Captado', dataIndex: 'fecha_captacion', key: 'fc', render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
     { title: '', key: 'acc', render: (_: unknown, r: Cliente) => <Button size="small" type="link" onClick={() => abrirDrawerInmo(r)}>Ver detalle</Button> },
@@ -304,22 +449,106 @@ const ClientesPage = () => {
           </Space>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-          <Input prefix={<SearchOutlined />} placeholder="Buscar por nombre o cédula..."
-            style={{ width: isMobile ? '100%' : 240 }} value={busqueda} onChange={e => setBusqueda(e.target.value)} allowClear />
+          <Select 
+            value={tipoBusqueda} 
+            onChange={setTipoBusqueda}
+            style={{ width: isMobile ? '100%' : 120 }}
+          >
+            <Option value="nombre">Por nombre</Option>
+            <Option value="cedula">Por cédula</Option>
+          </Select>
+          <Input 
+            prefix={<SearchOutlined />} 
+            placeholder={tipoBusqueda === 'nombre' ? 'Buscar por nombre...' : 'Buscar por cédula (ej: V-123)...'}
+            style={{ width: isMobile ? '100%' : 240 }} 
+            value={busqueda} 
+            onChange={e => handleBusqueda(e.target.value)} 
+            allowClear 
+            onClear={() => handleBusqueda('')} 
+          />
           <Select allowClear placeholder="Proyecto" style={{ width: isMobile ? '100%' : 180 }}
             value={proyectoFiltro}
-            onChange={(v) => { setProyectoFiltro(v); setNextToken(undefined); cargar(v, inmoFiltro); }}>
+            onChange={(v) => { 
+              setProyectoFiltro(v); 
+              setNextToken(undefined); 
+              
+              // Si estamos en modo búsqueda, re-ejecutar con el nuevo filtro
+              if (modoVista === 'busqueda' && busqueda.trim().length >= 2) {
+                setLoading(true);
+                buscarClientesAdmin(
+                  busqueda,
+                  tipoBusqueda,
+                  v,  // Usar el nuevo valor directamente
+                  inmoFiltro
+                ).then(resultados => {
+                  setClientes(resultados);
+                  setNextToken(undefined);
+                }).catch(() => {
+                  message.error('Error en la búsqueda');
+                }).finally(() => {
+                  setLoading(false);
+                });
+              } else {
+                cargar(v, inmoFiltro);
+              }
+            }}>
             {proyectos.map(p => <Option key={p.proyecto_id} value={p.proyecto_id}>{p.nombre}</Option>)}
           </Select>
           {isAdmin && (
             <Select allowClear placeholder="Inmobiliaria" style={{ width: isMobile ? '100%' : 180 }}
               value={inmoFiltro}
-              onChange={(v) => { setInmoFiltro(v); setNextToken(undefined); cargar(proyectoFiltro, v); }}>
+              onChange={(v) => { 
+                setInmoFiltro(v); 
+                setNextToken(undefined); 
+                
+                // Si estamos en modo búsqueda, re-ejecutar con el nuevo filtro
+                if (modoVista === 'busqueda' && busqueda.trim().length >= 2) {
+                  setLoading(true);
+                  buscarClientesAdmin(
+                    busqueda,
+                    tipoBusqueda,
+                    proyectoFiltro,
+                    v  // Usar el nuevo valor directamente
+                  ).then(resultados => {
+                    setClientes(resultados);
+                    setNextToken(undefined);
+                  }).catch(() => {
+                    message.error('Error en la búsqueda');
+                  }).finally(() => {
+                    setLoading(false);
+                  });
+                } else {
+                  cargar(proyectoFiltro, v);
+                }
+              }}>
               {inmobiliarias.map(i => <Option key={i.pk} value={i.pk}>{i.nombre}</Option>)}
             </Select>
           )}
         </div>
       </div>
+
+      {/* Banner de modo búsqueda */}
+      {modoVista === 'busqueda' && (
+        <Alert
+          message={
+            <span>
+              Mostrando resultados de búsqueda por <strong>{tipoBusqueda === 'nombre' ? 'nombre' : 'cédula'}</strong> para <strong>"{busqueda}"</strong>
+              {clientes.length === 100 && ' (máximo 100 resultados)'}
+              {clientes.length === 0 && ' - No se encontraron resultados'}
+            </span>
+          }
+          type="info"
+          showIcon
+          closable
+          onClose={() => {
+            setBusqueda('');
+            setModoVista('lista');
+            setNextToken(undefined);
+            cargar(proyectoFiltro, inmoFiltro);
+          }}
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       {/* Tabla/Cards admin — agrupada por cédula */}
       {isAdmin && (
@@ -339,11 +568,27 @@ const ClientesPage = () => {
                     <EyeOutlined style={{ color: '#1677ff', fontSize: 18, marginTop: 2 }} />
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                    {r.registros.map(reg => (
-                      <Tag key={`${reg.pk}#${reg.sk}`} color={reg.exclusividad_activa ? 'blue' : 'default'} style={{ margin: 0 }}>
-                        {proyectoNombre(reg.proyecto_id)}
-                      </Tag>
-                    ))}
+                    {r.registros.map(reg => {
+                      const diasRestantes = reg.exclusividad_activa ? calcularDiasRestantes(reg.fecha_vencimiento) : 0;
+                      const color = reg.exclusividad_activa ? getColorExclusividad(diasRestantes) : 'default';
+                      return (
+                        <Tooltip 
+                          key={`${reg.pk}#${reg.sk}`}
+                          title={
+                            reg.exclusividad_activa 
+                              ? `${proyectoNombre(reg.proyecto_id)} - ${diasRestantes} días restantes`
+                              : `${proyectoNombre(reg.proyecto_id)} - Exclusividad vencida`
+                          }
+                        >
+                          <Tag color={color} style={{ margin: 0 }}>
+                            {proyectoNombre(reg.proyecto_id)}
+                            {reg.exclusividad_activa && diasRestantes > 0 && (
+                              <span style={{ marginLeft: 4, fontSize: 10 }}>({diasRestantes}d)</span>
+                            )}
+                          </Tag>
+                        </Tooltip>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -357,7 +602,7 @@ const ClientesPage = () => {
               scroll={{ x: true }}
             />
           )}
-          {nextToken && (
+          {nextToken && modoVista === 'lista' && (
             <div style={{ textAlign: 'center', marginTop: 16 }}>
               <Button onClick={() => cargar(proyectoFiltro, inmoFiltro, nextToken)} loading={loading}>Cargar más</Button>
             </div>
@@ -379,9 +624,19 @@ const ClientesPage = () => {
                     <Text strong style={{ fontSize: 15 }}>{r.nombres} {r.apellidos}</Text>
                     <div><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text></div>
                   </div>
-                  {r.exclusividad_activa
-                    ? <Tag color="green" style={{ margin: 0 }}>Activa</Tag>
-                    : <Tag style={{ margin: 0 }}>Vencida</Tag>}
+                  {r.exclusividad_activa ? (
+                    (() => {
+                      const diasRestantes = calcularDiasRestantes(r.fecha_vencimiento);
+                      const color = getColorExclusividad(diasRestantes);
+                      return (
+                        <Tag color={color} icon={<ClockCircleOutlined />} style={{ margin: 0 }}>
+                          {diasRestantes > 0 ? `${diasRestantes}d` : 'Vencida'}
+                        </Tag>
+                      );
+                    })()
+                  ) : (
+                    <Tag style={{ margin: 0 }}>Vencida</Tag>
+                  )}
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <Text type="secondary" style={{ fontSize: 12 }}>{proyectoNombre(r.proyecto_id)}</Text>
@@ -472,14 +727,43 @@ const ClientesPage = () => {
             {/* Card por registro (proyecto + inmobiliaria) */}
             <div style={{ padding: '12px 14px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <Text strong>{proyectoNombre(reg.proyecto_id)}</Text>
                   <br />
-                  <Text type="secondary" style={{ fontSize: 12 }}>{inmoNombre(reg.inmobiliaria_id)}</Text>
+                  <Space size={4} style={{ marginTop: 4 }}>
+                    <BankOutlined style={{ fontSize: 12, color: '#888' }} />
+                    <Text type="secondary" style={{ fontSize: 12 }}>{inmoNombre(reg.inmobiliaria_id)}</Text>
+                  </Space>
                 </div>
-                <Tag color={reg.exclusividad_activa ? 'green' : 'default'}>
-                  {reg.exclusividad_activa ? `Excl. hasta ${dayjs(reg.fecha_vencimiento).format('DD/MM/YYYY')}` : 'Vencida'}
-                </Tag>
+                <div style={{ textAlign: 'right' }}>
+                  {reg.exclusividad_activa ? (
+                    (() => {
+                      const diasRestantes = calcularDiasRestantes(reg.fecha_vencimiento);
+                      const color = getColorExclusividad(diasRestantes);
+                      const porcentaje = Math.max(0, Math.min(100, (diasRestantes / 90) * 100));
+                      return (
+                        <div>
+                          <Tag color={color} icon={<ClockCircleOutlined />} style={{ marginBottom: 4 }}>
+                            {diasRestantes > 0 ? `${diasRestantes} días` : 'Vencida'}
+                          </Tag>
+                          <div style={{ width: 80 }}>
+                            <Progress 
+                              percent={porcentaje} 
+                              size="small" 
+                              strokeColor={color}
+                              showInfo={false}
+                            />
+                          </div>
+                          <Text type="secondary" style={{ fontSize: 10, display: 'block', marginTop: 2 }}>
+                            Vence: {dayjs(reg.fecha_vencimiento).format('DD/MM/YY')}
+                          </Text>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <Tag color="default">Vencida</Tag>
+                  )}
+                </div>
               </div>
 
               {/* Procesos de este registro */}
@@ -495,6 +779,11 @@ const ClientesPage = () => {
                     ? Math.floor((Date.now() - new Date(p.fecha_separacion).getTime()) / 86400000)
                     : null;
                   const proximoVencer = !alertaVencida && p.estado === 'separacion' && diasEnSeparacion !== null && diasEnSeparacion >= 25;
+                  
+                  // Buscar el nombre de la inmobiliaria del proceso
+                  const inmoDelProceso = inmobiliarias.find(i => i.id === p.inmobiliaria_id);
+                  const nombreInmo = inmoDelProceso?.nombre || p.inmobiliaria_id;
+                  
                   return (
                     <div key={p.sk} style={{ marginBottom: 6 }}>
                       {alertaVencida && (
@@ -509,18 +798,31 @@ const ClientesPage = () => {
                           <span>Vence en {30 - diasEnSeparacion!} día{30 - diasEnSeparacion! !== 1 ? 's' : ''}</span>
                         </div>
                       )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <Space size={4}>
                           <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
                           <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
                             <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
                           </Tooltip>
                         </Space>
+                      </div>
+                      {/* Mostrar inmobiliaria si es diferente a la del registro */}
+                      {p.inmobiliaria_id !== reg.inmobiliaria_id && (
+                        <div style={{ marginBottom: 4 }}>
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            🏢 {nombreInmo}
+                          </Text>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Space size={4}></Space>
                         <Space size={0}>
                           <Button size="small" type="link" icon={<SwapOutlined />}
                             onClick={() => { setEstatusModal(p); setEstatusCliente(reg); }}>Estatus</Button>
                           <Button size="small" type="link" icon={<HistoryOutlined />}
                             onClick={() => { setHistorialProceso(p); setHistorialNombre(`${reg.nombres} ${reg.apellidos}`); }}>Historial</Button>
+                          <Button size="small" type="link" icon={<BankOutlined />}
+                            onClick={() => abrirTransferir(reg)}>Transferir</Button>
                         </Space>
                       </div>
                     </div>
@@ -567,10 +869,34 @@ const ClientesPage = () => {
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <Text type="secondary" style={{ fontSize: 11 }}>EXCLUSIVIDAD</Text>
-                  <div style={{ marginTop: 2 }}>
-                    {drawerCliente.exclusividad_activa
-                      ? <Tag color="green">Activa hasta {dayjs(drawerCliente.fecha_vencimiento).format('DD/MM/YYYY')}</Tag>
-                      : <Tag color="default">Vencida</Tag>}
+                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {drawerCliente.exclusividad_activa ? (
+                      (() => {
+                        const diasRestantes = calcularDiasRestantes(drawerCliente.fecha_vencimiento);
+                        const color = getColorExclusividad(diasRestantes);
+                        const porcentaje = Math.max(0, Math.min(100, (diasRestantes / 90) * 100));
+                        return (
+                          <>
+                            <Tag color={color} icon={<ClockCircleOutlined />}>
+                              {diasRestantes > 0 ? `${diasRestantes} día${diasRestantes !== 1 ? 's' : ''} restantes` : 'Vencida'}
+                            </Tag>
+                            <div style={{ flex: 1, maxWidth: 200 }}>
+                              <Progress 
+                                percent={porcentaje} 
+                                size="small" 
+                                strokeColor={color}
+                                format={() => `${diasRestantes}d`}
+                              />
+                            </div>
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                              Vence: {dayjs(drawerCliente.fecha_vencimiento).format('DD/MM/YYYY')}
+                            </Text>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <Tag color="default">Vencida</Tag>
+                    )}
                   </div>
                 </div>
               </div>
@@ -657,6 +983,78 @@ const ClientesPage = () => {
           onCancel={() => { setEstatusModal(null); setEstatusCliente(null); }}
           onConfirm={handleCambiarEstatus} />
       )}
+
+      {/* Modal transferir inmobiliaria */}
+      <Modal
+        title="Transferir cliente a otra inmobiliaria"
+        open={transferirModal}
+        onCancel={() => { setTransferirModal(false); setClienteTransferir(null); }}
+        onOk={() => formTransferir.submit()}
+        okText="Transferir"
+        cancelText="Cancelar"
+        confirmLoading={transfiriendo}
+        width={520}
+      >
+        {clienteTransferir && (
+          <>
+            <div style={{
+              background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8,
+              padding: '12px 14px', marginBottom: 16,
+            }}>
+              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE</Text>
+              <Text strong style={{ fontSize: 14 }}>{clienteTransferir.nombres} {clienteTransferir.apellidos}</Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: 12 }}>{clienteTransferir.cedula}</Text>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #ffe7ba' }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>PROYECTO</Text>
+                <div><Text style={{ fontSize: 13 }}>{proyectoNombre(clienteTransferir.proyecto_id)}</Text></div>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>INMOBILIARIA ACTUAL</Text>
+                <div><Text style={{ fontSize: 13 }}>{inmoNombre(clienteTransferir.inmobiliaria_id)}</Text></div>
+              </div>
+            </div>
+
+            <Alert
+              message="⚠️ Importante"
+              description="Esta acción transferirá el cliente y todos sus procesos de venta a la nueva inmobiliaria. Los bloqueos activos se recrearán con 48 horas adicionales. La exclusividad se renovará por 90 días."
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+
+            <Form form={formTransferir} layout="vertical" onFinish={handleTransferir}>
+              <Form.Item
+                name="inmobiliaria_destino"
+                label="Nueva inmobiliaria"
+                rules={[
+                  { required: true, message: 'Selecciona la inmobiliaria destino' },
+                  {
+                    validator: (_, value) => {
+                      if (value && value.replace('INMOBILIARIA#', '') === clienteTransferir.inmobiliaria_id.replace('INMOBILIARIA#', '')) {
+                        return Promise.reject(new Error('Debe seleccionar una inmobiliaria diferente'));
+                      }
+                      return Promise.resolve();
+                    }
+                  }
+                ]}
+              >
+                <Select placeholder="Selecciona la inmobiliaria destino" showSearch
+                  filterOption={(input, option) =>
+                    (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  options={inmobiliarias
+                    .filter(i => i.pk !== clienteTransferir.inmobiliaria_id)
+                    .map(i => ({
+                      value: i.pk,
+                      label: i.nombre,
+                    }))}
+                />
+              </Form.Item>
+            </Form>
+          </>
+        )}
+      </Modal>
 
       {/* Drawer historial */}
       <HistorialEstatusDrawer open={!!historialProceso} proceso={historialProceso}

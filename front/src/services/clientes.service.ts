@@ -42,7 +42,23 @@ export const getClientesAdmin = (params?: { proyecto_id?: string; inmobiliaria_i
 };
 
 export const buscarClienteAdmin = (cedula: string): Promise<(Cliente & { procesos: any[] })[]> =>
-  apiGet(`/admin/clientes/buscar?cedula=${encodeURIComponent(cedula)}`);
+  apiGet(`/admin/clientes/buscar?q=${encodeURIComponent(cedula)}&tipo=cedula`);
+
+export const buscarClientesAdmin = (
+  query: string,
+  tipo: 'nombre' | 'cedula',
+  proyectoId?: string,
+  inmobiliariaId?: string
+): Promise<Cliente[]> => {
+  const params = new URLSearchParams({ q: query, tipo });
+  if (proyectoId) params.append('proyecto_id', proyectoId);
+  if (inmobiliariaId) {
+    // Normalizar: quitar prefijo si viene con él
+    const normalizedId = inmobiliariaId.replace('INMOBILIARIA#', '');
+    params.append('inmobiliaria_id', normalizedId);
+  }
+  return apiGet<Cliente[]>(`/admin/clientes/buscar?${params.toString()}`);
+};
 
 export const actualizarClienteAdmin = (
   cedula: string,
@@ -51,6 +67,19 @@ export const actualizarClienteAdmin = (
   data: Partial<RegistrarClientePayload & { estado: string }>
 ): Promise<{ message: string }> =>
   apiPut(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`, data);
+
+export const transferirClienteInmobiliaria = (
+  cedula: string,
+  proyectoId: string,
+  inmobiliariaOrigenId: string,
+  inmobiliariaDestinoId: string
+): Promise<{ message: string; execution_arn: string }> =>
+  apiPost(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}/transferir`, {
+    cedula,
+    proyecto_id: proyectoId,
+    inmobiliaria_origen: inmobiliariaOrigenId.replace('INMOBILIARIA#', ''),
+    inmobiliaria_destino: inmobiliariaDestinoId.replace('INMOBILIARIA#', ''),
+  });
 
 export const getProyectosPublico = async (inmobiliariaId: string): Promise<{ proyecto_id: string; nombre: string }[]> => {
   const res = await fetch(`${(await import('../config')).default.apiUrl}/publico/proyectos?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`);

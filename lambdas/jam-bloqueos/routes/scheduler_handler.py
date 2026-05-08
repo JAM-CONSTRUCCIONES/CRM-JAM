@@ -14,6 +14,7 @@ dynamodb = boto3.resource('dynamodb')
 inventario = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 historial = dynamodb.Table(os.environ['HISTORIAL_TABLE'])
 sqs = boto3.client('sqs')
+scheduler = boto3.client('scheduler')
 SQS_URL = os.environ.get('SQS_URL', '')
 
 
@@ -23,9 +24,15 @@ def handle(event):
     proyecto_id = event.get('proyecto_id')
 
     if accion == 'liberar_automatico':
-        return _liberar(unidad_id, proyecto_id)
+        result = _liberar(unidad_id, proyecto_id)
+        # Eliminar ambos schedules después de liberar
+        _eliminar_schedules_post_ejecucion(unidad_id)
+        return result
     elif accion == 'alerta_vencimiento':
-        return _alertar(unidad_id, proyecto_id)
+        result = _alertar(unidad_id, proyecto_id)
+        # Eliminar solo el schedule de alerta (liberación se eliminará cuando se ejecute)
+        _eliminar_schedule_especifico(unidad_id, 'alerta')
+        return result
 
 
 def _liberar(unidad_id, proyecto_id):
@@ -92,3 +99,34 @@ def _alertar(unidad_id, proyecto_id):
                 'fecha_liberacion': item.get('fecha_liberacion'),
             }),
         )
+
+
+def _schedule_name(unidad_id, suffix):
+    """EventBridge Scheduler no permite '/' ni '#' en nombres"""
+    safe = unidad_id.replace('/', '-').replace('#', '-')
+    return f"bloqueo-{safe}-{suffix}"
+
+
+def _eliminar_schedules_post_ejecucion(unidad_id):
+    """Elimina ambos schedules (alerta y liberación) después de ejecutar la liberación."""
+    for suffix in ('alerta', 'liberacion'):
+        try:
+            name = _schedule_name(unidad_id, suffix)
+            scheduler.delete_schedule(Name=name)
+            print(f'✓ Schedule eliminado post-ejecución: {name}')
+        except scheduler.exceptions.ResourceNotFoundException:
+            print(f'⚠ Schedule ya eliminado: {_schedule_name(unidad_id, suffix)}')
+        except Exception as e:
+            print(f'✗ Error eliminando schedule {suffix} para {unidad_id}: {type(e).__name__}: {e}')
+
+
+def _eliminar_schedule_especifico(unidad_id, suffix):
+    """Elimina un schedule específico después de ejecutarse."""
+    try:
+        name = _schedule_name(unidad_id, suffix)
+        scheduler.delete_schedule(Name=name)
+        print(f'✓ Schedule eliminado post-ejecución: {name}')
+    except scheduler.exceptions.ResourceNotFoundException:
+        print(f'⚠ Schedule ya eliminado: {_schedule_name(unidad_id, suffix)}')
+    except Exception as e:
+        print(f'✗ Error eliminando schedule {suffix} para {unidad_id}: {type(e).__name__}: {e}')

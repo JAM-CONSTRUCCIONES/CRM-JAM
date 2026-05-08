@@ -139,84 +139,73 @@ const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
     e.target.style.height = Math.min(e.target.scrollHeight, 94) + 'px';
   };
 
+  const handleClose = () => {
+    setOpen(false);
+    onClose?.();
+  };
+
+  const avatarFallback = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.target as HTMLImageElement;
+    img.style.display = 'none';
+    const parent = img.parentElement;
+    if (parent && !parent.querySelector('.jam-avatar-fallback')) {
+      const fb = document.createElement('div');
+      fb.className = 'jam-avatar-fallback';
+      fb.textContent = '👷';
+      parent.appendChild(fb);
+    }
+  };
+
   return (
     <>
       <style>{CSS}</style>
 
-      {/* Overlay */}
-      {open && (
-        <div 
-          className="jam-overlay" 
-          onClick={() => {
-            setOpen(false);
-            onClose?.();
-          }}
-        />
-      )}
+      {/* Overlay sutil */}
+      {open && <div className="jam-overlay" onClick={handleClose} />}
 
-      {/* Window - solo mostrar la ventana, sin launcher ni FAB */}
       {open && (
         <section className="jam-window open">
-          {/* Header */}
+
+          {/* ── Header compacto ── */}
           <header className="jam-header">
-            <div className="jam-header-accent" />
-            <button className="jam-close" aria-label="Cerrar chat" onClick={() => {
-              setOpen(false);
-              onClose?.();
-            }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
-              </svg>
-            </button>
-            <div className="jam-header-main">
+            <div className="jam-header-stripe" />
+            <div className="jam-header-inner">
               <div className="jam-header-avatar">
-                <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero virtual JAM" onError={e => { 
-                  const img = e.target as HTMLImageElement;
-                  img.style.display = 'none';
-                  const parent = img.parentElement;
-                  if (parent && !parent.querySelector('.jam-avatar-fallback')) {
-                    const fallback = document.createElement('div');
-                    fallback.className = 'jam-avatar-fallback';
-                    fallback.textContent = '👷';
-                    parent.appendChild(fallback);
-                  }
-                }} />
-                <span className="jam-live-badge" />
+                <img className="jam-img" src={ENGINEER_URL} alt="Asistente JAM" onError={avatarFallback} />
+                <span className="jam-live-dot" />
               </div>
               <div className="jam-header-info">
-                <div className="jam-brand-row">
-                  <div className="jam-logo-chip">
-                    <img src={LOGO_URL} alt="JAM Construcciones" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  </div>
-                  <div className="jam-title"><b>JAM</b> <em>Asistente</em></div>
+                <div className="jam-header-name">
+                  <img className="jam-header-logo" src={LOGO_URL} alt="JAM" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  JAM Asistente
                 </div>
-                <div className="jam-status-line"><span className="jam-dot" />En línea · Responde al instante</div>
-                <div className="jam-tag-row">
-                  <span className="jam-tag">IA</span>
-                  <span className="jam-tag">24/7</span>
-                  <span className="jam-tag">CRM Inmobiliario</span>
+                <div className="jam-header-status">
+                  <span className="jam-status-dot" />
+                  En línea · Responde al instante
                 </div>
               </div>
-            </div>
-            <div className="jam-modebar">
-              <button className={`jam-mode-btn${mode === 'chat' ? ' active' : ''}`} onClick={() => setMode('chat')}>💬 Chat</button>
-              <button className={`jam-mode-btn${mode === 'faq' ? ' active' : ''}`} onClick={() => setMode('faq')}>❔ FAQ</button>
-              <span className="jam-mode-spacer" />
+              <div className="jam-header-actions">
+                <button className={`jam-tab${mode === 'faq' ? ' active' : ''}`} onClick={() => setMode('faq')}>FAQ</button>
+                <button className={`jam-tab${mode === 'chat' ? ' active' : ''}`} onClick={() => setMode('chat')}>Chat</button>
+                <button className="jam-close" aria-label="Cerrar" onClick={handleClose}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </header>
 
-          {/* Body */}
+          {/* ── Body ── */}
           <main className="jam-body">
             <div className="jam-scroll" ref={scrollRef}>
-              <img className="jam-watermark" src={LOGO_URL} alt="" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 
-              {/* FAQ View */}
+              {/* FAQ */}
               {mode === 'faq' && (
                 <section className="jam-view">
-                  <div className="jam-section-title">Preguntas frecuentes</div>
-                  <div className="jam-faq-intro">
-                    Desliza por categorías y toca una pregunta para consultarla automáticamente con JAM Asistente.
-                  </div>
+                  <p className="jam-faq-intro">
+                    Selecciona una categoría y toca una pregunta para consultarla con el asistente.
+                  </p>
                   <div className="jam-faq-tabs">
                     {FAQ_SLIDES.map((s, i) => (
                       <button key={i} className={`jam-faq-tab${slide === i ? ' active' : ''}`} onClick={() => goToSlide(i)}>
@@ -234,15 +223,15 @@ const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
                       {FAQ_SLIDES.map((s, si) => (
                         <article key={si} className="jam-slide">
                           <div className="jam-slide-head">
-                            <div className="jam-slide-title">{s.title}</div>
-                            <div className="jam-slide-count">{s.questions.length} preguntas</div>
+                            <span className="jam-slide-title">{s.title}</span>
+                            <span className="jam-slide-count">{s.questions.length} preguntas</span>
                           </div>
                           <div className="jam-faq-list">
                             {s.questions.map((q, qi) => (
                               <button key={qi} className="jam-faq-card" onClick={() => sendMessage(q.text)}>
-                                <div className="jam-faq-icon">{q.icon}</div>
-                                <div className="jam-faq-text">{q.text}</div>
-                                <svg className="jam-faq-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <span className="jam-faq-icon">{q.icon}</span>
+                                <span className="jam-faq-text">{q.text}</span>
+                                <svg className="jam-faq-arrow" width="14" height="14" viewBox="0 0 16 16" fill="none">
                                   <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                               </button>
@@ -259,10 +248,10 @@ const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
                       </div>
                       <div className="jam-slider-btns">
                         <button className="jam-slider-btn" aria-label="Anterior" onClick={() => goToSlide(slide - 1)}>
-                          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </button>
                         <button className="jam-slider-btn" aria-label="Siguiente" onClick={() => goToSlide(slide + 1)}>
-                          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </button>
                       </div>
                     </div>
@@ -270,47 +259,27 @@ const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
                 </section>
               )}
 
-              {/* Chat View */}
+              {/* Chat */}
               {mode === 'chat' && (
                 <section className="jam-view">
                   <div className="jam-day">Hoy</div>
-                  {/* Welcome message */}
+
+                  {/* Bienvenida */}
                   <div className="jam-msg bot">
                     <div className="jam-avatar-mini">
-                      <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { 
-                        const img = e.target as HTMLImageElement;
-                        img.style.display = 'none';
-                        const parent = img.parentElement;
-                        if (parent && !parent.querySelector('.jam-avatar-fallback')) {
-                          const fallback = document.createElement('div');
-                          fallback.className = 'jam-avatar-fallback';
-                          fallback.textContent = '👷';
-                          parent.appendChild(fallback);
-                        }
-                      }} />
+                      <img className="jam-img" src={ENGINEER_URL} alt="Asistente" onError={avatarFallback} />
                     </div>
                     <div className="jam-bubble">
-                      {`¡Hola! 👷 Soy el ingeniero virtual de JAM Construcciones.\nPuedo ayudarte con bloqueos, inventario, clientes, estados de venta y todo lo relacionado con el CRM. ¿En qué te puedo ayudar?`}
+                      {'¡Hola! 👷 Soy el asistente virtual de JAM Construcciones.\nPuedo ayudarte con bloqueos, inventario, clientes, estados de venta y todo lo relacionado con el CRM. ¿En qué te puedo ayudar?'}
                       <span className="jam-time">{nowTime()}</span>
                     </div>
                   </div>
 
-                  {/* Messages */}
                   {messages.map((msg, i) => (
                     <div key={i} className={`jam-msg ${msg.role}`}>
                       {msg.role === 'bot' && (
                         <div className="jam-avatar-mini">
-                          <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { 
-                            const img = e.target as HTMLImageElement;
-                            img.style.display = 'none';
-                            const parent = img.parentElement;
-                            if (parent && !parent.querySelector('.jam-avatar-fallback')) {
-                              const fallback = document.createElement('div');
-                              fallback.className = 'jam-avatar-fallback';
-                              fallback.textContent = '👷';
-                              parent.appendChild(fallback);
-                            }
-                          }} />
+                          <img className="jam-img" src={ENGINEER_URL} alt="Asistente" onError={avatarFallback} />
                         </div>
                       )}
                       <div className="jam-bubble">
@@ -320,21 +289,10 @@ const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
                     </div>
                   ))}
 
-                  {/* Typing indicator */}
                   {loading && (
                     <div className="jam-typing show">
                       <div className="jam-avatar-mini">
-                        <img className="jam-img" src={ENGINEER_URL} alt="Ingeniero JAM" onError={e => { 
-                          const img = e.target as HTMLImageElement;
-                          img.style.display = 'none';
-                          const parent = img.parentElement;
-                          if (parent && !parent.querySelector('.jam-avatar-fallback')) {
-                            const fallback = document.createElement('div');
-                            fallback.className = 'jam-avatar-fallback';
-                            fallback.textContent = '👷';
-                            parent.appendChild(fallback);
-                          }
-                        }} />
+                        <img className="jam-img" src={ENGINEER_URL} alt="Asistente" onError={avatarFallback} />
                       </div>
                       <div className="jam-typing-bubble">
                         <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
@@ -346,7 +304,7 @@ const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
             </div>
           </main>
 
-          {/* Footer */}
+          {/* ── Footer ── */}
           <footer className="jam-footer">
             <div className="jam-input-row">
               <textarea
@@ -366,18 +324,17 @@ const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
                 disabled={!input.trim() || loading}
                 onClick={() => sendMessage(input)}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
             </div>
             <div className="jam-footer-brand">
-              <div className="jam-footer-logo">
-                <img src={LOGO_URL} alt="JAM" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              </div>
+              <img className="jam-footer-logo" src={LOGO_URL} alt="JAM" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
               JAM Construcciones · CRM Inmobiliario
             </div>
           </footer>
+
         </section>
       )}
     </>
@@ -385,121 +342,96 @@ const ChatbotWidget = ({ onClose }: { onClose?: () => void }) => {
 };
 
 const CSS = `
-:root{--navy-950:#061426;--navy-900:#081c33;--navy-850:#0c2745;--navy-800:#10365f;--navy-700:#164b82;--blue:#246fba;--gold:#e99a17;--gold-2:#f5b642;--gold-3:#ffe3a3;--orange:#cf6f1b;--white:#ffffff;--paper:#fbfdff;--cream:#fff8ef;--cream-2:#f7ecdd;--line:#e3eaf2;--line-warm:#eadcc8;--text:#0f2035;--text-2:#2d4058;--muted:#7d8ca2;--muted-2:#a5b0bf;--green:#22c55e;--font:"Plus Jakarta Sans",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--serif:"Playfair Display",Georgia,serif;--shadow-xs:0 2px 8px rgba(6,20,38,.06);--shadow-sm:0 8px 24px rgba(6,20,38,.10);--shadow-md:0 18px 48px rgba(6,20,38,.16);--shadow-lg:0 34px 90px rgba(6,20,38,.24);--shadow-xl:0 54px 130px rgba(6,20,38,.34);--ease:cubic-bezier(.34,1.28,.64,1);}
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
-.jam-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;animation:jamFadeIn .2s ease;}
-.jam-window{position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);width:432px;max-width:calc(100vw - 20px);height:680px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;border-radius:32px;background:#fff;border:1px solid rgba(255,255,255,.88);box-shadow:var(--shadow-xl);z-index:9999;}
-.jam-window.open{animation:jamOpenWindow .34s var(--ease) both;}
-.jam-header{position:relative;flex-shrink:0;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.99),rgba(251,253,255,.98));border-bottom:1px solid var(--line);}
-.jam-header-accent{height:5px;background:linear-gradient(90deg,var(--navy-950) 0%,var(--blue) 38%,var(--gold) 72%,var(--gold-2) 100%);}
-.jam-header::before{content:"";position:absolute;inset:5px 0 0;background:radial-gradient(circle at 95% 4%,rgba(36,111,186,.08),transparent 25%),radial-gradient(circle at 4% 4%,rgba(233,154,23,.10),transparent 27%);pointer-events:none;}
-.jam-close{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:14px;border:1px solid #dde6f0;background:rgba(255,255,255,.88);color:#8392a5;display:grid;place-items:center;cursor:pointer;z-index:5;box-shadow:var(--shadow-xs);transition:all .18s ease;}
-.jam-close:hover{background:var(--navy-950);color:#fff;border-color:var(--navy-950);transform:rotate(90deg);}
-.jam-header-main{position:relative;z-index:2;display:flex;align-items:center;gap:14px;padding:17px 62px 14px 18px;}
-.jam-header-avatar{position:relative;width:76px;height:76px;border-radius:24px;overflow:hidden;background:#ffffff;border:2px solid rgba(203,215,230,.60);box-shadow:0 12px 30px rgba(6,20,38,.14),inset 0 0 0 4px rgba(255,255,255,.56);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px;}
+.jam-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.25);z-index:9998;animation:jamFadeIn .2s ease;}
+.jam-window{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:620px;max-width:calc(100vw - 16px);height:840px;max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden;border-radius:16px;background:#fff;border:1px solid #e8edf3;box-shadow:0 24px 64px rgba(0,0,0,.18);z-index:9999;font-family:system-ui,'Segoe UI',Roboto,sans-serif;}
+.jam-window.open{animation:jamOpenWindow .28s cubic-bezier(.34,1.28,.64,1) both;}
+.jam-header{flex-shrink:0;background:#fff;border-bottom:1px solid #f0f0f0;}
+.jam-header-stripe{height:3px;background:linear-gradient(90deg,#1677ff 0%,#4096ff 60%,#69b1ff 100%);}
+.jam-header-inner{display:flex;align-items:center;gap:12px;padding:12px 14px 10px;}
+.jam-header-avatar{position:relative;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#f5f8fc;border:1.5px solid #e8edf3;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;}
 .jam-header-avatar .jam-img{width:100%;height:100%;object-fit:cover;}
-.jam-live-badge{position:absolute;right:-2px;bottom:-2px;width:18px;height:18px;border-radius:50%;background:var(--green);border:4px solid #fff;z-index:2;box-shadow:var(--shadow-xs);}
-.jam-header-info{min-width:0;flex:1;}
-.jam-brand-row{display:flex;align-items:center;gap:9px;margin-bottom:8px;min-width:0;}
-.jam-logo-chip{width:34px;height:34px;border-radius:12px;border:1px solid rgba(233,154,23,.28);background:rgba(255,248,239,.92);padding:3px;overflow:hidden;box-shadow:var(--shadow-xs);flex-shrink:0;}
-.jam-logo-chip img{width:100%;height:100%;object-fit:contain;display:block;}
-.jam-title{font-family:var(--serif);font-size:25px;line-height:1;letter-spacing:-.045em;white-space:nowrap;}
-.jam-title b{color:var(--navy-950);font-weight:700;}
-.jam-title em{color:var(--gold);font-style:italic;font-weight:700;}
-.jam-status-line{display:inline-flex;align-items:center;gap:7px;padding:5px 10px 5px 7px;border-radius:999px;background:#f2fbf6;color:#4d667f;border:1px solid #ddf4e7;font-size:12.5px;font-weight:800;letter-spacing:-.01em;}
-.jam-tag-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;}
-.jam-tag{display:inline-flex;align-items:center;gap:5px;border:1px solid #e0e7ef;background:#f8fafc;color:var(--navy-800);border-radius:999px;padding:5px 9px;font-size:10.8px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;}
-.jam-modebar{position:relative;z-index:2;display:flex;align-items:center;gap:9px;padding:0 18px 15px;}
-.jam-mode-btn{border:1px solid #dde6f0;background:#fff;color:var(--text-2);font-size:13px;font-weight:900;border-radius:999px;padding:10px 17px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:var(--shadow-xs);transition:all .18s ease;font-family:var(--font);}
-.jam-mode-btn:hover{transform:translateY(-2px);border-color:#cbd7e6;box-shadow:var(--shadow-sm);}
-.jam-mode-btn.active{background:var(--navy-950);color:var(--gold-3);border-color:var(--navy-950);box-shadow:0 10px 24px rgba(6,20,38,.20);}
-.jam-mode-spacer{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent);}
-.jam-body{flex:1;overflow:hidden;position:relative;background:#fff;display:flex;flex-direction:column;}
-.jam-scroll{flex:1;overflow-y:auto;position:relative;scroll-behavior:smooth;}
-.jam-scroll::-webkit-scrollbar{width:5px}
-.jam-scroll::-webkit-scrollbar-thumb{background:#d7e0eb;border-radius:999px}
-.jam-watermark{position:absolute;right:16px;bottom:36px;width:112px;opacity:.035;pointer-events:none;}
-.jam-view{padding:18px 16px 16px;min-height:100%;}
-.jam-section-title{display:flex;align-items:center;gap:10px;margin:0 0 14px;color:#97a3b5;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;}
-.jam-section-title::after{content:"";flex:1;height:1px;background:var(--line);}
-.jam-faq-intro{color:var(--text-2);font-size:14px;line-height:1.55;font-weight:600;background:#f8fafc;border:1px solid var(--line);border-radius:18px;padding:13px 14px;margin-bottom:14px;}
-.jam-faq-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:10px;scrollbar-width:none;}
+.jam-live-dot{position:absolute;right:1px;bottom:1px;width:11px;height:11px;border-radius:50%;background:#52c41a;border:2px solid #fff;}
+.jam-header-info{flex:1;min-width:0;}
+.jam-header-name{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;color:#111;white-space:nowrap;}
+.jam-header-logo{width:20px;height:20px;border-radius:5px;object-fit:contain;border:1px solid #e8edf3;background:#fff;flex-shrink:0;}
+.jam-header-status{display:flex;align-items:center;gap:5px;font-size:12px;color:#888;margin-top:2px;}
+.jam-status-dot{width:7px;height:7px;border-radius:50%;background:#52c41a;flex-shrink:0;}
+.jam-header-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.jam-tab{border:1px solid #e8edf3;background:#fafafa;color:#555;font-size:12px;font-weight:500;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all .15s;font-family:inherit;}
+.jam-tab:hover{border-color:#91caff;color:#1677ff;background:#f0f7ff;}
+.jam-tab.active{background:#1677ff;color:#fff;border-color:#1677ff;}
+.jam-close{width:30px;height:30px;border-radius:6px;border:1px solid #e8edf3;background:#fafafa;color:#888;display:grid;place-items:center;cursor:pointer;transition:all .15s;flex-shrink:0;}
+.jam-close:hover{background:#fff1f0;color:#ff4d4f;border-color:#ffccc7;}
+.jam-body{flex:1;overflow:hidden;background:#fff;display:flex;flex-direction:column;}
+.jam-scroll{flex:1;overflow-y:auto;scroll-behavior:smooth;}
+.jam-scroll::-webkit-scrollbar{width:4px}
+.jam-scroll::-webkit-scrollbar-thumb{background:#e0e0e0;border-radius:999px}
+.jam-view{padding:16px 14px 14px;}
+.jam-faq-intro{color:#555;font-size:13.5px;line-height:1.55;background:#f5f8fc;border:1px solid #e8edf3;border-radius:10px;padding:11px 13px;margin-bottom:12px;}
+.jam-faq-tabs{display:flex;gap:7px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px;scrollbar-width:none;}
 .jam-faq-tabs::-webkit-scrollbar{display:none}
-.jam-faq-tab{flex-shrink:0;border:1px solid #dfe7f1;background:#fff;color:var(--text-2);font-size:12.5px;font-weight:900;padding:8px 12px;border-radius:999px;cursor:pointer;transition:all .18s ease;box-shadow:var(--shadow-xs);font-family:var(--font);}
-.jam-faq-tab:hover{transform:translateY(-2px);border-color:#cbd7e6;box-shadow:var(--shadow-sm);}
-.jam-faq-tab.active{background:var(--navy-950);color:var(--gold-3);border-color:var(--navy-950);}
+.jam-faq-tab{flex-shrink:0;border:1px solid #e8edf3;background:#fafafa;color:#555;font-size:12px;font-weight:500;padding:6px 12px;border-radius:6px;cursor:pointer;transition:all .15s;font-family:inherit;}
+.jam-faq-tab:hover{border-color:#91caff;color:#1677ff;background:#f0f7ff;}
+.jam-faq-tab.active{background:#1677ff;color:#fff;border-color:#1677ff;}
 .jam-slider-wrap{position:relative;}
-.jam-faq-slider{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding:2px 2px 12px;scrollbar-width:none;}
+.jam-faq-slider{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding:2px 2px 10px;scrollbar-width:none;}
 .jam-faq-slider::-webkit-scrollbar{display:none}
 .jam-slide{min-width:100%;scroll-snap-align:start;}
 .jam-slide-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
-.jam-slide-title{display:flex;align-items:center;gap:9px;color:var(--navy-950);font-size:16px;line-height:1;font-weight:900;letter-spacing:-.035em;}
-.jam-slide-count{color:#9ba8b9;font-size:12px;font-weight:800;}
-.jam-faq-list{display:flex;flex-direction:column;gap:11px;}
-.jam-faq-card{width:100%;display:flex;align-items:center;gap:13px;text-align:left;border:1px solid #dfe6f0;border-radius:18px;background:linear-gradient(180deg,#fff 0%,#fcfdff 100%);padding:14px 15px;cursor:pointer;box-shadow:0 6px 18px rgba(6,20,38,.045);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease;font-family:var(--font);}
-.jam-faq-card:hover{transform:translateY(-2px);border-color:#c8d6e7;box-shadow:0 14px 34px rgba(6,20,38,.09);background:#fff;}
-.jam-faq-icon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;flex-shrink:0;background:#f5f8fc;border:1px solid #e3ebf4;font-size:19px;}
-.jam-faq-text{flex:1;color:var(--text);font-size:14.8px;line-height:1.38;font-weight:800;letter-spacing:-.025em;}
-.jam-faq-arrow{color:#a3afbd;flex-shrink:0;}
-.jam-slider-controls{display:flex;align-items:center;justify-content:space-between;margin-top:3px;}
-.jam-slider-btns{display:flex;gap:8px;}
-.jam-slider-btn{width:36px;height:36px;border-radius:12px;border:1px solid #dfe7f1;background:#fff;color:var(--text-2);box-shadow:var(--shadow-xs);cursor:pointer;display:grid;place-items:center;transition:all .18s ease;}
-.jam-slider-btn:hover{transform:translateY(-2px);background:var(--navy-950);color:#fff;border-color:var(--navy-950);}
-.jam-slider-dots{display:flex;align-items:center;gap:6px;}
-.jam-slider-dot{width:7px;height:7px;border-radius:999px;background:#cfd8e5;transition:all .18s ease;}
-.jam-slider-dot.active{width:22px;background:var(--gold);}
-.jam-day{position:relative;text-align:center;color:#a9b2c2;font-size:11px;font-weight:900;letter-spacing:.10em;text-transform:uppercase;margin:2px 0 16px;}
-.jam-day::before,.jam-day::after{content:"";position:absolute;top:50%;width:36%;height:1px;background:var(--line);}
+.jam-slide-title{font-size:15px;font-weight:700;color:#111;letter-spacing:-.02em;}
+.jam-slide-count{color:#aaa;font-size:12px;font-weight:500;}
+.jam-faq-list{display:flex;flex-direction:column;gap:9px;}
+.jam-faq-card{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:1px solid #e8edf3;border-radius:12px;background:#fff;padding:12px 14px;cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s;font-family:inherit;}
+.jam-faq-card:hover{border-color:#91caff;box-shadow:0 4px 16px rgba(22,119,255,.10);background:#f0f7ff;}
+.jam-faq-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;background:#f5f8fc;border:1px solid #e8edf3;font-size:17px;}
+.jam-faq-text{flex:1;color:#222;font-size:13.5px;line-height:1.4;font-weight:500;}
+.jam-faq-arrow{color:#bbb;flex-shrink:0;}
+.jam-slider-controls{display:flex;align-items:center;justify-content:space-between;margin-top:6px;}
+.jam-slider-btns{display:flex;gap:6px;}
+.jam-slider-btn{width:32px;height:32px;border-radius:8px;border:1px solid #e8edf3;background:#fff;color:#555;cursor:pointer;display:grid;place-items:center;transition:all .15s;}
+.jam-slider-btn:hover{background:#1677ff;color:#fff;border-color:#1677ff;}
+.jam-slider-dots{display:flex;align-items:center;gap:5px;}
+.jam-slider-dot{width:6px;height:6px;border-radius:999px;background:#d0d7e2;transition:all .18s;}
+.jam-slider-dot.active{width:18px;background:#1677ff;}
+.jam-day{position:relative;text-align:center;color:#bbb;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:4px 0 14px;}
+.jam-day::before,.jam-day::after{content:"";position:absolute;top:50%;width:34%;height:1px;background:#f0f0f0;}
 .jam-day::before{left:0}
 .jam-day::after{right:0}
-.jam-msg{display:flex;align-items:flex-end;gap:10px;margin-bottom:10px;animation:jamMsgIn .22s ease both;}
+.jam-msg{display:flex;align-items:flex-end;gap:9px;margin-bottom:10px;animation:jamMsgIn .2s ease both;}
 .jam-msg.user{justify-content:flex-end}
-.jam-avatar-mini{width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid rgba(203,215,230,.40);background:#ffffff;flex-shrink:0;box-shadow:var(--shadow-xs);display:flex;align-items:center;justify-content:center;font-size:18px;}
+.jam-avatar-mini{width:34px;height:34px;border-radius:50%;overflow:hidden;border:1.5px solid #e8edf3;background:#f5f8fc;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;}
 .jam-avatar-mini .jam-img{width:100%;height:100%;object-fit:cover;}
 .jam-avatar-fallback{font-size:inherit;}
-.jam-bubble{max-width:82%;padding:13px 15px;font-size:14px;line-height:1.62;white-space:pre-wrap;word-break:break-word;letter-spacing:-.006em;}
-.jam-msg.bot .jam-bubble{color:var(--text);background:#fffdf9;border:1px solid var(--line-warm);border-radius:22px 22px 22px 6px;box-shadow:0 8px 20px rgba(6,20,38,.055);}
-.jam-msg.user .jam-bubble{color:#f3f9ff;background:linear-gradient(145deg,var(--navy-700),var(--navy-950));border-radius:22px 22px 6px 22px;box-shadow:0 10px 26px rgba(6,20,38,.18);}
-.jam-time{display:block;margin-top:7px;color:#8191a4;font-size:10.5px;font-weight:800;opacity:.72;}
-.jam-msg.user .jam-time{color:rgba(255,255,255,.72);text-align:right;}
-.jam-typing{display:none;align-items:flex-end;gap:10px;margin-bottom:10px;}
-.jam-typing.show{display:flex;animation:jamMsgIn .22s ease both;}
-.jam-typing-bubble{display:flex;gap:5px;align-items:center;padding:15px 18px;border-radius:22px 22px 22px 6px;background:#fffdf9;border:1px solid var(--line-warm);box-shadow:0 8px 20px rgba(6,20,38,.055);}
-.typing-dot{width:7px;height:7px;border-radius:50%;background:#bfa78b;animation:jamBounce 1.25s infinite ease-in-out;}
-.typing-dot:nth-child(2){animation-delay:.16s}
-.typing-dot:nth-child(3){animation-delay:.32s}
-.jam-footer{flex-shrink:0;background:#fff;border-top:1px solid var(--line);padding:12px 14px 15px;}
-.jam-input-row{display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 15px;border:1.5px solid rgba(233,154,23,.36);border-radius:20px;background:linear-gradient(180deg,#fffaf2,#fff7ed);box-shadow:inset 0 0 0 3px rgba(255,255,255,.62);transition:border-color .2s ease,box-shadow .2s ease;}
-.jam-input-row:focus-within{border-color:var(--gold);box-shadow:0 0 0 4px rgba(233,154,23,.11),inset 0 0 0 3px rgba(255,255,255,.66);}
-.jam-input{flex:1;min-height:42px;max-height:94px;border:none;outline:none;background:transparent;resize:none;padding:11px 0;color:var(--text);font-size:14px;line-height:1.45;font-family:var(--font);font-weight:500;}
-.jam-input::placeholder{color:#ae9f8e;font-weight:500;}
-.jam-send{width:46px;height:46px;border:none;border-radius:16px;display:grid;place-items:center;cursor:pointer;color:#fff;background:radial-gradient(circle at 24% 18%,rgba(255,255,255,.28),transparent 28%),linear-gradient(145deg,var(--gold-2),var(--navy-950));box-shadow:0 10px 26px rgba(233,154,23,.31);transition:transform .22s var(--ease),box-shadow .22s ease,opacity .18s ease;flex-shrink:0;}
-.jam-send:hover{transform:scale(1.08) rotate(-7deg);box-shadow:0 16px 34px rgba(233,154,23,.44);}
-.jam-send:disabled{opacity:.46;cursor:not-allowed;transform:none;box-shadow:none;}
-.jam-footer-brand{margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;color:#9ea8b6;font-size:12px;font-weight:800;letter-spacing:-.01em;}
-.jam-footer-logo{width:24px;height:24px;border-radius:8px;padding:2px;overflow:hidden;background:#fff;border:1px solid #e1e7ef;}
-.jam-footer-logo img{width:100%;height:100%;object-fit:contain;display:block}
+.jam-bubble{max-width:80%;padding:11px 14px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+.jam-msg.bot .jam-bubble{color:#1a1a1a;background:#f5f7fa;border:1px solid #e8edf3;border-radius:16px 16px 16px 4px;}
+.jam-msg.user .jam-bubble{color:#fff;background:#1677ff;border-radius:16px 16px 4px 16px;}
+.jam-time{display:block;margin-top:5px;font-size:10.5px;font-weight:500;opacity:.55;}
+.jam-msg.bot .jam-time{color:#666;}
+.jam-msg.user .jam-time{color:rgba(255,255,255,.8);text-align:right;}
+.jam-typing{display:none;align-items:flex-end;gap:9px;margin-bottom:10px;}
+.jam-typing.show{display:flex;animation:jamMsgIn .2s ease both;}
+.jam-typing-bubble{display:flex;gap:4px;align-items:center;padding:13px 16px;border-radius:16px 16px 16px 4px;background:#f5f7fa;border:1px solid #e8edf3;}
+.typing-dot{width:6px;height:6px;border-radius:50%;background:#aaa;animation:jamBounce 1.2s infinite ease-in-out;}
+.typing-dot:nth-child(2){animation-delay:.15s}
+.typing-dot:nth-child(3){animation-delay:.30s}
+.jam-footer{flex-shrink:0;background:#fff;border-top:1px solid #f0f0f0;padding:10px 12px 12px;}
+.jam-input-row{display:flex;align-items:flex-end;gap:8px;padding:6px 6px 6px 14px;border:1.5px solid #d9d9d9;border-radius:14px;background:#fafafa;transition:border-color .2s,box-shadow .2s;}
+.jam-input-row:focus-within{border-color:#1677ff;box-shadow:0 0 0 3px rgba(22,119,255,.10);background:#fff;}
+.jam-input{flex:1;min-height:38px;max-height:90px;border:none;outline:none;background:transparent;resize:none;padding:9px 0;color:#222;font-size:14px;line-height:1.45;font-family:inherit;font-weight:400;}
+.jam-input::placeholder{color:#bbb;}
+.jam-send{width:42px;height:42px;border:none;border-radius:10px;display:grid;place-items:center;cursor:pointer;color:#fff;background:#1677ff;transition:background .18s,transform .18s,opacity .18s;flex-shrink:0;}
+.jam-send:hover{background:#0958d9;transform:scale(1.06);}
+.jam-send:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.jam-footer-brand{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:7px;color:#bbb;font-size:11.5px;font-weight:500;}
+.jam-footer-logo{width:20px;height:20px;border-radius:6px;overflow:hidden;background:#fff;border:1px solid #e8edf3;flex-shrink:0;}
+.jam-footer-logo{width:20px;height:20px;object-fit:contain;display:block;}
 @keyframes jamFadeIn{from{opacity:0}to{opacity:1}}
-@keyframes jamOpenWindow{from{opacity:0;transform:translate(-50%, -50%) translateY(24px) scale(.88)}to{opacity:1;transform:translate(-50%, -50%) translateY(0) scale(1)}}
-@keyframes jamMsgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes jamFloatCard{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-@keyframes jamPulse{0%,100%{box-shadow:0 0 0 2px rgba(34,197,94,.25)}50%{box-shadow:0 0 0 9px rgba(34,197,94,0)}}
-@keyframes jamOrbit{to{transform:rotate(360deg)}}
-@keyframes jamBounce{0%,70%,100%{transform:translateY(0);opacity:.42}35%{transform:translateY(-5px);opacity:1}}
+@keyframes jamOpenWindow{from{opacity:0;transform:translate(-50%,-50%) translateY(20px) scale(.92)}to{opacity:1;transform:translate(-50%,-50%) translateY(0) scale(1)}}
+@keyframes jamMsgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes jamBounce{0%,70%,100%{transform:translateY(0);opacity:.4}35%{transform:translateY(-4px);opacity:1}}
 @media(max-width:560px){
-  .jam-window{width:calc(100vw - 20px);height:calc(100vh - 40px);max-height:calc(100vh - 40px);border-radius:28px;}
-  .jam-header-main{padding:15px 58px 13px 14px;gap:12px;}
-  .jam-header-avatar{width:66px;height:66px;border-radius:22px;}
-  .jam-title{font-size:22px;}
-  .jam-status-line{font-size:12px;}
-  .jam-bubble{max-width:84%;}
-}
-@media(max-width:390px){
-  .jam-teaser{display:none}
-  .jam-header-avatar{width:60px;height:60px}
-  .jam-title{font-size:20px}
-  .jam-modebar{padding-left:14px;padding-right:14px}
-  .jam-view{padding:16px 14px 14px}
+  .jam-window{width:calc(100vw - 16px);height:calc(100vh - 32px);border-radius:20px;}
+  .jam-bubble{max-width:86%;}
 }
 `;
 

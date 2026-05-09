@@ -96,15 +96,93 @@ def actualizar(proyecto_id, event):
 
 
 def eliminar(proyecto_id):
-    # Verificar si el proyecto tiene unidades antes de desactivar
-    resultado = inventario.query(
+    """
+    Elimina (desactiva) un proyecto.
+    Permite eliminar si tiene unidades, pero solo si están en estado 'disponible'.
+    Bloquea si hay unidades bloqueadas o en procesos activos.
+    """
+    
+    # 1. Verificar si hay unidades en el proyecto
+    unidades_result = inventario.query(
         KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
-        Limit=1,
-        ProjectionExpression='pk',
     )
-    if resultado.get('Items'):
-        return conflict('No se puede eliminar el proyecto porque tiene unidades registradas. Elimina primero todas las unidades.')
+    unidades = unidades_result.get('Items', [])
+    
+    if unidades:
+        # 2. Verificar que todas las unidades estén disponibles
+        unidades_no_disponibles = [
+            u for u in unidades 
+            if u.get('estado') != 'disponible'
+        ]
+        
+        if unidades_no_disponibles:
+            # Contar por estado para dar un mensaje más informativo
+            estados = {}
+            for u in unidades_no_disponibles:
+                estado = u.get('estado', 'desconocido')
+                estados[estado] = estados.get(estado, 0) + 1
+            
+            estados_str = ', '.join([f'{count} {estado}' for estado, count in estados.items()])
+            return conflict(
+                f'No se puede eliminar el proyecto porque tiene {len(unidades_no_disponibles)} unidad(es) '
+                f'no disponible(s): {estados_str}. Solo se pueden eliminar proyectos con unidades en estado "disponible".'
+            )
+        
+        # 3. Verificar que no haya procesos activos en ninguna unidad
+        procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
+        if procesos_table_name:
+            try:
+                procesos_table = boto3.resource('dynamodb').Table(procesos_table_name)
+                
+                # Buscar procesos activos para este proyecto
+                procesos_result = procesos_table.query(
+                    IndexName='gsi-proyecto-procesos',
+                    KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
+                    FilterExpression=Attr('estado').is_in(['captacion', 'reserva', 'separacion', 'inicial'])
+                )
+                
+                procesos_activos = procesos_result.get('Items', [])
+                
+                if procesos_activos:
+                    # Contar por estado
+                    estados_procesos = {}
+                    for p in procesos_activos:
+                        estado = p.get('estado', 'desconocido')
+                        estados_procesos[estado] = estados_procesos.get(estado, 0) + 1
+                    
+                    estados_str = ', '.join([f'{count} en {estado}' for estado, count in estados_procesos.items()])
+                    return conflict(
+                        f'No se puede eliminar el proyecto porque tiene {len(procesos_activos)} proceso(s) '
+                        f'de venta activo(s): {estados_str}. Finaliza o cancela estos procesos primero.'
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger().warning(f'Error al verificar procesos activos: {e}')
+                # Si no podemos verificar procesos, bloqueamos la eliminación por seguridad
+                return conflict(
+                    'No se puede verificar si hay procesos activos. Por seguridad, no se puede eliminar el proyecto.'
+                )
+        
+        # 4. Si llegamos aquí, todas las unidades están disponibles y no hay procesos activos
+        # Eliminar físicamente todas las unidades
+        print(f'[ELIMINAR PROYECTO] Eliminando {len(unidades)} unidades disponibles del proyecto {proyecto_id}')
+        
+        with inventario.meta.client.batch_write_item as batch:
+            for unidad in unidades:
+                try:
+                    inventario.delete_item(
+                        Key={
+                            'pk': unidad['pk'],
+                            'sk': unidad['sk']
+                        }
+                    )
+                except Exception as e:
+                    import logging
+                    logging.getLogger().warning(
+                        f'Error eliminando unidad {unidad.get("unidad_id")}: {e}'
+                    )
 
+    # 5. Desactivar el proyecto (soft delete)
     try:
         inventario.update_item(
             Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'},
@@ -117,7 +195,7 @@ def eliminar(proyecto_id):
             return not_found('Proyecto no encontrado')
         raise
 
-    # Desvincular el proyecto de todas las inmobiliarias que lo tengan asignado
+    # 6. Desvincular el proyecto de todas las inmobiliarias que lo tengan asignado
     try:
         usuarios_table_name = os.environ.get('USUARIOS_TABLE')
         if usuarios_table_name:
@@ -139,7 +217,11 @@ def eliminar(proyecto_id):
         import logging
         logging.getLogger().warning(f'Error desvinculando proyecto de inmobiliarias: {e}')
 
-    return ok({'message': 'Proyecto desactivado y desvinculado de inmobiliarias'})
+    mensaje = f'Proyecto desactivado y desvinculado de inmobiliarias'
+    if unidades:
+        mensaje += f' ({len(unidades)} unidades eliminadas)'
+    
+    return ok({'message': mensaje})
 
 
 

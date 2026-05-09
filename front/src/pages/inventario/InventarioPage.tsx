@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { Button, Modal, Form, Input, Space, Tooltip, Row, Col, Popconfirm, Upload, Select, Typography, Grid, Alert } from 'antd';
-import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
 import { useInventario } from '../../hooks/useInventario';
 import TablaUnidades from '../../components/inventario/TablaUnidades';
@@ -9,7 +9,7 @@ import ModalUnidad from '../../components/inventario/ModalUnidad';
 import ModalBloqueo from '../../components/inventario/ModalBloqueo';
 import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloqueoAdmin';
 import { ESTADO_UNIDAD_CONFIG, projectGradient } from '../../constants/estados';
-import { eliminarProyecto } from '../../services/proyectos.service';
+import { eliminarProyecto, exportarInventario } from '../../services/proyectos.service';
 import { bloquearUnidad } from '../../services/bloqueos.service';
 import { buscarClientePorCedula } from '../../services/clientes.service';
 import type { Cliente, Unidad } from '../../types';
@@ -55,6 +55,9 @@ const InventarioPage = () => {
   // Modal crear bloqueo admin (manual)
   const [modalCrearBloqueoAdmin, setModalCrearBloqueoAdmin] = useState(false);
   const [unidadParaBloqueoAdmin, setUnidadParaBloqueoAdmin] = useState<Unidad | null>(null);
+
+  // Exportación
+  const [exportando, setExportando] = useState(false);
 
   // Form refs para modales que necesitan reset externo
   const [formProyecto] = Form.useForm();
@@ -185,6 +188,29 @@ const InventarioPage = () => {
     } finally { setGuardandoBloqueo(false); }
   };
 
+  const handleExportar = async () => {
+    if (!inv.proyectoId) return;
+    setExportando(true);
+    try {
+      const result = await exportarInventario(inv.proyectoId);
+      message.success(`Descargando ${result.total_unidades} unidades...`);
+      
+      // Crear un elemento <a> temporal para forzar la descarga
+      const link = document.createElement('a');
+      link.href = result.download_url;
+      link.download = result.filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      const msg = err?.message || 'Error al exportar inventario';
+      message.error(msg);
+    } finally {
+      setExportando(false);
+    }
+  };
+
   return (
     <div>
       {/* Banner modo preview */}
@@ -220,9 +246,21 @@ const InventarioPage = () => {
           </div>
           <Space wrap>
             {inv.vista === 'unidades' && (
-              <Tooltip title={isPreview ? "No disponible en modo preview" : "Actualizar"}>
-                <Button icon={<ReloadOutlined />} onClick={() => inv.cargarUnidades()} loading={inv.loading} />
-              </Tooltip>
+              <>
+                <Tooltip title={isPreview ? "No disponible en modo preview" : "Exportar a Excel"}>
+                  <Button 
+                    icon={<DownloadOutlined />} 
+                    onClick={handleExportar} 
+                    loading={exportando}
+                    disabled={isPreview}
+                  >
+                    {isMobile ? '' : 'Exportar'}
+                  </Button>
+                </Tooltip>
+                <Tooltip title={isPreview ? "No disponible en modo preview" : "Actualizar"}>
+                  <Button icon={<ReloadOutlined />} onClick={() => inv.cargarUnidades()} loading={inv.loading} />
+                </Tooltip>
+              </>
             )}
             {canEditEffective && inv.vista === 'proyectos' && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => { inv.setModoProyecto('crear'); inv.setProyectoEditando(null); setImagenFile(null); formProyecto.resetFields(); inv.setModalProyecto(true); }}>
@@ -267,15 +305,22 @@ const InventarioPage = () => {
                       <Space>
                         <Button size="small" type="text" icon={<EditOutlined />} style={{ color: '#fff', background: 'rgba(0,0,0,0.25)', borderRadius: 6 }}
                           onClick={() => { inv.setModoProyecto('editar'); inv.setProyectoEditando(p); setImagenFile(null); formProyecto.setFieldsValue({ nombre: p.nombre, descripcion: p.descripcion }); inv.setModalProyecto(true); }} />
-                        <Popconfirm title="¿Desactivar proyecto?" okText="Sí" cancelText="No" onConfirm={async () => {
+                        <Popconfirm 
+                          title="¿Eliminar proyecto?" 
+                          description="Se eliminarán todas las unidades disponibles. No se puede eliminar si hay unidades bloqueadas o en procesos activos."
+                          okText="Sí, eliminar" 
+                          cancelText="Cancelar" 
+                          okButtonProps={{ danger: true }}
+                          onConfirm={async () => {
                             try {
                               await eliminarProyecto(p.proyecto_id);
+                              message.success('Proyecto eliminado correctamente');
                               inv.cargarProyectos();
                             } catch (err: any) {
                               const status = err?.response?.status ?? err?.response?.statusCode;
                               const msg = err?.response?.data?.message || err?.message;
                               if (status === 409) {
-                                message.error(msg || 'El proyecto tiene unidades registradas y no puede eliminarse.');
+                                message.error(msg || 'No se puede eliminar el proyecto porque tiene unidades bloqueadas o en procesos activos.');
                               } else {
                                 message.error(msg || 'Error al eliminar el proyecto.');
                               }

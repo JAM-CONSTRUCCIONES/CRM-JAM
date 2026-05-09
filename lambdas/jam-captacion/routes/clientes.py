@@ -536,6 +536,39 @@ def registrar_publico(event):
     return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id)
 
 
+def listar_inmobiliarias_publico(event):
+    """GET /publico/inmobiliarias — lista todas las inmobiliarias activas (sin auth)."""
+    try:
+        from boto3.dynamodb.conditions import Key
+        inmo_table = dynamodb.Table(os.environ['USUARIOS_TABLE'])
+        response = inmo_table.query(
+            IndexName='gsi-tipo',
+            KeyConditionExpression=Key('tipo').eq('INMOBILIARIA')
+        )
+        
+        result = []
+        for item in response.get('Items', []):
+            # Solo incluir inmobiliarias activas
+            if not item.get('activo', True):
+                continue
+                
+            inmo_id = item['pk'].replace('INMOBILIARIA#', '')
+            result.append({
+                'id': inmo_id,
+                'nombre': item.get('nombre', inmo_id),
+                'imagen_url': item.get('imagen_url')
+            })
+        
+        # Ordenar por nombre
+        result.sort(key=lambda x: x['nombre'].lower())
+        return ok(result)
+    except Exception as e:
+        print(f'ERROR listar_inmobiliarias_publico: {type(e).__name__}: {e}')
+        import traceback
+        traceback.print_exc()
+        return bad_request('Error al obtener inmobiliarias')
+
+
 def listar_proyectos_publico(event):
     """GET /publico/proyectos?inmobiliaria_id=xxx — proyectos asignados a la inmobiliaria (sin auth)."""
     qs = event.get('queryStringParameters') or {}
@@ -729,3 +762,171 @@ def buscar_clientes_admin(event):
     print(f'DEBUG buscar_clientes_admin: devolviendo {len(items)} items')
     
     return ok(items)
+
+
+def eliminar_admin(event, cedula, proyecto_id):
+    """DELETE /admin/clientes/{cedula}/proyecto/{id} — admin elimina TODOS los registros del cliente en TODAS las inmobiliarias."""
+    
+    print(f'[ELIMINAR] Iniciando eliminación COMPLETA de cliente: cedula={cedula}, proyecto={proyecto_id}')
+    
+    items_eliminados = []
+    
+    # 1. Buscar TODOS los registros del cliente en este proyecto (todas las inmobiliarias)
+    try:
+        resultado = clientes.query(
+            IndexName='gsi-cedula-proyecto',
+            KeyConditionExpression=Key('cedula').eq(cedula) & Key('sk').eq(f'PROYECTO#{proyecto_id}')
+        )
+        registros = resultado.get('Items', [])
+        print(f'[ELIMINAR] Registros encontrados: {len(registros)}')
+        
+        if not registros:
+            print(f'[ELIMINAR] Cliente no encontrado')
+            return not_found('Cliente no encontrado')
+        
+        # 2. Para cada registro (cada inmobiliaria)
+        for registro in registros:
+            inmobiliaria_id = registro.get('inmobiliaria_id', '').replace('INMOBILIARIA#', '')
+            print(f'[ELIMINAR] Procesando registro en inmobiliaria: {inmobiliaria_id}')
+            
+            # 2.1. Buscar y eliminar todos los procesos del cliente en esta inmobiliaria
+            pk_proceso = f'PROCESO#{cedula}#{inmobiliaria_id}'
+            print(f'[ELIMINAR] Buscando procesos: pk={pk_proceso}')
+            
+            try:
+                procesos_result = procesos.query(
+                    KeyConditionExpression=Key('pk').eq(pk_proceso)
+                )
+                procesos_items = procesos_result.get('Items', [])
+                print(f'[ELIMINAR] Procesos encontrados en {inmobiliaria_id}: {len(procesos_items)}')
+                
+                # 2.2. Para cada proceso, desvincular unidad y liberar bloqueos si existen
+                inventario = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
+                scheduler_client = boto3.client('scheduler')
+                
+                for proceso in procesos_items:
+                    print(f'[ELIMINAR] ===== Procesando proceso =====')
+                    print(f'[ELIMINAR] Proceso completo: {proceso}')
+                    
+                    unidad_id = proceso.get('unidad_id')
+                    proceso_pk = proceso.get('pk')
+                    proceso_sk = proceso.get('sk')
+                    
+                    print(f'[ELIMINAR] unidad_id extraido: {unidad_id}')
+                    print(f'[ELIMINAR] proceso pk: {proceso_pk}, sk: {proceso_sk}')
+                    
+                    if unidad_id:
+                        print(f'[ELIMINAR] Verificando unidad: {unidad_id}')
+                        
+                        # Obtener la unidad
+                        unidad_pk = f'PROYECTO#{proyecto_id}'
+                        unidad_sk = f'UNIDAD#{unidad_id}'
+                        
+                        print(f'[ELIMINAR] Buscando unidad con pk={unidad_pk}, sk={unidad_sk}')
+                        
+                        try:
+                            get_result = inventario.get_item(Key={'pk': unidad_pk, 'sk': unidad_sk})
+                            print(f'[ELIMINAR] Resultado get_item: {get_result}')
+                            
+                            unidad = get_result.get('Item')
+                            if unidad:
+                                cliente_cedula = unidad.get('cliente_cedula', '')
+                                estado_actual = unidad.get('estado', '')
+                                bloqueado_por = unidad.get('bloqueado_por', '')
+                                
+                                print(f'[ELIMINAR] Unidad encontrada - estado: {estado_actual}, cliente_cedula: {cliente_cedula}, bloqueado_por: {bloqueado_por}')
+                                
+                                # Desvincular si está vinculada a este cliente
+                                if cliente_cedula == cedula:
+                                    print(f'[ELIMINAR] OK Unidad vinculada a este cliente, procediendo a desvincular')
+                                    
+                                    # Si está bloqueada, eliminar schedules
+                                    if estado_actual == 'bloqueada':
+                                        print(f'[ELIMINAR] Unidad esta bloqueada, eliminando schedules...')
+                                        for suffix in ('alerta', 'liberacion'):
+                                            try:
+                                                safe_unidad = unidad_id.replace('/', '-').replace('#', '-')
+                                                schedule_name = f"bloqueo-{safe_unidad}-{suffix}"
+                                                scheduler_client.delete_schedule(Name=schedule_name)
+                                                print(f'[ELIMINAR] OK Schedule eliminado: {schedule_name}')
+                                            except scheduler_client.exceptions.ResourceNotFoundException:
+                                                print(f'[ELIMINAR] Schedule no encontrado (ya eliminado): bloqueo-{safe_unidad}-{suffix}')
+                                            except Exception as e:
+                                                print(f'[ELIMINAR] ERROR eliminando schedule {suffix}: {e}')
+                                    else:
+                                        print(f'[ELIMINAR] Unidad NO esta bloqueada (estado: {estado_actual}), no hay schedules que eliminar')
+                                    
+                                    # Desvincular unidad (marcar como disponible y remover referencias al cliente)
+                                    print(f'[ELIMINAR] Actualizando unidad a estado disponible...')
+                                    update_result = inventario.update_item(
+                                        Key={'pk': unidad_pk, 'sk': unidad_sk},
+                                        UpdateExpression='SET estado = :estado REMOVE bloqueado_por, cliente_cedula, fecha_bloqueo, fecha_liberacion',
+                                        ExpressionAttributeValues={':estado': 'disponible'},
+                                        ReturnValues='ALL_NEW'
+                                    )
+                                    print(f'[ELIMINAR] OK Unidad actualizada: {update_result.get("Attributes")}')
+                                    items_eliminados.append(f'Unidad desvinculada: {unidad_id} ({inmobiliaria_id})')
+                                    print(f'[ELIMINAR] SUCCESS Unidad desvinculada exitosamente: {unidad_id}')
+                                else:
+                                    print(f'[ELIMINAR] ERROR Unidad {unidad_id} NO esta vinculada a este cliente (cliente_cedula en unidad: "{cliente_cedula}" vs cedula buscada: "{cedula}")')
+                            else:
+                                print(f'[ELIMINAR] ERROR Unidad {unidad_id} NO encontrada en inventario (Item vacio)')
+                        except Exception as e:
+                            print(f'[ELIMINAR] EXCEPTION Error procesando unidad {unidad_id}: {e}')
+                            import traceback
+                            print(f'[ELIMINAR] Traceback: {traceback.format_exc()}')
+                    else:
+                        print(f'[ELIMINAR] WARNING Proceso sin unidad_id')
+                    
+                    # Eliminar el proceso
+                    print(f'[ELIMINAR] Eliminando proceso de DynamoDB...')
+                    try:
+                        procesos.delete_item(Key={'pk': proceso_pk, 'sk': proceso_sk})
+                        items_eliminados.append(f'Proceso eliminado: {proceso.get("unidad_nombre", proceso_sk)} ({inmobiliaria_id})')
+                        print(f'[ELIMINAR] OK Proceso eliminado: pk={proceso_pk}, sk={proceso_sk}')
+                    except Exception as e:
+                        print(f'[ELIMINAR] ERROR eliminando proceso: {e}')
+                        import traceback
+                        print(f'[ELIMINAR] Traceback: {traceback.format_exc()}')
+                    
+                    print(f'[ELIMINAR] ===== Fin proceso =====\n')
+            
+            except Exception as e:
+                print(f'[ELIMINAR] Error eliminando procesos de {inmobiliaria_id}: {e}')
+                import traceback
+                print(traceback.format_exc())
+            
+            # 2.3. Eliminar schedule de vencimiento de exclusividad
+            try:
+                sched.eliminar_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id)
+                items_eliminados.append(f'Schedule de exclusividad eliminado ({inmobiliaria_id})')
+            except Exception as e:
+                print(f'[ELIMINAR] Error eliminando schedule de exclusividad en {inmobiliaria_id}: {e}')
+            
+            # 2.4. Eliminar el registro del cliente
+            try:
+                clientes.delete_item(Key={'pk': registro['pk'], 'sk': registro['sk']})
+                items_eliminados.append(f'Cliente eliminado de {inmobiliaria_id}')
+                print(f'[ELIMINAR] Cliente eliminado: {registro["pk"]}, {registro["sk"]}')
+            except Exception as e:
+                print(f'[ELIMINAR] Error eliminando cliente de {inmobiliaria_id}: {e}')
+        
+        print(f'[ELIMINAR] Eliminación completada. Items eliminados: {len(items_eliminados)}')
+        
+        return ok({
+            'message': f'Cliente {cedula} eliminado completamente de {len(registros)} inmobiliaria(s)',
+            'items_eliminados': items_eliminados,
+            'registros_eliminados': len(registros),
+            'cliente': {
+                'cedula': cedula,
+                'nombres': registros[0].get('nombres'),
+                'apellidos': registros[0].get('apellidos'),
+                'proyecto_id': proyecto_id,
+            }
+        })
+    
+    except Exception as e:
+        print(f'[ELIMINAR] Error general: {e}')
+        import traceback
+        print(traceback.format_exc())
+        return bad_request(f'Error eliminando cliente: {str(e)}')

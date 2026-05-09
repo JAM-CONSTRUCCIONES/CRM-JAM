@@ -77,3 +77,7 @@ export const actualizarUnidad = (
 
 export const eliminarUnidad = (proyectoId: string, unidadId: string): Promise<void> =>
   apiDelete(`/admin/proyectos/${proyectoId}/unidades/${unidadId}`);
+
+// Exportación de inventario
+export const exportarInventario = (proyectoId: string): Promise<{ download_url: string; filename: string; total_unidades: number; proyecto_nombre: string }> =>
+  apiGet(`/admin/inventario/exportar?proyecto_id=${proyectoId}`);

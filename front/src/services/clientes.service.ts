@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut } from './api';
+import { apiGet, apiPost, apiPut, apiDelete } from './api';
 import type { Cliente } from '../types';
 
 export interface RegistrarClientePayload {
@@ -72,14 +72,28 @@ export const transferirClienteInmobiliaria = (
   cedula: string,
   proyectoId: string,
   inmobiliariaOrigenId: string,
-  inmobiliariaDestinoId: string
-): Promise<{ message: string; execution_arn: string }> =>
-  apiPost(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}/transferir`, {
+  inmobiliariaDestinoId: string,
+  unidadId?: string
+): Promise<{ message: string; execution_arn: string }> => {
+  const body: any = {
     cedula,
     proyecto_id: proyectoId,
     inmobiliaria_origen: inmobiliariaOrigenId.replace('INMOBILIARIA#', ''),
     inmobiliaria_destino: inmobiliariaDestinoId.replace('INMOBILIARIA#', ''),
-  });
+  };
+  if (unidadId) {
+    body.unidad_id = unidadId;
+  }
+  console.log('[SERVICE] transferirClienteInmobiliaria - body:', body);
+  return apiPost(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}/transferir`, body);
+};
+
+export const getInmobiliariasPublico = async (): Promise<{ id: string; nombre: string; imagen_url?: string }[]> => {
+  const res = await fetch(`${(await import('../config')).default.apiUrl}/publico/inmobiliarias`);
+  const data = await res.json();
+  if (!res.ok) throw Object.assign(new Error(data?.message || 'Error'), { response: { status: res.status, data } });
+  return data;
+};
 
 export const getProyectosPublico = async (inmobiliariaId: string): Promise<{ proyecto_id: string; nombre: string }[]> => {
   const res = await fetch(`${(await import('../config')).default.apiUrl}/publico/proyectos?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`);
@@ -99,3 +113,9 @@ export const registrarClientePublico = async (data: RegistrarClientePayload & { 
   if (!res.ok) throw Object.assign(new Error(json?.message || 'Error'), { response: { status: res.status, data: json } });
   return json;
 };
+
+export const eliminarClienteAdmin = (
+  cedula: string,
+  proyectoId: string
+): Promise<{ message: string; items_eliminados: string[]; registros_eliminados: number; cliente: any }> =>
+  apiPut(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}?accion=eliminar`, {});

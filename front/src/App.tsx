@@ -12,6 +12,7 @@ import UsuariosSistemaPage from './pages/sistema/UsuariosSistemaPage';
 import ReportesPage from './pages/reportes/ReportesPage';
 import ProcesosPage from './pages/procesos/ProcesosPage';
 import CapturaPage from './pages/captura/CapturaPage';
+import CapturaGlobalPage from './pages/captura/CapturaGlobalPage';
 import MfaSetupPage from './pages/auth/MfaSetupPage';
 import MigracionPage from './pages/migracion/MigracionPage';
 
@@ -22,6 +23,7 @@ const App = () => (
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/captura" element={<CapturaPage />} />
+        <Route path="/captura-global" element={<CapturaGlobalPage />} />
         <Route path="/mfa-setup" element={<MfaSetupPage />} />
         <Route
           path="/"

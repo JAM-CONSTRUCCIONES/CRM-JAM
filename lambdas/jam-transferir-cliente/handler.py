@@ -77,7 +77,7 @@ def crear_schedules_bloqueo(unidad_id, proyecto_id, ts_liberacion_iso, ts_alerta
 def validar_transferencia(event, context):
     """
     Valida que la transferencia sea posible.
-    Input: { cedula, proyecto_id, inmobiliaria_origen, inmobiliaria_destino }
+    Input: { cedula, proyecto_id, inmobiliaria_origen, inmobiliaria_destino, unidad_id? }
     Output: { valido: bool, cliente: {...}, procesos: [...], bloqueos: [...], error?: str }
     """
     print(f"[VALIDAR] Iniciando validación con event: {event}")
@@ -86,8 +86,13 @@ def validar_transferencia(event, context):
     proyecto_id = event['proyecto_id']
     inmo_origen = event['inmobiliaria_origen']
     inmo_destino = event['inmobiliaria_destino']
+    unidad_id = event.get('unidad_id')  # Opcional: si viene, solo transferir este proceso
     
     print(f"[VALIDAR] Buscando cliente: cedula={cedula}, proyecto={proyecto_id}, inmo_origen={inmo_origen}")
+    if unidad_id:
+        print(f"[VALIDAR] Transferencia de proceso específico: unidad_id={unidad_id}")
+    else:
+        print(f"[VALIDAR] Transferencia completa del cliente")
     
     # 1. Verificar que el cliente existe
     # Formato correcto: pk = CLIENTE#{cedula}#{inmobiliaria_id}, sk = PROYECTO#{proyecto_id}
@@ -114,8 +119,23 @@ def validar_transferencia(event, context):
     procesos_response = procesos_table.query(
         KeyConditionExpression=Key('pk').eq(pk_proceso)
     )
-    procesos = procesos_response.get('Items', [])
-    print(f"[VALIDAR] Procesos encontrados: {len(procesos)}")
+    procesos_todos = procesos_response.get('Items', [])
+    
+    # Si se especificó unidad_id, filtrar solo ese proceso
+    if unidad_id:
+        # El sk tiene formato UNIDAD#{unidad_id}, así que debemos comparar correctamente
+        procesos = [p for p in procesos_todos if p.get('sk') == f'UNIDAD#{unidad_id}']
+        if not procesos:
+            error_msg = f'Proceso no encontrado para unidad {unidad_id}'
+            print(f"[VALIDAR] ERROR: {error_msg}")
+            return {
+                'valido': False,
+                'error': error_msg
+            }
+        print(f"[VALIDAR] Proceso específico encontrado: {procesos[0].get('unidad_nombre', unidad_id)}")
+    else:
+        procesos = procesos_todos
+        print(f"[VALIDAR] Procesos encontrados: {len(procesos)}")
     
     # 3. Buscar unidades bloqueadas (sin importar por quién)
     # Si la unidad está bloqueada, se creará un nuevo bloqueo para la inmobiliaria destino
@@ -152,15 +172,18 @@ def validar_transferencia(event, context):
         'proyecto_id': proyecto_id,
         'inmobiliaria_origen': inmo_origen,
         'inmobiliaria_destino': inmo_destino,
+        'unidad_id': unidad_id,  # Pasar el unidad_id para los siguientes pasos
         'cliente': cliente,
         'procesos': procesos,
-        'bloqueos': bloqueos
+        'bloqueos': bloqueos,
+        'transferencia_parcial': bool(unidad_id)  # Flag para saber si es parcial
     }
 
 
 def eliminar_registros(event, context):
     """
     Elimina los registros antiguos (cliente, procesos, libera bloqueos).
+    Si es transferencia parcial (unidad_id presente), NO elimina el cliente.
     Input: resultado de validar_transferencia
     Output: { eliminado: bool, items_eliminados: [...] }
     """
@@ -172,6 +195,7 @@ def eliminar_registros(event, context):
     cliente = event['cliente']
     procesos = event['procesos']
     bloqueos = event['bloqueos']
+    transferencia_parcial = event.get('transferencia_parcial', False)
     
     items_eliminados = []
     
@@ -223,12 +247,16 @@ def eliminar_registros(event, context):
         items_eliminados.append(f'Proceso eliminado: {proceso["sk"]}')
         print(f"[ELIMINAR] Proceso eliminado: {proceso['sk']}")
     
-    # 3. Eliminar cliente (formato: pk = CLIENTE#{cedula}#{inmobiliaria_id}, sk = PROYECTO#{proyecto_id})
-    pk_cliente = f'CLIENTE#{cedula}#{inmo_origen}'
-    sk_cliente = f'PROYECTO#{proyecto_id}'
-    print(f"[ELIMINAR] Eliminando cliente: pk={pk_cliente}, sk={sk_cliente}")
-    clientes_table.delete_item(Key={'pk': pk_cliente, 'sk': sk_cliente})
-    items_eliminados.append(f'Cliente eliminado: {sk_cliente}')
+    # 3. Eliminar cliente SOLO si es transferencia completa
+    if transferencia_parcial:
+        print(f"[ELIMINAR] Transferencia parcial: NO se elimina el cliente")
+        items_eliminados.append(f'Cliente mantenido (transferencia parcial)')
+    else:
+        pk_cliente = f'CLIENTE#{cedula}#{inmo_origen}'
+        sk_cliente = f'PROYECTO#{proyecto_id}'
+        print(f"[ELIMINAR] Eliminando cliente: pk={pk_cliente}, sk={sk_cliente}")
+        clientes_table.delete_item(Key={'pk': pk_cliente, 'sk': sk_cliente})
+        items_eliminados.append(f'Cliente eliminado: {sk_cliente}')
     
     print(f"[ELIMINAR] Eliminación completada. Items eliminados: {len(items_eliminados)}")
     
@@ -239,15 +267,18 @@ def eliminar_registros(event, context):
         'proyecto_id': proyecto_id,
         'inmobiliaria_origen': inmo_origen,
         'inmobiliaria_destino': event['inmobiliaria_destino'],
+        'unidad_id': event.get('unidad_id'),  # Pasar el unidad_id al siguiente paso
         'cliente': cliente,
         'procesos': procesos,  # Pasar los procesos originales para recrearlos
-        'bloqueos': bloqueos
+        'bloqueos': bloqueos,
+        'transferencia_parcial': transferencia_parcial
     }
 
 
 def crear_registros(event, context):
     """
     Crea los nuevos registros con la inmobiliaria destino.
+    Si es transferencia parcial, verifica si el cliente ya existe en destino.
     Input: resultado de eliminar_registros
     Output: { creado: bool, items_creados: [...] }
     """
@@ -260,38 +291,71 @@ def crear_registros(event, context):
     inmo_destino = event['inmobiliaria_destino']
     cliente_original = event['cliente']
     bloqueos = event['bloqueos']
+    transferencia_parcial = event.get('transferencia_parcial', False)
     
     items_creados = []
     ahora = datetime.datetime.utcnow().isoformat() + 'Z'
     
-    # 1. Crear nuevo registro de cliente (formato: pk = CLIENTE#{cedula}#{inmobiliaria_id}, sk = PROYECTO#{proyecto_id})
+    # 1. Crear o verificar cliente en inmobiliaria destino
     pk_nuevo = f'CLIENTE#{cedula}#{inmo_destino}'
     sk_nuevo = f'PROYECTO#{proyecto_id}'
+    nuevo_cliente = None  # Inicializar
     
-    print(f"[CREAR] Creando cliente: pk={pk_nuevo}, sk={sk_nuevo}")
-    
-    nuevo_cliente = {
-        'pk': pk_nuevo,
-        'sk': sk_nuevo,
-        'cedula': cedula,
-        'inmobiliaria_id': inmo_destino,
-        'proyecto_id': proyecto_id,
-        'nombres': cliente_original['nombres'],
-        'apellidos': cliente_original['apellidos'],
-        'correo': cliente_original.get('correo'),
-        'telefono': cliente_original.get('telefono'),
-        'estado_civil': cliente_original.get('estado_civil'),
-        'nacionalidad': cliente_original.get('nacionalidad'),
-        'pais_residencia': cliente_original.get('pais_residencia'),
-        'fecha_nacimiento': cliente_original.get('fecha_nacimiento'),
-        'edad': cliente_original.get('edad'),
-        'exclusividad_activa': True,  # Renovar exclusividad
-        'fecha_captacion': ahora,  # Nueva fecha de captación
-        'fecha_vencimiento': (datetime.datetime.utcnow() + datetime.timedelta(days=90)).isoformat() + 'Z',
-    }
-    clientes_table.put_item(Item=nuevo_cliente)
-    items_creados.append(f'Cliente creado: {sk_nuevo}')
-    print(f"[CREAR] Cliente creado exitosamente")
+    if transferencia_parcial:
+        # Verificar si el cliente ya existe en la inmobiliaria destino
+        cliente_existente = clientes_table.get_item(Key={'pk': pk_nuevo, 'sk': sk_nuevo}).get('Item')
+        if cliente_existente:
+            print(f"[CREAR] Cliente ya existe en inmobiliaria destino (transferencia parcial)")
+            items_creados.append(f'Cliente ya existente en destino')
+        else:
+            print(f"[CREAR] Creando cliente en inmobiliaria destino: pk={pk_nuevo}, sk={sk_nuevo}")
+            nuevo_cliente = {
+                'pk': pk_nuevo,
+                'sk': sk_nuevo,
+                'cedula': cedula,
+                'inmobiliaria_id': inmo_destino,
+                'proyecto_id': proyecto_id,
+                'nombres': cliente_original['nombres'],
+                'apellidos': cliente_original['apellidos'],
+                'correo': cliente_original.get('correo'),
+                'telefono': cliente_original.get('telefono'),
+                'estado_civil': cliente_original.get('estado_civil'),
+                'nacionalidad': cliente_original.get('nacionalidad'),
+                'pais_residencia': cliente_original.get('pais_residencia'),
+                'fecha_nacimiento': cliente_original.get('fecha_nacimiento'),
+                'edad': cliente_original.get('edad'),
+                'exclusividad_activa': True,
+                'fecha_captacion': ahora,
+                'fecha_vencimiento': (datetime.datetime.utcnow() + datetime.timedelta(days=90)).isoformat() + 'Z',
+            }
+            clientes_table.put_item(Item=nuevo_cliente)
+            items_creados.append(f'Cliente creado: {sk_nuevo}')
+            print(f"[CREAR] Cliente creado exitosamente")
+    else:
+        # Transferencia completa: crear cliente nuevo
+        print(f"[CREAR] Creando cliente: pk={pk_nuevo}, sk={sk_nuevo}")
+        nuevo_cliente = {
+            'pk': pk_nuevo,
+            'sk': sk_nuevo,
+            'cedula': cedula,
+            'inmobiliaria_id': inmo_destino,
+            'proyecto_id': proyecto_id,
+            'nombres': cliente_original['nombres'],
+            'apellidos': cliente_original['apellidos'],
+            'correo': cliente_original.get('correo'),
+            'telefono': cliente_original.get('telefono'),
+            'estado_civil': cliente_original.get('estado_civil'),
+            'nacionalidad': cliente_original.get('nacionalidad'),
+            'pais_residencia': cliente_original.get('pais_residencia'),
+            'fecha_nacimiento': cliente_original.get('fecha_nacimiento'),
+            'edad': cliente_original.get('edad'),
+            'exclusividad_activa': True,
+            'fecha_captacion': ahora,
+            'fecha_vencimiento': (datetime.datetime.utcnow() + datetime.timedelta(days=90)).isoformat() + 'Z',
+        }
+        clientes_table.put_item(Item=nuevo_cliente)
+        items_creados.append(f'Cliente creado: {sk_nuevo}')
+        print(f"[CREAR] Cliente creado exitosamente")
     
     # 2. Obtener todos los procesos originales (no solo los que tienen bloqueos)
     procesos_originales = event.get('procesos', [])
@@ -412,12 +476,17 @@ def crear_registros(event, context):
     
     print(f"[CREAR] Creación completada. Items creados: {len(items_creados)}")
     
-    return {
+    result = {
         'creado': True,
         'items_creados': items_creados,
-        'nuevo_cliente': nuevo_cliente,
         'mensaje': f'Cliente {cedula} transferido exitosamente a inmobiliaria {inmo_destino}'
     }
+    
+    # Solo incluir nuevo_cliente si se creó uno
+    if nuevo_cliente:
+        result['nuevo_cliente'] = nuevo_cliente
+    
+    return result
 
 
 def handler(event, context):

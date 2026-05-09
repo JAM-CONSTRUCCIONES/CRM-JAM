@@ -1,3 +1,4 @@
+import json
 from utils.auth import require_admin
 from utils.response import forbidden, not_found
 from routes import clientes, scheduler_handler
@@ -19,6 +20,9 @@ def handler(event, context):
 
     if method == 'POST' and path == '/publico/clientes':
         return clientes.registrar_publico(event)
+
+    if method == 'GET' and path == '/publico/inmobiliarias':
+        return clientes.listar_inmobiliarias_publico(event)
 
     if method == 'GET' and path == '/publico/proyectos':
         return clientes.listar_proyectos_publico(event)
@@ -45,6 +49,16 @@ def handler(event, context):
         # Nuevo endpoint de búsqueda general
         return clientes.buscar_clientes_admin(event)
 
+    if method == 'POST' and path == '/admin/clientes/eliminar':
+        # Eliminar cliente completamente (todos los registros)
+        body = json.loads(event.get('body') or '{}')
+        cedula_eliminar = body.get('cedula')
+        proyecto_eliminar = body.get('proyecto_id')
+        if not cedula_eliminar or not proyecto_eliminar:
+            from utils.response import bad_request as br
+            return br('cedula y proyecto_id son requeridos')
+        return clientes.eliminar_admin(event, cedula_eliminar, proyecto_eliminar)
+
     if method == 'GET' and path == '/admin/clientes':
         return clientes.listar_admin(event)
 
@@ -62,7 +76,18 @@ def handler(event, context):
         return clientes.detalle_admin(event, cedula, proyecto_id)
 
     if method == 'PUT' and cedula and proyecto_id and is_admin:
+        # Verificar si es una eliminación (workaround para evitar problemas con DELETE)
+        qs = event.get('queryStringParameters') or {}
+        if qs.get('accion') == 'eliminar':
+            return clientes.eliminar_admin(event, cedula, proyecto_id)
         return clientes.actualizar_admin(event, cedula, proyecto_id)
+
+    if method == 'DELETE' and cedula and proyecto_id and is_admin:
+        return clientes.eliminar_admin(event, cedula, proyecto_id)
+
+    # POST /admin/clientes/{cedula}/proyecto/{proyecto_id}/eliminar (alternativa a DELETE)
+    if method == 'POST' and cedula and proyecto_id and path.endswith('/eliminar') and is_admin:
+        return clientes.eliminar_admin(event, cedula, proyecto_id)
 
     import json as _json
     print('UNMATCHED EVENT:', _json.dumps({

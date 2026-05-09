@@ -53,6 +53,9 @@ def handler(event, context):
         if method == 'GET' and '/inventario/reportes' in path and not job_id:
             return excel.listar_reportes(event)
 
+        if method == 'GET' and path.endswith('/inventario/exportar'):
+            return excel.exportar_inventario(event)
+
         # ===== PROYECTOS =====
 
         if method == 'POST' and path == '/admin/proyectos':

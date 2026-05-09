@@ -6,12 +6,13 @@ import {
 import {
   PlusOutlined, ReloadOutlined, UserOutlined, HistoryOutlined,
   SwapOutlined, SearchOutlined, EditOutlined, EyeOutlined, BankOutlined,
-  ClockCircleOutlined,
+  ClockCircleOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   getClientes, getClientesAdmin, buscarClienteAdmin, buscarClientesAdmin,
   registrarCliente, actualizarClienteAdmin, transferirClienteInmobiliaria,
+  eliminarClienteAdmin,
 } from '../../services/clientes.service';
 import { getProcesosCliente, getMisProcesos, cambiarEstatus } from '../../services/crm.service';
 import { getProyectos } from '../../services/proyectos.service';
@@ -102,8 +103,14 @@ const ClientesPage = () => {
   // Modal transferir inmobiliaria
   const [transferirModal, setTransferirModal] = useState(false);
   const [clienteTransferir, setClienteTransferir] = useState<Cliente | null>(null);
+  const [procesoTransferir, setProcesoTransferir] = useState<any | null>(null);  // Proceso específico a transferir
   const [formTransferir] = Form.useForm();
   const [transfiriendo, setTransfiriendo] = useState(false);
+
+  // Modal eliminar cliente
+  const [eliminarModal, setEliminarModal] = useState(false);
+  const [clienteEliminar, setClienteEliminar] = useState<Cliente | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   // Ref para debounce de búsqueda
   const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -322,39 +329,101 @@ const ClientesPage = () => {
     }
   };
 
-  const abrirTransferir = (cliente: Cliente) => {
+  const abrirTransferir = (cliente: Cliente, proceso?: any) => {
+    console.log('[TRANSFERIR] Cliente:', cliente);
+    console.log('[TRANSFERIR] Proceso:', proceso);
+    console.log('[TRANSFERIR] unidad_id:', proceso?.unidad_id);
     setClienteTransferir(cliente);
+    setProcesoTransferir(proceso || null);
     formTransferir.resetFields();
     setTransferirModal(true);
   };
 
   const handleTransferir = async (values: { inmobiliaria_destino: string }) => {
     if (!clienteTransferir) return;
+    console.log('[TRANSFERIR] Enviando transferencia...');
+    console.log('[TRANSFERIR] procesoTransferir:', procesoTransferir);
+    console.log('[TRANSFERIR] unidad_id a enviar:', procesoTransferir?.unidad_id);
     setTransfiriendo(true);
     try {
       await transferirClienteInmobiliaria(
         clienteTransferir.cedula,
         clienteTransferir.proyecto_id,
         clienteTransferir.inmobiliaria_id,
-        values.inmobiliaria_destino
+        values.inmobiliaria_destino,
+        procesoTransferir?.unidad_id
       );
-      message.success('Transferencia completada exitosamente. Actualizando datos...');
+      const mensaje = procesoTransferir 
+        ? `Proceso ${procesoTransferir.unidad_nombre || procesoTransferir.unidad_id} transferido exitosamente`
+        : 'Cliente transferido exitosamente';
+      message.success(mensaje + '. Actualizando datos...');
       setTransferirModal(false);
       setClienteTransferir(null);
+      setProcesoTransferir(null);
       // Esperar 5 segundos para que la Step Function complete todos los pasos
       setTimeout(() => {
         if (drawerCedula) {
           abrirDetalleCedula(drawerCedula);
         }
         cargar(proyectoFiltro, inmoFiltro);
-        message.info('Datos actualizados. Los bloqueos se han recreado con 48 horas adicionales.');
+        message.info('Datos actualizados.');
       }, 5000);
     } catch (err: any) {
-      console.error('Error al transferir cliente:', err);
-      const errorMessage = err?.message || 'Error al transferir cliente';
+      console.error('Error al transferir:', err);
+      const errorMessage = err?.message || 'Error al transferir';
       message.error(errorMessage);
     } finally {
       setTransfiriendo(false);
+    }
+  };
+
+  const abrirEliminar = (cliente: Cliente & { procesos?: Proceso[] }) => {
+    console.log('[ELIMINAR] Cliente:', cliente);
+    console.log('[ELIMINAR] drawerRegistros:', drawerRegistros);
+    
+    setClienteEliminar(cliente);
+    
+    // Recopilar TODOS los procesos de TODOS los registros del cliente
+    const todosProcesos: Proceso[] = [];
+    drawerRegistros.forEach(reg => {
+      if (reg.procesos && reg.procesos.length > 0) {
+        todosProcesos.push(...reg.procesos);
+      }
+    });
+    
+    console.log('[ELIMINAR] Total procesos a eliminar:', todosProcesos.length);
+    setDrawerProcesos(todosProcesos);
+    setEliminarModal(true);
+  };
+
+  const handleEliminar = async () => {
+    if (!clienteEliminar) return;
+    setEliminando(true);
+    try {
+      const result = await eliminarClienteAdmin(
+        clienteEliminar.cedula,
+        clienteEliminar.proyecto_id
+      );
+      message.success(`${result.message}. ${result.items_eliminados.length} items eliminados.`);
+      setEliminarModal(false);
+      setClienteEliminar(null);
+      // Cerrar drawer si está abierto
+      if (drawerCedula) {
+        setDrawerCedula(null);
+        setDrawerRegistros([]);
+      }
+      // Recargar lista
+      if (modoVista === 'busqueda' && busqueda) {
+        handleBusqueda(busqueda);
+      } else {
+        cargar(proyectoFiltro, inmoFiltro);
+      }
+    } catch (err: any) {
+      console.error('Error al eliminar:', err);
+      const errorMessage = err?.message || 'Error al eliminar cliente';
+      message.error(errorMessage);
+    } finally {
+      setEliminando(false);
     }
   };
 
@@ -674,7 +743,10 @@ const ClientesPage = () => {
                 {/* Datos personales */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <Title level={5} style={{ margin: 0 }}>Datos personales</Title>
-                  <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(reg)}>Editar</Button>
+                  <Space>
+                    <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(reg)}>Editar</Button>
+                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => abrirEliminar(reg)}>Eliminar</Button>
+                  </Space>
                 </div>
                 <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
@@ -822,7 +894,7 @@ const ClientesPage = () => {
                           <Button size="small" type="link" icon={<HistoryOutlined />}
                             onClick={() => { setHistorialProceso(p); setHistorialNombre(`${reg.nombres} ${reg.apellidos}`); }}>Historial</Button>
                           <Button size="small" type="link" icon={<BankOutlined />}
-                            onClick={() => abrirTransferir(reg)}>Transferir</Button>
+                            onClick={() => abrirTransferir(reg, p)}>Transferir</Button>
                         </Space>
                       </div>
                     </div>
@@ -1052,6 +1124,89 @@ const ClientesPage = () => {
                 />
               </Form.Item>
             </Form>
+          </>
+        )}
+      </Modal>
+
+      {/* Modal Eliminar Cliente */}
+      <Modal
+        open={eliminarModal}
+        title={<span><DeleteOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />Eliminar Cliente</span>}
+        onCancel={() => { setEliminarModal(false); setClienteEliminar(null); }}
+        onOk={handleEliminar}
+        okText="Eliminar"
+        cancelText="Cancelar"
+        confirmLoading={eliminando}
+        okButtonProps={{ danger: true }}
+        width={520}
+      >
+        {clienteEliminar && (
+          <>
+            <Alert
+              message="⚠️ Acción Irreversible"
+              description={`Esta acción eliminará permanentemente el cliente de TODAS las inmobiliarias (${drawerRegistros.length} registro${drawerRegistros.length !== 1 ? 's' : ''}) y todos sus datos asociados:`}
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+
+            <div style={{
+              background: '#fff1f0', border: '1px solid #ffccc7', borderRadius: 8,
+              padding: '12px 14px', marginBottom: 16,
+            }}>
+              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE A ELIMINAR</Text>
+              <Text strong style={{ fontSize: 14 }}>{clienteEliminar.nombres} {clienteEliminar.apellidos}</Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: 12 }}>Cédula: {clienteEliminar.cedula}</Text>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #ffa39e' }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>PROYECTO</Text>
+                <div><Text style={{ fontSize: 13 }}>{proyectoNombre(clienteEliminar.proyecto_id)}</Text></div>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>INMOBILIARIAS ({drawerRegistros.length})</Text>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                  {drawerRegistros.map((reg, idx) => (
+                    <Tag key={`${reg.inmobiliaria_id}-${idx}`} color="red" style={{ margin: 0 }}>
+                      {inmoNombre(reg.inmobiliaria_id)}
+                    </Tag>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: '#fafafa', border: '1px solid #d9d9d9', borderRadius: 8, padding: 12 }}>
+              <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>Se eliminarán:</Text>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+                <li>{drawerRegistros.length} registro{drawerRegistros.length !== 1 ? 's' : ''} del cliente en {drawerRegistros.length} inmobiliaria{drawerRegistros.length !== 1 ? 's' : ''}</li>
+                {drawerProcesos.length > 0 ? (
+                  <li>
+                    <strong>{drawerProcesos.length}</strong> proceso{drawerProcesos.length !== 1 ? 's' : ''} de venta:
+                    <ul style={{ marginTop: 4, fontSize: 12 }}>
+                      {drawerProcesos.map((p: any, idx: number) => (
+                        <li key={`${p.unidad_id}-${idx}`}>
+                          {p.unidad_nombre || p.unidad_id} - <Tag color={ESTADO_PROCESO_COLOR[p.estado as keyof typeof ESTADO_PROCESO_COLOR]} style={{ fontSize: 11 }}>
+                            {ESTADO_PROCESO_LABEL[p.estado as keyof typeof ESTADO_PROCESO_LABEL]}
+                          </Tag>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ) : (
+                  <li>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Este cliente no tiene procesos de venta asociados</Text>
+                  </li>
+                )}
+                <li>Unidades desvinculadas (marcadas como disponibles)</li>
+                <li>Bloqueos de unidades (si existen)</li>
+                <li>Schedules de vencimiento y alertas</li>
+              </ul>
+            </div>
+
+            <div style={{ marginTop: 16, padding: 12, background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8 }}>
+              <Text type="warning" style={{ fontSize: 12 }}>
+                <strong>Nota:</strong> Esta acción no se puede deshacer. Asegúrate de que realmente deseas eliminar este cliente de todas las inmobiliarias.
+              </Text>
+            </div>
           </>
         )}
       </Modal>

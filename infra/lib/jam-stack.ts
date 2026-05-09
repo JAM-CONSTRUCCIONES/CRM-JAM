@@ -347,7 +347,7 @@ export class JamStack extends cdk.Stack {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-captacion')),
-      timeout: cdk.Duration.seconds(30),
+      timeout: cdk.Duration.seconds(60),
       environment: {
         CLIENTES_TABLE: clientesTable.tableName,
         USUARIOS_TABLE: usuariosTable.tableName,
@@ -361,7 +361,7 @@ export class JamStack extends cdk.Stack {
 
     clientesTable.grantReadWriteData(captacionLambda);
     usuariosTable.grantReadData(captacionLambda);
-    inventarioTable.grantReadData(captacionLambda);
+    inventarioTable.grantReadWriteData(captacionLambda);  // Necesita escribir para desvincular unidades
     procesosTable.grantReadWriteData(captacionLambda);
     notificacionesQueue.grantSendMessages(captacionLambda);
 
@@ -483,6 +483,7 @@ export class JamStack extends cdk.Stack {
         'proyecto_id.$': '$.proyecto_id',
         'inmobiliaria_origen.$': '$.inmobiliaria_origen',
         'inmobiliaria_destino.$': '$.inmobiliaria_destino',
+        'unidad_id.$': '$.unidad_id',
       }),
       resultPath: '$.validacion',
       outputPath: '$.validacion.Payload',
@@ -500,6 +501,8 @@ export class JamStack extends cdk.Stack {
         'cliente.$': '$.cliente',
         'procesos.$': '$.procesos',
         'bloqueos.$': '$.bloqueos',
+        'unidad_id.$': '$.unidad_id',
+        'transferencia_parcial.$': '$.transferencia_parcial',
       }),
       resultPath: '$.eliminacion',
       outputPath: '$.eliminacion.Payload',
@@ -517,6 +520,8 @@ export class JamStack extends cdk.Stack {
         'cliente.$': '$.cliente',
         'procesos.$': '$.procesos',
         'bloqueos.$': '$.bloqueos',
+        'unidad_id.$': '$.unidad_id',
+        'transferencia_parcial.$': '$.transferencia_parcial',
       }),
       resultPath: '$.creacion',
       outputPath: '$.creacion.Payload',
@@ -918,6 +923,10 @@ def handler(event, context):
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
+    adminInventarioResource.addResource('exportar').addMethod('GET', proyectosLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
 
     // /admin/proyectos/{id}/etapas
     const adminEtapasResource = adminProyectoResource.addResource('etapas');
@@ -965,6 +974,9 @@ def handler(event, context):
 
     // /publico — rutas sin auth para captura externa de clientes
     const publicoResource = api.root.addResource('publico');
+
+    const publicoInmobiliariasResource = publicoResource.addResource('inmobiliarias');
+    publicoInmobiliariasResource.addMethod('GET', captacionLambdaIntegration);
 
     const publicoProyectosResource = publicoResource.addResource('proyectos');
     publicoProyectosResource.addMethod('GET', captacionLambdaIntegration);
@@ -1091,6 +1103,9 @@ def handler(event, context):
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
       description: 'openpyxl para parseo de archivos Excel',
     });
+
+    // Agregar layer de openpyxl a jam-proyectos para exportación de inventario
+    proyectosLambda.addLayers(openpyxlLayer);
 
     // ─── LAMBDA jam-excel-parser ─────────────────────────────────────────────
     // Lambda separada para parsear Excel — timeout largo, disparada por evento S3

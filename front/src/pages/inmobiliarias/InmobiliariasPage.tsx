@@ -177,6 +177,18 @@ const InmobiliariasPage = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Title level={4} style={{ margin: 0 }}>Inmobiliarias</Title>
         <Space>
+          <Tooltip title="Copiar enlace de registro global">
+            <Button
+              icon={<LinkOutlined />}
+              onClick={() => {
+                const url = `${window.location.origin}/captura-global`;
+                navigator.clipboard.writeText(url);
+                message.success('Enlace de registro global copiado');
+              }}
+            >
+              Enlace global
+            </Button>
+          </Tooltip>
           <Tooltip title="Actualizar">
             <Button icon={<ReloadOutlined />} onClick={cargar} loading={loading} />
           </Tooltip>
@@ -193,9 +205,8 @@ const InmobiliariasPage = () => {
           return (
             <Col key={inmo.pk} xs={24} sm={12} md={8} lg={6}>
               <div
-                onClick={() => abrirUsuarios(inmo)}
                 style={{
-                  borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
+                  borderRadius: 14, overflow: 'hidden',
                   background: '#fff', border: '1px solid #f0f0f0',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
                   opacity: inmo.activo ? 1 : 0.65,
@@ -279,12 +290,28 @@ const InmobiliariasPage = () => {
                   )}
 
                   {/* Footer */}
-                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <TeamOutlined style={{ color: '#aaa', fontSize: 13 }} />
-                      <Text type="secondary" style={{ fontSize: 12 }}>Ver usuarios</Text>
-                    </div>
-                    <Space size={4} onClick={e => e.stopPropagation()}>
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f5f5f5', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Botón Ver Usuarios */}
+                    <Button
+                      type="default"
+                      icon={<TeamOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        abrirUsuarios(inmo);
+                      }}
+                      block
+                      style={{
+                        height: 36,
+                        borderColor: c,
+                        color: c,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Ver usuarios
+                    </Button>
+                    
+                    {/* Otros botones */}
+                    <Space size={4} style={{ width: '100%', justifyContent: 'space-between' }}>
                       <Tooltip title="Ver inventario como esta inmobiliaria">
                         <Button
                           size="small"

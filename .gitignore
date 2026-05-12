@@ -30,6 +30,14 @@ lambdas/**/*.pyc
 .aws-sam/
 samconfig.toml
 
+# ─── Archivos temporales / deploy ────────────────────
+lambdas/*.zip
+*.sh
+logs-temp.txt
+tmp-query.json
+cloudtrail-*.json
+dist-config-update.json
+
 # ─── OS ──────────────────────────────────────────────
 .DS_Store
 Thumbs.db

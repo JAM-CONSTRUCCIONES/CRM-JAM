@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Form, Input, Select, DatePicker, Button, Typography, Result, Spin, Alert, Avatar } from 'antd';
+import { Form, Input, Select, DatePicker, Button, Typography, Spin, Alert, Avatar } from 'antd';
 import { UserOutlined, CheckCircleFilled, BankOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getInmobiliariasPublico, getProyectosPublico, registrarClientePublico } from '../../services/clientes.service';

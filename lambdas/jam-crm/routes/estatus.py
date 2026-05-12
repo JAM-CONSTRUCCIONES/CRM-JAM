@@ -184,11 +184,15 @@ def listar_procesos(event, cedula):
 
     if inmobiliaria_id:
         pk = f'PROCESO#{cedula}#{inmobiliaria_id}'
-        result = procesos_table.query(KeyConditionExpression=Key('pk').eq(pk))
+        result = procesos_table.query(
+            KeyConditionExpression=Key('pk').eq(pk),
+            ScanIndexForward=False  # Más recientes primero
+        )
     else:
         result = procesos_table.query(
             IndexName='gsi-cedula-procesos',
             KeyConditionExpression=Key('cedula').eq(cedula),
+            ScanIndexForward=False  # Más recientes primero
         )
     return ok(result.get('Items', []))
 
@@ -200,8 +204,6 @@ def listar_todos_procesos(event):
     inmobiliaria_id = qs.get('inmobiliaria_id')
     estado = qs.get('estado')
     incluir_cerrados = qs.get('incluir_cerrados', 'false').lower() == 'true'
-    next_token = qs.get('next_token')
-    limit = min(int(qs.get('limit', 100)), 200)
 
     # Si el caller es inmobiliaria, forzar filtro por su propio id
     from utils.auth import get_rol, get_claims
@@ -219,7 +221,7 @@ def listar_todos_procesos(event):
 
     if proyecto_id:
         # gsi-proyecto-procesos: PK=proyecto_id, SK=estado
-        # estado es sort key del GSI — NO puede ir en FilterExpression, solo en KeyConditionExpression
+        # Cuando hay proyecto, cargar TODOS los procesos (sin paginación)
         if estado:
             key_cond = Key('proyecto_id').eq(proyecto_id) & Key('estado').eq(estado)
         else:
@@ -228,56 +230,61 @@ def listar_todos_procesos(event):
         kwargs = {
             'IndexName': 'gsi-proyecto-procesos',
             'KeyConditionExpression': key_cond,
-            'Limit': limit,
+            'ScanIndexForward': False,  # Más recientes primero
         }
         query_fn = procesos_table.query
         usar_gsi_proyecto = True
         usar_gsi_inmo = False
+        
+        # Cargar TODOS los resultados (loop de paginación)
+        items = []
+        while True:
+            result = query_fn(**kwargs)
+            items.extend(result.get('Items', []))
+            last_key = result.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            kwargs['ExclusiveStartKey'] = last_key
+            
     elif inmobiliaria_id:
         # Usar GSI de inmobiliaria para evitar scan — normalizar sin prefijo
         inmo_id_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
         kwargs = {
             'IndexName': 'gsi-inmobiliaria-procesos',
             'KeyConditionExpression': Key('inmobiliaria_id').eq(inmo_id_clean),
-            'Limit': limit,
+            'ScanIndexForward': False,  # Más recientes primero
         }
         query_fn = procesos_table.query
         usar_gsi_proyecto = False
         usar_gsi_inmo = True
         inmobiliaria_id = inmo_id_clean  # normalizado para filtros posteriores
+        
+        # Cargar TODOS los resultados
+        items = []
+        while True:
+            result = query_fn(**kwargs)
+            items.extend(result.get('Items', []))
+            last_key = result.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            kwargs['ExclusiveStartKey'] = last_key
     else:
+        # Sin proyecto ni inmobiliaria: scan limitado (fallback)
         usar_gsi_proyecto = False
         usar_gsi_inmo = False
-        kwargs = {'Limit': limit}
+        kwargs = {'Limit': 200}
         query_fn = procesos_table.scan
+        result = query_fn(**kwargs)
+        items = result.get('Items', [])
 
-    if next_token:
-        import base64, json as _json
-        try:
-            kwargs['ExclusiveStartKey'] = _json.loads(base64.b64decode(next_token).decode())
-        except Exception:
-            pass
+    # Ordenar por fecha de actualización descendente cuando se usa scan (sin GSI)
+    if not usar_gsi_proyecto and not usar_gsi_inmo:
+        items.sort(key=lambda x: x.get('actualizado_en', ''), reverse=True)
 
-    # FilterExpression: solo atributos que NO sean PK/SK del GSI activo
-    filtros = []
-    if inmobiliaria_id and not usar_gsi_inmo:
+    # Filtrar inmobiliaria en Python cuando usamos gsi-proyecto-procesos
+    if usar_gsi_proyecto and inmobiliaria_id:
         inmo_id_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
-        filtros.append(Attr('inmobiliaria_id').eq(inmo_id_clean))
-    if not usar_gsi_proyecto:
-        if estado:
-            # Estado específico tiene prioridad — filtrar exacto sin importar incluir_cerrados
-            filtros.append(Attr('estado').eq(estado))
-        elif not incluir_cerrados:
-            filtros.append(Attr('estado').is_in(['captacion', 'reserva', 'separacion', 'inicial']))
-
-    if filtros:
-        expr = filtros[0]
-        for f in filtros[1:]:
-            expr = expr & f
-        kwargs['FilterExpression'] = expr
-
-    result = query_fn(**kwargs)
-    items = result.get('Items', [])
+        items = [i for i in items if i.get('inmobiliaria_id') == inmo_id_clean]
 
     # Filtrar estado en Python cuando usamos gsi-proyecto-procesos sin estado exacto
     if usar_gsi_proyecto and not estado:
@@ -342,12 +349,9 @@ def listar_todos_procesos(event):
         item['estado_unidad'] = info.get('estado_unidad', '')
         item['fecha_liberacion_unidad'] = info.get('fecha_liberacion_unidad')
 
+    # Cuando hay proyecto o inmobiliaria, devolver todos sin paginación
     resp = {'items': items}
-    if result.get('LastEvaluatedKey'):
-        import base64, json as _json
-        resp['next_token'] = base64.b64encode(
-            _json.dumps(result['LastEvaluatedKey']).encode()
-        ).decode()
+    # No incluir next_token cuando se carga todo
     return ok(resp)
 
 

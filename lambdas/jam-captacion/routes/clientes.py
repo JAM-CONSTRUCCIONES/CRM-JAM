@@ -317,6 +317,7 @@ def listar(event):
     kwargs = {
         'IndexName': 'gsi-inmobiliaria-clientes',
         'KeyConditionExpression': Key('inmobiliaria_id').eq(inmobiliaria_id),
+        'ScanIndexForward': False,  # Más recientes primero
     }
     if proyecto_id:
         kwargs['FilterExpression'] = Attr('proyecto_id').eq(proyecto_id)
@@ -344,6 +345,7 @@ def listar_admin(event):
     if proyecto_id:
         kwargs['IndexName'] = 'gsi-proyecto-clientes'
         kwargs['KeyConditionExpression'] = Key('proyecto_id').eq(proyecto_id)
+        kwargs['ScanIndexForward'] = False  # Más recientes primero
         if inmobiliaria_id:
             kwargs['FilterExpression'] = Attr('inmobiliaria_id').eq(inmobiliaria_id)
         result = clientes.query(**kwargs)
@@ -352,13 +354,19 @@ def listar_admin(event):
         inmo_id_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
         kwargs['IndexName'] = 'gsi-inmobiliaria-clientes'
         kwargs['KeyConditionExpression'] = Key('inmobiliaria_id').eq(inmo_id_clean)
+        kwargs['ScanIndexForward'] = False  # Más recientes primero
         result = clientes.query(**kwargs)
         # Si no hay resultados, intentar con prefijo (registros legacy)
         if not result.get('Items'):
             kwargs['KeyConditionExpression'] = Key('inmobiliaria_id').eq(f'INMOBILIARIA#{inmo_id_clean}')
+            kwargs['ScanIndexForward'] = False  # Más recientes primero
             result = clientes.query(**kwargs)
     else:
         result = clientes.scan(**kwargs)
+        # Ordenar por fecha de captación descendente cuando se usa scan
+        items = result.get('Items', [])
+        items.sort(key=lambda x: x.get('fecha_captacion', ''), reverse=True)
+        result['Items'] = items
 
     resp = {'items': result.get('Items', [])}
     if result.get('LastEvaluatedKey'):

@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Tag, Button, Space, Select, message,
   Badge, Tooltip, Grid, Input, Dropdown, Tabs, Modal, Form, InputNumber,
-  Radio, Divider, DatePicker, Spin, Table,
+  Radio, Divider, DatePicker, Spin, Table, Row, Col,
 } from 'antd';
 import {
   ReloadOutlined, SwapOutlined, HistoryOutlined,
   SearchOutlined, MoreOutlined, UserOutlined, LockOutlined,
   FieldTimeOutlined, UserAddOutlined, ClockCircleOutlined, UnlockOutlined,
+  ArrowLeftOutlined, AppstoreOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { listarTodosProcesos, cambiarEstatus, getMisProcesos, type ProcesoEnriquecido } from '../../services/crm.service';
@@ -19,7 +20,7 @@ import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import type { Proyecto, Proceso, Bloqueo, Cliente, HistorialBloqueo } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
-import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION } from '../../constants/estados';
+import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
 import { useAuthContext } from '../../context/AuthContext';
 
 const { Title, Text } = Typography;
@@ -40,9 +41,12 @@ const ProcesosPage = () => {
   const { usuario } = useAuthContext();
   const esInmobiliaria = usuario?.rol === 'inmobiliaria';
 
+  // ── Vista y navegación ────────────────────────────────────────────────────
+  const [vista, setVista] = useState<'proyectos' | 'procesos'>('proyectos');
+  const [proyectoSeleccionado, setProyectoSeleccionado] = useState<Proyecto | null>(null);
+
   // ── Procesos ──────────────────────────────────────────────────────────────
   const [procesos, setProcesos] = useState<ProcesoEnriquecido[]>([]);
-  const [nextToken, setNextToken] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
@@ -85,41 +89,35 @@ const ProcesosPage = () => {
 
   // ── Carga de datos ────────────────────────────────────────────────────────
   const cargar = useCallback(async (opts: {
-    token?: string;
-    tab?: 'activos' | 'cerrados';
     proyecto?: string;
-    inmo?: string;
-    estado?: string;
   } = {}) => {
-    const tab = opts.tab ?? tabActiva;
-    // Usar el valor de opts si se pasó explícitamente (undefined !== no pasado)
-    const proyectoId = 'proyecto' in opts ? opts.proyecto : proyectoFiltro;
-    const inmoId = 'inmo' in opts ? opts.inmo : inmoFiltro;
-    const estadoId = 'estado' in opts ? opts.estado : estadoFiltro;
+    // Requerir proyecto seleccionado
+    const proyectoId = opts.proyecto ?? proyectoFiltro ?? proyectoSeleccionado?.proyecto_id;
+    if (!proyectoId) {
+      setProcesos([]);
+      return;
+    }
+
     setLoading(true);
     try {
       if (esInmobiliaria) {
         const items = await getMisProcesos(proyectoId);
         setProcesos(items as ProcesoEnriquecido[]);
-        setNextToken(undefined);
       } else {
+        // Backend ahora devuelve TODOS los procesos del proyecto
         const data = await listarTodosProcesos({
           proyecto_id: proyectoId,
-          inmobiliaria_id: inmoId,
-          estado: estadoId,
-          // Si hay filtro de estado específico, incluir todos para que el backend filtre exacto
-          incluir_cerrados: tab === 'cerrados' || !!estadoId,
-          next_token: opts.token,
+          // No enviar filtros de inmobiliaria ni estado - se filtran en frontend
+          incluir_cerrados: true, // Traer todos para filtrar localmente
         });
-        setProcesos(prev => opts.token ? [...prev, ...data.items] : data.items);
-        setNextToken(data.next_token);
+        setProcesos(data.items);
       }
     } catch {
       message.error('Error al cargar procesos');
     } finally {
       setLoading(false);
     }
-  }, [tabActiva, proyectoFiltro, inmoFiltro, estadoFiltro, esInmobiliaria]);
+  }, [proyectoFiltro, esInmobiliaria, proyectoSeleccionado]);
 
   const cargarBloqueosSinCliente = useCallback(async () => {
     if (esInmobiliaria) return;
@@ -146,9 +144,8 @@ const ProcesosPage = () => {
   useEffect(() => {
     getProyectos().then(setProyectos).catch(() => {});
     if (!esInmobiliaria) getInmobiliarias().then(setInmobiliarias).catch(() => {});
-    cargar();
-    cargarBloqueosSinCliente();
-  }, []);
+    // No cargar procesos automáticamente, esperar selección de proyecto
+  }, [esInmobiliaria]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const proyectoNombre = (id: string) =>
@@ -318,29 +315,68 @@ const ProcesosPage = () => {
   }, []);
 
   const limpiarFiltros = () => {
-    setProyectoFiltro(undefined);
     setInmoFiltro(undefined);
     setEstadoFiltro(undefined);
     setBusqueda('');
-    setNextToken(undefined);
     setTabActiva('activos');
-    cargar({ proyecto: undefined, inmo: undefined, estado: undefined, tab: 'activos' });
+  };
+
+  const seleccionarProyecto = (p: Proyecto) => {
+    setProyectoSeleccionado(p);
+    setProyectoFiltro(p.proyecto_id);
+    setVista('procesos');
+    // Limpiar filtros previos
+    setInmoFiltro(undefined);
+    setEstadoFiltro(undefined);
+    setBusqueda('');
+    setTabActiva('activos');
+    // Cargar procesos del proyecto
+    cargar({ proyecto: p.proyecto_id });
+    cargarBloqueosSinCliente();
+  };
+
+  const volverAProyectos = () => {
+    setVista('proyectos');
+    setProyectoSeleccionado(null);
+    setProyectoFiltro(undefined);
+    setProcesos([]);
+    setBloqueosSinCliente([]);
+    limpiarFiltros();
   };
 
   // ── Filtrado local ────────────────────────────────────────────────────────
-  const procesosVisibles = busqueda.trim()
-    ? procesos.filter(p => {
-        const nombre = nombreCliente(p).toLowerCase();
-        const q = busqueda.toLowerCase();
-        return nombre.includes(q) || p.cedula.includes(q) || (p.unidad_nombre ?? '').toLowerCase().includes(q);
-      })
-    : procesos;
+  // Aplicar todos los filtros localmente
+  let procesosFiltrados = procesos;
 
-  const procesosActivos = procesosVisibles.filter(p =>
-    estadoFiltro ? p.estado === estadoFiltro : ESTADOS_ACTIVOS.includes(p.estado)
+  // Filtro por inmobiliaria
+  if (inmoFiltro) {
+    const inmoNorm = inmoFiltro.replace('INMOBILIARIA#', '');
+    procesosFiltrados = procesosFiltrados.filter(p => {
+      const pInmo = p.inmobiliaria_id?.replace('INMOBILIARIA#', '');
+      return pInmo === inmoNorm;
+    });
+  }
+
+  // Filtro por estado
+  if (estadoFiltro) {
+    procesosFiltrados = procesosFiltrados.filter(p => p.estado === estadoFiltro);
+  }
+
+  // Filtro por búsqueda de texto
+  if (busqueda.trim()) {
+    const q = busqueda.toLowerCase();
+    procesosFiltrados = procesosFiltrados.filter(p => {
+      const nombre = nombreCliente(p).toLowerCase();
+      return nombre.includes(q) || p.cedula.includes(q) || (p.unidad_nombre ?? '').toLowerCase().includes(q);
+    });
+  }
+
+  // Separar en activos y cerrados
+  const procesosActivos = procesosFiltrados.filter(p =>
+    ESTADOS_ACTIVOS.includes(p.estado)
   );
-  const procesosCerrados = procesosVisibles.filter(p =>
-    estadoFiltro ? p.estado === estadoFiltro : !ESTADOS_ACTIVOS.includes(p.estado)
+  const procesosCerrados = procesosFiltrados.filter(p =>
+    !ESTADOS_ACTIVOS.includes(p.estado)
   );
 
   // Bloqueos sin cliente filtrados por búsqueda/proyecto
@@ -654,146 +690,190 @@ const ProcesosPage = () => {
   }));
 
   // ── JSX ───────────────────────────────────────────────────────────────────
-  // Pantalla de carga inicial
-  if (loading && procesos.length === 0 && bloqueosSinCliente.length === 0) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
-        <Spin size="large" />
-        <Text type="secondary">Cargando procesos...</Text>
-      </div>
-    );
-  }
-
   return (
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <Title level={4} style={{ margin: 0 }}>Procesos de venta</Title>
-        <Button icon={<ReloadOutlined />} loading={loading || loadingBloqueos} onClick={() => { cargar(); cargarBloqueosSinCliente(); }}>
-          {!isMobile && 'Actualizar'}
-        </Button>
-      </div>
-
-      {/* Filtros */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-        <Input prefix={<SearchOutlined />} placeholder="Buscar cliente, cédula o unidad..."
-          style={{ width: isMobile ? '100%' : 240 }} value={busqueda}
-          onChange={e => setBusqueda(e.target.value)} allowClear />
-        <Select allowClear placeholder="Proyecto" style={{ width: isMobile ? '100%' : 180 }}
-          value={proyectoFiltro} options={proyectos.map(p => ({ value: p.proyecto_id, label: p.nombre }))}
-          onChange={v => { setProyectoFiltro(v); setNextToken(undefined); cargar({ proyecto: v }); }} />
-        {!esInmobiliaria && (
-          <Select allowClear placeholder="Inmobiliaria" style={{ width: isMobile ? '100%' : 180 }}
-            value={inmoFiltro} options={inmobiliarias.map(i => ({ value: i.pk, label: i.nombre }))}
-            onChange={v => { setInmoFiltro(v); setNextToken(undefined); cargar({ inmo: v }); }} />
-        )}        <Select allowClear placeholder="Estatus" style={{ width: isMobile ? '100%' : 150 }}
-          value={estadoFiltro} options={opcionesEstado}
-          onChange={v => {
-            setEstadoFiltro(v);
-            setNextToken(undefined);
-            // Si el estatus seleccionado es cerrado, cambiar tab automáticamente
-            const esCerrado = v && !ESTADOS_ACTIVOS.includes(v);
-            if (esCerrado && tabActiva !== 'cerrados') {
-              setTabActiva('cerrados');
-              cargar({ estado: v, tab: 'cerrados' });
-            } else if (!esCerrado && tabActiva !== 'activos') {
-              setTabActiva('activos');
-              cargar({ estado: v, tab: 'activos' });
-            } else {
-              cargar({ estado: v });
-            }
-          }} />
-        <Button onClick={limpiarFiltros}>Limpiar</Button>
-      </div>
-
-      {/* Tabs */}
-      <Tabs
-        activeKey={tabActiva}
-        onChange={key => {
-          const t = key as 'activos' | 'cerrados' | 'historial';
-          setTabActiva(t as any);
-          setNextToken(undefined);
-          if (t === 'historial') {
-            cargarHistorialBloqueos();
-          } else {
-            cargar({ tab: t as 'activos' | 'cerrados' });
-          }
-        }}
-        items={[
-          {
-            key: 'activos',
-            label: `Activos (${procesosActivos.length}${bloqueosFiltrados.length > 0 ? ` + ${bloqueosFiltrados.length} sin cliente` : ''})`,
-            children: renderTablaActivos(),
-          },
-          {
-            key: 'cerrados',
-            label: 'Cerrados',
-            children: renderTablaCerrados(),
-          },
-          ...(!esInmobiliaria ? [{
-            key: 'historial',
-            label: <span><HistoryOutlined /> Historial bloqueos</span>,
-            children: (
-              <div>
-                <Table
-                  dataSource={historialBloqueos}
-                  rowKey="sk"
-                  loading={loadingHistorialBloqueos}
-                  pagination={false}
-                  locale={{ emptyText: 'No hay registros en el historial' }}
-                  scroll={{ x: true }}
-                  columns={[
-                    {
-                      title: 'Unidad', dataIndex: 'unidad_id', key: 'unidad_id',
-                      render: (v: string, r: any) => <Text strong>{[r.torre_nombre, r.unidad_nombre ?? v].filter(Boolean).join(' · ')}</Text>,
-                    },
-                    {
-                      title: 'Proyecto', dataIndex: 'proyecto_id', key: 'proyecto_id',
-                      render: (v: string) => proyectoNombre(v),
-                    },
-                    {
-                      title: 'Inmobiliaria', dataIndex: 'inmobiliaria_id', key: 'inmobiliaria_id',
-                      render: (v: string, r: any) => <Tag>{r.inmobiliaria_nombre ?? inmoNombre(v)}</Tag>,
-                    },
-                    {
-                      title: 'Bloqueado', dataIndex: 'fecha_bloqueo', key: 'fecha_bloqueo',
-                      render: (v: string) => v ? new Date(v).toLocaleString('es-VE') : '—',
-                    },
-                    {
-                      title: 'Liberado', dataIndex: 'fecha_liberacion', key: 'fecha_liberacion',
-                      render: (v: string) => v ? new Date(v).toLocaleString('es-VE') : '—',
-                    },
-                    {
-                      title: 'Motivo', dataIndex: 'motivo_liberacion', key: 'motivo_liberacion',
-                      render: (v: string) => {
-                        if (!v) return <Tag color="warning">Activo</Tag>;
-                        const cfg: Record<string, string> = { automatica: 'success', manual: 'blue', venta: 'purple' };
-                        return <Tag color={cfg[v] ?? 'default'}>{v}</Tag>;
-                      },
-                    },
-                    {
-                      title: 'Liberado por', dataIndex: 'liberado_por', key: 'liberado_por',
-                      render: (v: string) => v ?? '—',
-                    },
-                  ]}
-                />
-                {historialBloqueoNextToken && (
-                  <div style={{ textAlign: 'center', marginTop: 16 }}>
-                    <Button onClick={() => cargarHistorialBloqueos(historialBloqueoNextToken)} loading={loadingHistorialBloqueos}>
-                      Cargar más
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ),
-          }] : []),
-        ]}
-      />
-
-      {nextToken && (
-        <div style={{ textAlign: 'center', marginTop: 16 }}>
-          <Button onClick={() => cargar({ token: nextToken })} loading={loading}>Cargar más</Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {vista === 'procesos' && (
+            <Tooltip title="Volver a proyectos">
+              <Button icon={<ArrowLeftOutlined />} onClick={volverAProyectos} />
+            </Tooltip>
+          )}
+          <Title level={4} style={{ margin: 0 }}>
+            {vista === 'proyectos' ? 'Proyectos' : proyectoSeleccionado?.nombre ?? 'Procesos de venta'}
+          </Title>
         </div>
+        {vista === 'procesos' && (
+          <Button icon={<ReloadOutlined />} loading={loading || loadingBloqueos} onClick={() => { cargar(); cargarBloqueosSinCliente(); }}>
+            {!isMobile && 'Actualizar'}
+          </Button>
+        )}
+      </div>
+
+      {/* Vista proyectos */}
+      {vista === 'proyectos' && (
+        <Row gutter={[20, 20]}>
+          {proyectos.map(p => (
+            <Col key={p.proyecto_id} xs={24} sm={12} md={8} lg={6}>
+              <div 
+                style={{ 
+                  borderRadius: 16, 
+                  overflow: 'hidden', 
+                  cursor: 'pointer', 
+                  background: '#fff', 
+                  border: '1px solid #f0f0f0', 
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)', 
+                  transition: 'box-shadow 0.2s, transform 0.2s' 
+                }}
+                onClick={() => seleccionarProyecto(p)}
+                onMouseEnter={e => { 
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'; 
+                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; 
+                }}
+                onMouseLeave={e => { 
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; 
+                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; 
+                }}
+              >
+                <div style={{ 
+                  height: 160, 
+                  background: p.imagen_url ? undefined : projectGradient(p.nombre), 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  position: 'relative', 
+                  overflow: 'hidden' 
+                }}>
+                  {p.imagen_url ? (
+                    <img src={p.imagen_url} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <AppstoreOutlined style={{ fontSize: 48, color: 'rgba(255,255,255,0.5)' }} />
+                  )}
+                </div>
+                <div style={{ padding: '14px 16px 16px' }}>
+                  <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>{p.nombre}</Text>
+                  {p.descripcion ? (
+                    <Text type="secondary" style={{ fontSize: 13 }} ellipsis={{ tooltip: p.descripcion }}>{p.descripcion}</Text>
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: 13, fontStyle: 'italic' }}>Sin descripción</Text>
+                  )}
+                </div>
+              </div>
+            </Col>
+          ))}
+        </Row>
+      )}
+
+      {/* Vista procesos */}
+      {vista === 'procesos' && (
+        <>
+          {/* Filtros */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            <Input prefix={<SearchOutlined />} placeholder="Buscar cliente, cédula o unidad..."
+              style={{ width: isMobile ? '100%' : 240 }} value={busqueda}
+              onChange={e => setBusqueda(e.target.value)} allowClear />
+            {!esInmobiliaria && (
+              <Select allowClear placeholder="Inmobiliaria" style={{ width: isMobile ? '100%' : 180 }}
+                value={inmoFiltro} options={inmobiliarias.map(i => ({ value: i.pk, label: i.nombre }))}
+                onChange={v => setInmoFiltro(v)} />
+            )}
+            <Select allowClear placeholder="Estatus" style={{ width: isMobile ? '100%' : 150 }}
+              value={estadoFiltro} options={opcionesEstado}
+              onChange={v => {
+                setEstadoFiltro(v);
+                // Si el estatus seleccionado es cerrado, cambiar tab automáticamente
+                const esCerrado = v && !ESTADOS_ACTIVOS.includes(v);
+                if (esCerrado && tabActiva !== 'cerrados') {
+                  setTabActiva('cerrados');
+                } else if (!esCerrado && v && tabActiva !== 'activos') {
+                  setTabActiva('activos');
+                }
+              }} />
+            <Button onClick={limpiarFiltros}>Limpiar</Button>
+          </div>
+
+          {/* Tabs */}
+          <Tabs
+            activeKey={tabActiva}
+            onChange={key => {
+              const t = key as 'activos' | 'cerrados' | 'historial';
+              setTabActiva(t as any);
+              if (t === 'historial') {
+                cargarHistorialBloqueos();
+              }
+            }}
+            items={[
+              {
+                key: 'activos',
+                label: `Activos (${procesosActivos.length}${bloqueosFiltrados.length > 0 ? ` + ${bloqueosFiltrados.length} sin cliente` : ''})`,
+                children: renderTablaActivos(),
+              },
+              {
+                key: 'cerrados',
+                label: 'Cerrados',
+                children: renderTablaCerrados(),
+              },
+              ...(!esInmobiliaria ? [{
+                key: 'historial',
+                label: <span><HistoryOutlined /> Historial bloqueos</span>,
+                children: (
+                  <div>
+                    <Table
+                      dataSource={historialBloqueos}
+                      rowKey="sk"
+                      loading={loadingHistorialBloqueos}
+                      pagination={false}
+                      locale={{ emptyText: 'No hay registros en el historial' }}
+                      scroll={{ x: true }}
+                      columns={[
+                        {
+                          title: 'Unidad', dataIndex: 'unidad_id', key: 'unidad_id',
+                          render: (v: string, r: any) => <Text strong>{[r.torre_nombre, r.unidad_nombre ?? v].filter(Boolean).join(' · ')}</Text>,
+                        },
+                        {
+                          title: 'Proyecto', dataIndex: 'proyecto_id', key: 'proyecto_id',
+                          render: (v: string) => proyectoNombre(v),
+                        },
+                        {
+                          title: 'Inmobiliaria', dataIndex: 'inmobiliaria_id', key: 'inmobiliaria_id',
+                          render: (v: string, r: any) => <Tag>{r.inmobiliaria_nombre ?? inmoNombre(v)}</Tag>,
+                        },
+                        {
+                          title: 'Bloqueado', dataIndex: 'fecha_bloqueo', key: 'fecha_bloqueo',
+                          render: (v: string) => v ? new Date(v).toLocaleString('es-VE') : '—',
+                        },
+                        {
+                          title: 'Liberado', dataIndex: 'fecha_liberacion', key: 'fecha_liberacion',
+                          render: (v: string) => v ? new Date(v).toLocaleString('es-VE') : '—',
+                        },
+                        {
+                          title: 'Motivo', dataIndex: 'motivo_liberacion', key: 'motivo_liberacion',
+                          render: (v: string) => {
+                            if (!v) return <Tag color="warning">Activo</Tag>;
+                            const cfg: Record<string, string> = { automatica: 'success', manual: 'blue', venta: 'purple' };
+                            return <Tag color={cfg[v] ?? 'default'}>{v}</Tag>;
+                          },
+                        },
+                        {
+                          title: 'Liberado por', dataIndex: 'liberado_por', key: 'liberado_por',
+                          render: (v: string) => v ?? '—',
+                        },
+                      ]}
+                    />
+                    {historialBloqueoNextToken && (
+                      <div style={{ textAlign: 'center', marginTop: 16 }}>
+                        <Button onClick={() => cargarHistorialBloqueos(historialBloqueoNextToken)} loading={loadingHistorialBloqueos}>
+                          Cargar más
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ),
+              }] : []),
+            ]}
+          />
+        </>
       )}
 
       {/* Modal cambiar estatus */}

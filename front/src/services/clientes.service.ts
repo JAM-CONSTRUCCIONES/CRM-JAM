@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete } from './api';
+import { apiGet, apiPost, apiPut } from './api';
 import type { Cliente } from '../types';
 
 export interface RegistrarClientePayload {

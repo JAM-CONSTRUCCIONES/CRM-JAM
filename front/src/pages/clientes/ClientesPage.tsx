@@ -853,7 +853,7 @@ const ClientesPage = () => {
                   const proximoVencer = !alertaVencida && p.estado === 'separacion' && diasEnSeparacion !== null && diasEnSeparacion >= 25;
                   
                   // Buscar el nombre de la inmobiliaria del proceso
-                  const inmoDelProceso = inmobiliarias.find(i => i.id === p.inmobiliaria_id);
+                  const inmoDelProceso = inmobiliarias.find(i => i.pk === p.inmobiliaria_id);
                   const nombreInmo = inmoDelProceso?.nombre || p.inmobiliaria_id;
                   
                   return (

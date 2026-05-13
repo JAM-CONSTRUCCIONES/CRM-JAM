@@ -131,27 +131,30 @@ def registrar(event):
 
 
 def _resolver_unidad(body, proyecto_id):
-    """Resuelve unidad_id y unidad_nombre (torre + id_unidad) desde el body o inventario."""
+    """Resuelve unidad_id, unidad_nombre y fecha_liberacion desde el body o inventario."""
     unidad_id = body.get('unidad_id')
     unidad_nombre = body.get('unidad_nombre')
-    if unidad_id and not unidad_nombre:
+    fecha_liberacion = None
+    if unidad_id:
         try:
             inv = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
             item = inv.get_item(
                 Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'}
             ).get('Item', {})
             id_unidad = item.get('id_unidad') or unidad_id
-            torre_id = item.get('torre_id')
-            torre_nombre = None
-            if torre_id:
-                torre = inv.get_item(
-                    Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'TORRE#{torre_id}'}
-                ).get('Item', {})
-                torre_nombre = torre.get('nombre')
-            unidad_nombre = f"{torre_nombre} · {id_unidad}" if torre_nombre else id_unidad
+            fecha_liberacion = item.get('fecha_liberacion')
+            if not unidad_nombre:
+                torre_id = item.get('torre_id')
+                torre_nombre = None
+                if torre_id:
+                    torre = inv.get_item(
+                        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'TORRE#{torre_id}'}
+                    ).get('Item', {})
+                    torre_nombre = torre.get('nombre')
+                unidad_nombre = f"{torre_nombre} · {id_unidad}" if torre_nombre else id_unidad
         except Exception:
-            unidad_nombre = unidad_id
-    return unidad_id, unidad_nombre
+            unidad_nombre = unidad_nombre or unidad_id
+    return unidad_id, unidad_nombre, fecha_liberacion
 
 
 def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id):
@@ -161,7 +164,7 @@ def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id):
     ts_venc_eb = fecha_vencimiento[:19]
 
     edad = _calcular_edad(body.get('fecha_nacimiento'))
-    unidad_id, unidad_nombre = _resolver_unidad(body, proyecto_id)
+    unidad_id, unidad_nombre, fecha_liberacion_unidad = _resolver_unidad(body, proyecto_id)
 
     item = {
         'pk': pk,
@@ -186,7 +189,7 @@ def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id):
 
     # Crear proceso de venta si viene con unidad
     if unidad_id:
-        procesos.put_item(Item={
+        proceso_item = {
             'pk': f'PROCESO#{cedula}#{inmobiliaria_id}',
             'sk': f'UNIDAD#{unidad_id}',
             'cedula': cedula,
@@ -198,7 +201,10 @@ def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id):
             'historial': [],
             'fecha_inicio': fecha_captacion,
             'actualizado_en': fecha_captacion,
-        })
+        }
+        if fecha_liberacion_unidad:
+            proceso_item['fecha_liberacion_unidad'] = fecha_liberacion_unidad
+        procesos.put_item(Item=proceso_item)
 
     sched.crear_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id, ts_venc_eb)
 

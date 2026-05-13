@@ -2,22 +2,22 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Tag, Button, Space, Select, message,
   Badge, Tooltip, Grid, Input, Dropdown, Tabs, Modal, Form, InputNumber,
-  Radio, Divider, DatePicker, Spin, Table, Row, Col,
+  Radio, Divider, DatePicker, Spin, Table, Row, Col, Drawer, Descriptions,
 } from 'antd';
 import {
   ReloadOutlined, SwapOutlined, HistoryOutlined,
   SearchOutlined, MoreOutlined, UserOutlined, LockOutlined,
   FieldTimeOutlined, UserAddOutlined, ClockCircleOutlined, UnlockOutlined,
-  ArrowLeftOutlined, AppstoreOutlined,
+  ArrowLeftOutlined, AppstoreOutlined, InfoCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { listarTodosProcesos, cambiarEstatus, getMisProcesos, type ProcesoEnriquecido } from '../../services/crm.service';
-import { getProyectos } from '../../services/proyectos.service';
+import { getProyectos, getUnidades } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import { extenderBloqueo, getBloquesActivos, bloquearUnidad, liberarBloqueo, getHistorialBloqueos } from '../../services/bloqueos.service';
 import { getClientesAdmin } from '../../services/clientes.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
-import type { Proyecto, Proceso, Bloqueo, Cliente, HistorialBloqueo } from '../../types';
+import type { Proyecto, Proceso, Bloqueo, Cliente, HistorialBloqueo, Unidad } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
@@ -64,8 +64,28 @@ const ProcesosPage = () => {
   const [formExtenderProceso] = Form.useForm();
   const [guardandoExtenderProceso, setGuardandoExtenderProceso] = useState(false);
 
+  // ── Drawer detalle unidad ─────────────────────────────────────────────────
+  const [unidadDrawer, setUnidadDrawer] = useState<Unidad | null>(null);
+  const [loadingUnidad, setLoadingUnidad] = useState(false);
+
+  const abrirDetalleUnidad = async (unidadId: string, proyectoId: string) => {
+    setUnidadDrawer(null);
+    setLoadingUnidad(true);
+    try {
+      const items = await getUnidades(proyectoId, { limit: 1000 });
+      const found = items.find(u => u.unidad_id === unidadId || u.id_unidad === unidadId);
+      setUnidadDrawer(found ?? null);
+      if (!found) message.warning('No se encontraron detalles de la unidad');
+    } catch {
+      message.error('Error al cargar detalles de la unidad');
+    } finally {
+      setLoadingUnidad(false);
+    }
+  };
+
   // ── Bloqueos sin cliente ──────────────────────────────────────────────────
   const [bloqueosSinCliente, setBloqueosSinCliente] = useState<Bloqueo[]>([]);
+  const [todosBloqueos, setTodosBloqueos] = useState<Bloqueo[]>([]);
   const [loadingBloqueos, setLoadingBloqueos] = useState(false);
 
   // Modal extender bloqueo sin cliente
@@ -102,7 +122,9 @@ const ProcesosPage = () => {
     try {
       if (esInmobiliaria) {
         const items = await getMisProcesos(proyectoId);
-        setProcesos(items as ProcesoEnriquecido[]);
+        setProcesos((items as ProcesoEnriquecido[]).sort((a, b) =>
+          (a.unidad_nombre || a.unidad_id || '').localeCompare(b.unidad_nombre || b.unidad_id || '')
+        ));
       } else {
         // Backend ahora devuelve TODOS los procesos del proyecto
         const data = await listarTodosProcesos({
@@ -110,7 +132,9 @@ const ProcesosPage = () => {
           // No enviar filtros de inmobiliaria ni estado - se filtran en frontend
           incluir_cerrados: true, // Traer todos para filtrar localmente
         });
-        setProcesos(data.items);
+        setProcesos(data.items.sort((a, b) =>
+          (a.unidad_nombre || a.unidad_id || '').localeCompare(b.unidad_nombre || b.unidad_id || '')
+        ));
       }
     } catch {
       message.error('Error al cargar procesos');
@@ -125,18 +149,14 @@ const ProcesosPage = () => {
     try {
       const data = await getBloquesActivos();
       const ahora = Date.now();
-      setBloqueosSinCliente(
-        data.items
-          .filter(b => !b.cliente_cedula)
-          .map(b => ({
-            ...b,
-            // Siempre recalcular desde fecha_liberacion — el campo tiempo_restante
-            // del backend puede estar desactualizado (calculado al momento del bloqueo)
-            tiempo_restante: Math.max(0, Math.floor(
-              (new Date(b.fecha_liberacion).getTime() - ahora) / 1000
-            )),
-          }))
-      );
+      const conTiempo = data.items.map(b => ({
+        ...b,
+        tiempo_restante: Math.max(0, Math.floor(
+          (new Date(b.fecha_liberacion).getTime() - ahora) / 1000
+        )),
+      }));
+      setTodosBloqueos(conTiempo);
+      setBloqueosSinCliente(conTiempo.filter(b => !b.cliente_cedula));
     } catch { /* silencioso */ }
     finally { setLoadingBloqueos(false); }
   }, [esInmobiliaria]);
@@ -341,6 +361,7 @@ const ProcesosPage = () => {
     setProyectoFiltro(undefined);
     setProcesos([]);
     setBloqueosSinCliente([]);
+    setTodosBloqueos([]);
     limpiarFiltros();
   };
 
@@ -404,9 +425,23 @@ const ProcesosPage = () => {
     return { vencida, proxima, dias };
   };
 
+  const isUnidadBloqueada = (p: ProcesoEnriquecido) =>
+    p.estado_unidad === 'bloqueada' ||
+    p.estado === 'captacion' ||  // captacion always means unit is blocked
+    todosBloqueos.some(b =>
+      b.unidad_id === p.unidad_id &&
+      b.proyecto_id?.replace('PROYECTO#', '') === p.proyecto_id?.replace('PROYECTO#', '')
+    );
+
+  const getFechaLiberacion = (p: ProcesoEnriquecido) =>
+    p.fecha_liberacion_unidad ||
+    todosBloqueos.find(b => b.unidad_id === p.unidad_id)?.fecha_liberacion;
+
   const renderTagUnidad = (p: ProcesoEnriquecido) => {
-    if (p.estado_unidad !== 'bloqueada') return null;
-    const vence = p.fecha_liberacion_unidad ? dayjs(p.fecha_liberacion_unidad).format('DD/MM HH:mm') : null;
+    const esBloq = isUnidadBloqueada(p);
+    if (!esBloq) return null;
+    const fechaLib = getFechaLiberacion(p);
+    const vence = fechaLib ? dayjs(fechaLib).format('DD/MM HH:mm') : null;
     return (
       <Tooltip title={vence ? `Bloqueo vence: ${vence}` : 'Unidad bloqueada'}>
         <Tag icon={<LockOutlined />} color="warning" style={{ margin: 0 }}>Bloqueada</Tag>
@@ -417,13 +452,14 @@ const ProcesosPage = () => {
   const renderTarjetaProceso = (p: ProcesoEnriquecido) => {
     const { vencida, proxima, dias } = alertaInfo(p);
     const puedeAvanzar = !esInmobiliaria && p.estado !== 'vendida' && p.estado !== 'desvinculado';
-    const esBloqueada = p.estado_unidad === 'bloqueada';
+    const esBloqueada = isUnidadBloqueada(p);
     
     // Calcular tiempo restante si está bloqueada
     let tiempoRestante = 0;
     let colorTiempo = '#52c41a';
-    if (esBloqueada && p.fecha_liberacion_unidad) {
-      tiempoRestante = Math.max(0, Math.floor((new Date(p.fecha_liberacion_unidad).getTime() - Date.now()) / 1000));
+    const fechaLib = getFechaLiberacion(p);
+    if (esBloqueada && fechaLib) {
+      tiempoRestante = Math.max(0, Math.floor((new Date(fechaLib).getTime() - Date.now()) / 1000));
       colorTiempo = tiempoRestante <= 0 ? '#ff4d4f' : tiempoRestante < 5 * 3600 ? '#faad14' : '#52c41a';
     }
     
@@ -465,12 +501,17 @@ const ProcesosPage = () => {
               <Text type="secondary" style={{ fontSize: 12 }}>{p.cedula}</Text>
             </div>
             <Space size={4} wrap>
-              <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
+              <Tag
+                color="geekblue"
+                style={{ margin: 0, cursor: 'pointer' }}
+                icon={<InfoCircleOutlined />}
+                onClick={() => abrirDetalleUnidad(p.unidad_id, p.proyecto_id)}
+              >{p.unidad_nombre || p.unidad_id}</Tag>
               <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
                 <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
               </Tooltip>
               {renderTagUnidad(p)}
-              {esBloqueada && p.fecha_liberacion_unidad && (
+              {esBloqueada && fechaLib && (
                 <Text style={{ fontSize: 12, color: colorTiempo, fontWeight: 600 }}>
                   <ClockCircleOutlined style={{ marginRight: 4 }} />{formatTiempo(tiempoRestante)}
                 </Text>
@@ -493,36 +534,37 @@ const ProcesosPage = () => {
   const renderFilaProceso = (p: ProcesoEnriquecido) => {
     const { vencida, proxima } = alertaInfo(p);
     const puedeAvanzar = !esInmobiliaria && p.estado !== 'vendida' && p.estado !== 'desvinculado';
-    const esBloqueada = p.estado_unidad === 'bloqueada';
+    const esBloqueada = isUnidadBloqueada(p);
     
     // Calcular tiempo restante si está bloqueada
     let tiempoRestante = 0;
     let colorTiempo = '#52c41a';
-    if (esBloqueada && p.fecha_liberacion_unidad) {
-      tiempoRestante = Math.max(0, Math.floor((new Date(p.fecha_liberacion_unidad).getTime() - Date.now()) / 1000));
+    const fechaLib = getFechaLiberacion(p);
+    if (esBloqueada && fechaLib) {
+      tiempoRestante = Math.max(0, Math.floor((new Date(fechaLib).getTime() - Date.now()) / 1000));
       colorTiempo = tiempoRestante <= 0 ? '#ff4d4f' : tiempoRestante < 5 * 3600 ? '#faad14' : '#52c41a';
     }
     
     return (
       <div key={`${p.pk}#${p.sk}`} style={{
         display: 'grid',
-        gridTemplateColumns: esInmobiliaria ? '2fr 1.2fr 1.6fr 1.2fr 80px' : '2fr 1.2fr 1.6fr 1.2fr 1.2fr 80px',
+        gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
         alignItems: 'center', padding: '12px 14px', background: '#fff', borderRadius: 8, marginBottom: 4,
         borderTop: '1px solid #f0f0f0', borderRight: '1px solid #f0f0f0', borderBottom: '1px solid #f0f0f0',
         borderLeft: vencida ? '3px solid #ff4d4f' : proxima ? '3px solid #faad14' : '1px solid #f0f0f0',
       }}>
+        <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
         <div>
           <Text strong style={{ fontSize: 13 }}>{nombreCliente(p)}</Text>
           <br /><Text type="secondary" style={{ fontSize: 11 }}>{p.cedula}</Text>
         </div>
-        <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
         <Badge status={vencida ? 'error' : proxima ? 'warning' : 'default'} text={
           <Space size={4}>
             <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
               <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
             </Tooltip>
             {renderTagUnidad(p)}
-            {esBloqueada && p.fecha_liberacion_unidad && (
+            {esBloqueada && fechaLib && (
               <Text style={{ fontSize: 12, color: colorTiempo, fontWeight: 600 }}>
                 <ClockCircleOutlined style={{ marginRight: 4 }} />{formatTiempo(tiempoRestante)}
               </Text>
@@ -531,9 +573,9 @@ const ProcesosPage = () => {
             {proxima && <Tooltip title="Próximo a vencer"><span style={{ fontSize: 12, color: '#d46b08' }}>⏰</span></Tooltip>}
           </Space>
         } />
-        <Text style={{ fontSize: 12 }}>{proyectoNombre(p.proyecto_id)}</Text>
         {!esInmobiliaria && <Text style={{ fontSize: 12 }}>{inmoNombre(p.inmobiliaria_id)}</Text>}
         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+          <Tooltip title="Ver detalles de unidad"><Button size="small" icon={<InfoCircleOutlined />} onClick={() => abrirDetalleUnidad(p.unidad_id, p.proyecto_id)} /></Tooltip>
           {puedeAvanzar && <Tooltip title="Cambiar estatus"><Button size="small" icon={<SwapOutlined />} onClick={() => setEstatusModal(p)} /></Tooltip>}
           {esBloqueada && !esInmobiliaria && <Tooltip title="Extender bloqueo"><Button size="small" icon={<FieldTimeOutlined />} onClick={() => { setExtenderProcesoModal(p); formExtenderProceso.resetFields(); }} /></Tooltip>}
           {esBloqueada && !esInmobiliaria && (
@@ -599,22 +641,21 @@ const ProcesosPage = () => {
     return (
       <div key={b.unidad_id} style={{
         display: 'grid',
-        gridTemplateColumns: '2fr 1.2fr 1.6fr 1.2fr 1.2fr 80px',
+        gridTemplateColumns: '1.2fr 2fr 1.6fr 1.2fr 80px',
         alignItems: 'center', padding: '12px 14px', background: '#fff', borderRadius: 8, marginBottom: 4,
         border: '1px solid #f0f0f0',
       }}>
+        <Tag color="geekblue" style={{ margin: 0 }}>{b.id_unidad || b.unidad_id}</Tag>
         <div>
           <Text strong style={{ fontSize: 13 }}>Sin cliente asignado</Text>
           <br /><Tag color="orange" style={{ margin: 0, fontSize: 11 }}>Sin cliente</Tag>
         </div>
-        <Tag color="geekblue" style={{ margin: 0 }}>{b.id_unidad || b.unidad_id}</Tag>
         <Space size={4}>
           <Tag icon={<LockOutlined />} color="warning" style={{ margin: 0 }}>Bloqueada</Tag>
           <Text style={{ fontSize: 12, color: colorTiempo, fontWeight: 600 }}>
             <ClockCircleOutlined style={{ marginRight: 4 }} />{formatTiempo(tiempoOk)}
           </Text>
         </Space>
-        <Text style={{ fontSize: 12 }}>{proyectoNombre(b.proyecto_id)}</Text>
         <Text style={{ fontSize: 12 }}>{inmoNombre(b.bloqueado_por)}</Text>
         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
           <Tooltip title="Asignar cliente"><Button size="small" icon={<UserAddOutlined />} onClick={() => abrirAsignarCliente(b)} /></Tooltip>
@@ -636,12 +677,12 @@ const ProcesosPage = () => {
       {!isMobile && (procesosActivos.length > 0 || bloqueosFiltrados.length > 0) && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: esInmobiliaria ? '2fr 1.2fr 1.6fr 1.2fr 80px' : '2fr 1.2fr 1.6fr 1.2fr 1.2fr 80px',
+          gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
           padding: '8px 14px', background: '#fafafa', borderRadius: 8,
           marginBottom: 4, fontSize: 11, color: '#8c8c8c', fontWeight: 600, letterSpacing: 0.5,
         }}>
-          <span>CLIENTE</span><span>UNIDAD</span><span>ESTATUS</span>
-          <span>PROYECTO</span>{!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
+          <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
+          {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
         </div>
       )}
       {/* Bloqueos sin cliente primero (destacados) */}
@@ -662,12 +703,12 @@ const ProcesosPage = () => {
       {!isMobile && procesosCerrados.length > 0 && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: esInmobiliaria ? '2fr 1.2fr 1.6fr 1.2fr 80px' : '2fr 1.2fr 1.6fr 1.2fr 1.2fr 80px',
+          gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
           padding: '8px 14px', background: '#fafafa', borderRadius: 8,
           marginBottom: 4, fontSize: 11, color: '#8c8c8c', fontWeight: 600, letterSpacing: 0.5,
         }}>
-          <span>CLIENTE</span><span>UNIDAD</span><span>ESTATUS</span>
-          <span>PROYECTO</span>{!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
+          <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
+          {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
         </div>
       )}
       {isMobile ? procesosCerrados.map(renderTarjetaProceso) : procesosCerrados.map(renderFilaProceso)}
@@ -1028,6 +1069,97 @@ const ProcesosPage = () => {
           </Form>
         )}
       </Modal>
+
+      {/* ── Drawer: Detalle de unidad ─────────────────────────────────── */}
+      <Drawer
+        title={unidadDrawer ? `Unidad ${unidadDrawer.id_unidad}` : 'Detalle de unidad'}
+        open={loadingUnidad || unidadDrawer !== null}
+        onClose={() => setUnidadDrawer(null)}
+        width={isMobile ? '100%' : 480}
+        extra={unidadDrawer && (
+          <Tag color={
+            unidadDrawer.estado === 'disponible' ? 'green' :
+            unidadDrawer.estado === 'bloqueada' ? 'orange' : 'red'
+          }>{unidadDrawer.estado.toUpperCase()}</Tag>
+        )}
+      >
+        {loadingUnidad ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+            <Spin size="large" />
+          </div>
+        ) : unidadDrawer ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Identificación */}
+            <Descriptions title="Identificación" bordered size="small" column={1}>
+              <Descriptions.Item label="ID Unidad">{unidadDrawer.id_unidad}</Descriptions.Item>
+              {unidadDrawer.tipo && <Descriptions.Item label="Tipo">{unidadDrawer.tipo}</Descriptions.Item>}
+              {unidadDrawer.piso && <Descriptions.Item label="Piso">{unidadDrawer.piso}</Descriptions.Item>}
+              {unidadDrawer.manzana && <Descriptions.Item label="Manzana">{unidadDrawer.manzana}</Descriptions.Item>}
+            </Descriptions>
+
+            {/* Dimensiones */}
+            <Descriptions title="Dimensiones" bordered size="small" column={1}>
+              <Descriptions.Item label="Metraje">{unidadDrawer.metraje} m²</Descriptions.Item>
+              {unidadDrawer.metraje_terraza != null && (
+                <Descriptions.Item label="Terraza">{unidadDrawer.metraje_terraza} m²</Descriptions.Item>
+              )}
+              {unidadDrawer.metraje_patio != null && (
+                <Descriptions.Item label="Patio">{unidadDrawer.metraje_patio} m²</Descriptions.Item>
+              )}
+              {unidadDrawer.num_cuartos != null && (
+                <Descriptions.Item label="Cuartos">{unidadDrawer.num_cuartos}</Descriptions.Item>
+              )}
+              {unidadDrawer.num_banos != null && (
+                <Descriptions.Item label="Baños">{unidadDrawer.num_banos}</Descriptions.Item>
+              )}
+              {unidadDrawer.parqueos != null && (
+                <Descriptions.Item label="Parqueos">{unidadDrawer.parqueos}</Descriptions.Item>
+              )}
+            </Descriptions>
+
+            {/* Precios */}
+            <Descriptions title="Precios" bordered size="small" column={1}>
+              <Descriptions.Item label="Precio base">
+                ${Number(unidadDrawer.precio).toLocaleString()}
+              </Descriptions.Item>
+              {unidadDrawer.precio_reserva != null && (
+                <Descriptions.Item label="Precio reserva">
+                  ${Number(unidadDrawer.precio_reserva).toLocaleString()}
+                </Descriptions.Item>
+              )}
+              {unidadDrawer.precio_separacion != null && (
+                <Descriptions.Item label="Precio separación">
+                  ${Number(unidadDrawer.precio_separacion).toLocaleString()}
+                </Descriptions.Item>
+              )}
+              {unidadDrawer.precio_inicial != null && (
+                <Descriptions.Item label="Precio inicial">
+                  ${Number(unidadDrawer.precio_inicial).toLocaleString()}
+                </Descriptions.Item>
+              )}
+              {unidadDrawer.cuota_monto != null && (
+                <Descriptions.Item label="Cuota mensual">
+                  ${Number(unidadDrawer.cuota_monto).toLocaleString()} × {unidadDrawer.cuota_meses} meses
+                </Descriptions.Item>
+              )}
+              {unidadDrawer.contra_entrega != null && (
+                <Descriptions.Item label="Contra entrega">
+                  ${Number(unidadDrawer.contra_entrega).toLocaleString()}
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+
+            {/* Comentario */}
+            {unidadDrawer.comentario && (
+              <Descriptions title="Notas" bordered size="small" column={1}>
+                <Descriptions.Item label="Comentario">{unidadDrawer.comentario}</Descriptions.Item>
+              </Descriptions>
+            )}
+
+          </div>
+        ) : null}
+      </Drawer>
     </div>
   );
 };

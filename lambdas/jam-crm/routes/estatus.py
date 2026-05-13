@@ -333,7 +333,13 @@ def listar_todos_procesos(event):
     try:
         for i in range(0, len(unidad_keys), 100):
             batch = inventario_table.meta.client.batch_get_item(
-                RequestItems={inventario_table.name: {'Keys': unidad_keys[i:i+100], 'ProjectionExpression': 'pk, sk, estado, fecha_liberacion'}}
+                RequestItems={
+                    inventario_table.name: {
+                        'Keys': unidad_keys[i:i+100],
+                        'ProjectionExpression': 'pk, sk, estado, #fl',
+                        'ExpressionAttributeNames': {'#fl': 'fecha_liberacion'},
+                    }
+                }
             )
             for u in batch.get('Responses', {}).get(inventario_table.name, []):
                 uid = u['sk'].replace('UNIDAD#', '')
@@ -341,8 +347,8 @@ def listar_todos_procesos(event):
                     'estado_unidad': u.get('estado', ''),
                     'fecha_liberacion_unidad': u.get('fecha_liberacion'),
                 }
-    except Exception:
-        pass  # No crítico — el frontend muestra solo el estatus del proceso
+    except Exception as e:
+        print(f'[estado_unidad] batch_get_item error: {e}')
     for item in items:
         uid = item.get('unidad_id', '')
         info = estado_unidad_map.get(uid, {})

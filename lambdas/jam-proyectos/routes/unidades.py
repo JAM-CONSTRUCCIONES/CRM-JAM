@@ -32,7 +32,7 @@ def listar(proyecto_id, event, rol):
     qs = event.get('queryStringParameters') or {}
     
     # Paginación
-    limit = min(int(qs.get('limit', 100)), 500)
+    limit = min(int(qs.get('limit', 1000)), 1000)
     
     # Siempre usar query normal por proyecto (más confiable)
     query_kwargs = {
@@ -106,7 +106,10 @@ def listar(proyecto_id, event, rol):
     
     # Enriquecer con tiempo restante de bloqueo
     items = [_enrich_bloqueo(i) for i in items]
-    
+
+    # Ordenar alfabéticamente por id_unidad (ej: A-101, A-102, B-01...)
+    items.sort(key=lambda x: (x.get('id_unidad') or '').upper())
+
     # Preparar respuesta con paginación
     response_data = {'items': items, 'count': len(items)}
     

@@ -15,6 +15,7 @@ import CapturaPage from './pages/captura/CapturaPage';
 import CapturaGlobalPage from './pages/captura/CapturaGlobalPage';
 import MfaSetupPage from './pages/auth/MfaSetupPage';
 import MigracionPage from './pages/migracion/MigracionPage';
+import ConfigPage from './pages/config/ConfigPage';
 
 const App = () => (
   <BrowserRouter>
@@ -81,6 +82,14 @@ const App = () => (
             element={
               <ProtectedRoute roles={['admin', 'coordinador']}>
                 <MigracionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="config"
+            element={
+              <ProtectedRoute roles={['admin']}>
+                <ConfigPage />
               </ProtectedRoute>
             }
           />

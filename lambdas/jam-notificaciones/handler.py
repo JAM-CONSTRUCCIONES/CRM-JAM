@@ -21,6 +21,25 @@ usuarios = dynamodb.Table(USUARIOS_TABLE)
 clientes_table = dynamodb.Table(CLIENTES_TABLE)
 inventario_table = dynamodb.Table(INVENTARIO_TABLE) if INVENTARIO_TABLE else None
 
+# ── Template cache (per Lambda invocation) ────────────────────────────────────
+_template_cache = {}
+
+def _get_template(tipo):
+    """Returns (titulo, mensaje) from DynamoDB, falling back to defaults."""
+    if tipo in _template_cache:
+        return _template_cache[tipo]
+    try:
+        item = usuarios.get_item(
+            Key={'pk': 'CONFIG#EMAIL_TEMPLATES', 'sk': tipo}
+        ).get('Item', {})
+        if item.get('titulo') and item.get('mensaje'):
+            result = (item['titulo'], item['mensaje'])
+            _template_cache[tipo] = result
+            return result
+    except Exception as e:
+        logger.warning(f'No se pudo leer template {tipo}: {e}')
+    return None, None  # caller uses hardcoded default
+
 
 def handler(event, context):
     for record in event.get('Records', []):
@@ -124,6 +143,41 @@ def _nombre_cliente(cedula, inmobiliaria_id, proyecto_id=''):
     return f'{nombre_completo} ({cedula})' if nombre_completo else cedula
 
 
+def _tabla_datos(filas):
+    """Renders the always-visible data table below the message."""
+    rows_html = ''.join(
+        f'<tr><td style="padding:6px 0;color:#666;width:130px">{label}</td>'
+        f'<td style="padding:6px 0;font-weight:500;color:#222">{valor}</td></tr>'
+        for label, valor in filas if valor
+    )
+    return f'<table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px">{rows_html}</table>'
+
+
+def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensaje):
+    """
+    Reads template from DynamoDB (or uses defaults), substitutes variables,
+    and appends the fixed data table.
+    """
+    titulo_tpl, mensaje_tpl = _get_template(tipo)
+    titulo = titulo_tpl or default_titulo
+    mensaje = mensaje_tpl or default_mensaje
+
+    # Safe variable substitution — ignore unknown keys
+    try:
+        mensaje = mensaje.format(**vars_dict)
+    except (KeyError, ValueError):
+        pass
+
+    pie = '<br><p style="color:#aaa;font-size:12px;margin:0">(Mensaje automático)</p>'
+    cuerpo = f'''
+        <h3 style="color:#1a3c5e;margin-top:0;font-size:16px">{titulo}</h3>
+        <p style="margin:0 0 10px">{mensaje}</p>
+        {_tabla_datos(filas_datos)}
+        {pie}
+    '''
+    return titulo, cuerpo
+
+
 def _firma():
     return '''
     <br>
@@ -136,7 +190,7 @@ def _firma():
           <p style="margin:4px 0 0;font-size:12px;color:#999">Este es un mensaje automático, no responder a este correo.</p>
         </td>
         <td style="text-align:right;vertical-align:middle;width:80px">
-          <img src="https://methodicatechnologybucketgeneral.s3.us-east-1.amazonaws.com/Jam-Construcciones.png"
+          <img src="https://d12nm0khvt8zd9.cloudfront.net/Jam-Construcciones.png"
                alt="JAM Construcciones" style="height:56px;width:auto;object-fit:contain" />
         </td>
       </tr>
@@ -189,29 +243,21 @@ def _bloqueo_registrado(msg):
     fecha_liberacion = meta.get('fecha_liberacion', '')
     cliente_cedula = meta.get('cliente_cedula', '')
     horas = meta.get('horas', 48)
+    cliente = _nombre_cliente(cliente_cedula, inmo_id, msg.get('proyecto_id', '')) if cliente_cedula else ''
 
-    filas_cliente = f'<tr><td style="padding:6px 0;color:#666">Cliente</td><td style="padding:6px 0;font-weight:500">{_nombre_cliente(cliente_cedula, inmo_id, msg.get("proyecto_id", ""))}</td></tr>' if cliente_cedula else ''
     fecha_bloqueo_fmt = fecha_bloqueo[:19].replace("T", " ") + " UTC" if fecha_bloqueo else ''
     fecha_liberacion_fmt = fecha_liberacion[:19].replace("T", " ") + " UTC" if fecha_liberacion else ''
-    fila_fecha_bloqueo = f'<tr><td style="padding:6px 0;color:#666">Fecha de bloqueo</td><td style="padding:6px 0;font-weight:500">{fecha_bloqueo_fmt}</td></tr>' if fecha_bloqueo_fmt else ''
-    fila_fecha_vence = f'<tr><td style="padding:6px 0;color:#666">Vence el</td><td style="padding:6px 0;font-weight:500">{fecha_liberacion_fmt}</td></tr>' if fecha_liberacion_fmt else ''
 
-    _enviar(
-        correos,
-        f'Bloqueo registrado — {unidad}',
-        f'''
-        <h3 style="color:#1a5276;margin-top:0">Nuevo bloqueo registrado</h3>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666">Unidad</td><td style="padding:6px 0;font-weight:500">{unidad}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Proyecto</td><td style="padding:6px 0;font-weight:500">{proyecto}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria</td><td style="padding:6px 0;font-weight:500">{inmo_nombre}</td></tr>
-          {filas_cliente}
-          <tr><td style="padding:6px 0;color:#666">Duración</td><td style="padding:6px 0;font-weight:500">{horas} horas</td></tr>
-          {fila_fecha_bloqueo}
-          {fila_fecha_vence}
-        </table>
-        ''',
-    )
+    filas = [
+        ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
+        ('Cliente', cliente), ('Duración', f'{horas} horas'),
+        ('Fecha de bloqueo', fecha_bloqueo_fmt), ('Vence el', fecha_liberacion_fmt),
+    ]
+    vars_dict = {'cliente': cliente, 'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
+    titulo, cuerpo = _render_template('bloqueo_registrado', vars_dict, filas,
+        'Nuevo bloqueo registrado',
+        'Le informamos que se ha registrado un nuevo bloqueo en el sistema.')
+    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
 
 
 def _alerta_vencimiento(msg):
@@ -222,31 +268,21 @@ def _alerta_vencimiento(msg):
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     fecha_liberacion = meta.get('fecha_liberacion', '')
-    
-    # Formatear fecha de vencimiento
-    fecha_formateada = ''
+    fecha_fmt = ''
     if fecha_liberacion:
         try:
             from datetime import datetime
             dt = datetime.fromisoformat(fecha_liberacion.replace('Z', '+00:00'))
-            fecha_formateada = dt.strftime('%d/%m/%Y %H:%M (hora local)')
+            fecha_fmt = dt.strftime('%d/%m/%Y %H:%M UTC')
         except:
-            fecha_formateada = fecha_liberacion[:19].replace("T", " ") + " UTC"
+            fecha_fmt = fecha_liberacion[:19].replace("T", " ") + " UTC"
 
-    _enviar(
-        correos,
-        f'⚠️ Bloqueo próximo a vencer — {unidad}',
-        f'''
-        <h3 style="color:#e67e22;margin-top:0">⚠️ Alerta: bloqueo próximo a vencer</h3>
-        <p>El siguiente bloqueo está próximo a vencer. Si necesitas más tiempo, comunícate con el administrador del sistema.</p>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666">Unidad</td><td style="padding:6px 0;font-weight:500">{unidad}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Proyecto</td><td style="padding:6px 0;font-weight:500">{proyecto}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria</td><td style="padding:6px 0;font-weight:500">{inmo_nombre}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Vence el</td><td style="padding:6px 0;font-weight:500">{fecha_formateada}</td></tr>
-        </table>
-        ''',
-    )
+    filas = [('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Vence el', fecha_fmt)]
+    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    titulo, cuerpo = _render_template('alerta_vencimiento', vars_dict, filas,
+        '⚠️ Bloqueo próximo a vencer',
+        'El siguiente bloqueo está próximo a vencer. Si necesita más tiempo, comuníquese con el administrador.')
+    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
 
 
 def _liberacion_automatica(msg):
@@ -257,31 +293,21 @@ def _liberacion_automatica(msg):
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     fecha = meta.get('fecha_liberacion', '')
-    
-    # Formatear fecha de liberación
-    fecha_formateada = ''
+    fecha_fmt = ''
     if fecha:
         try:
             from datetime import datetime
             dt = datetime.fromisoformat(fecha.replace('Z', '+00:00'))
-            fecha_formateada = dt.strftime('%d/%m/%Y %H:%M (hora local)')
+            fecha_fmt = dt.strftime('%d/%m/%Y %H:%M UTC')
         except:
-            fecha_formateada = fecha[:19].replace("T", " ") + " UTC"
+            fecha_fmt = fecha[:19].replace("T", " ") + " UTC"
 
-    _enviar(
-        correos,
-        f'Bloqueo liberado automáticamente — {unidad}',
-        f'''
-        <h3 style="color:#1a5276;margin-top:0">Bloqueo liberado por vencimiento</h3>
-        <p>El tiempo de bloqueo expiró y la unidad quedó disponible automáticamente.</p>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666">Unidad</td><td style="padding:6px 0;font-weight:500">{unidad}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Proyecto</td><td style="padding:6px 0;font-weight:500">{proyecto}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria</td><td style="padding:6px 0;font-weight:500">{inmo_nombre}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Liberada el</td><td style="padding:6px 0;font-weight:500">{fecha_formateada}</td></tr>
-        </table>
-        ''',
-    )
+    filas = [('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Liberada el', fecha_fmt)]
+    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    titulo, cuerpo = _render_template('liberacion_automatica', vars_dict, filas,
+        'Bloqueo liberado por vencimiento',
+        'El tiempo de bloqueo expiró y la unidad quedó disponible automáticamente.')
+    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
 
 
 def _liberacion_manual(msg):
@@ -296,29 +322,20 @@ def _liberacion_manual(msg):
     cedula = meta.get('cedula', '')
     cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else ''
 
-    fila_cliente = f'<tr><td style="padding:6px 0;color:#666">Cliente</td><td style="padding:6px 0;font-weight:500">{cliente}</td></tr>' if cliente else ''
-    fila_just = f'<tr><td style="padding:6px 0;color:#666">Justificación</td><td style="padding:6px 0;font-weight:500">{justificacion}</td></tr>' if justificacion else ''
-
-    _enviar(
-        correos,
-        f'Bloqueo liberado manualmente — {unidad}',
-        f'''
-        <h3 style="color:#1a5276;margin-top:0">Bloqueo liberado manualmente</h3>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666">Unidad</td><td style="padding:6px 0;font-weight:500">{unidad}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Proyecto</td><td style="padding:6px 0;font-weight:500">{proyecto}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria</td><td style="padding:6px 0;font-weight:500">{inmo_nombre}</td></tr>
-          {fila_cliente}
-          <tr><td style="padding:6px 0;color:#666">Liberado por</td><td style="padding:6px 0;font-weight:500">{liberado_por}</td></tr>
-          {fila_just}
-        </table>
-        ''',
-    )
+    filas = [
+        ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
+        ('Cliente', cliente), ('Liberado por', liberado_por), ('Justificación', justificacion),
+    ]
+    vars_dict = {'cliente': cliente, 'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
+    titulo, cuerpo = _render_template('liberacion_manual', vars_dict, filas,
+        'Bloqueo liberado manualmente',
+        'El bloqueo de la unidad ha sido liberado manualmente por un administrador.')
+    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
 
 
 def _cambio_estatus(msg):
     meta = msg.get('metadata', {})
-    notificar = msg.get('notificar')  # 'todos' | 'admin' | False
+    notificar = msg.get('notificar')
     if not notificar:
         logger.info('cambio_estatus sin notificar, omitiendo email')
         return
@@ -330,149 +347,40 @@ def _cambio_estatus(msg):
     unidad = msg.get('unidad_nombre', '') or meta.get('unidad_nombre') or meta.get('unidad_id', '')
     proyecto = _nombre_proyecto(proyecto_id)
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    cliente_nombre_raw = f"{msg.get('nombres', '')} {msg.get('apellidos', '')}".strip()
-    if not cliente_nombre_raw:
-        cliente_nombre_raw = _nombre_cliente(cedula, inmo_id, proyecto_id)
+    cliente_nombre = f"{msg.get('nombres', '')} {msg.get('apellidos', '')}".strip()
+    if not cliente_nombre:
+        cliente_nombre = _nombre_cliente(cedula, inmo_id, proyecto_id)
 
     correos_inmo = _correos_inmobiliaria(inmo_id)
     correo_cliente = _correo_cliente(cedula, inmo_id, proyecto_id)
 
-    # Determinar destinatarios según modo
     if notificar == 'todos':
         destinatarios = [correo_cliente] + correos_inmo + [ADMIN_EMAIL]
-    else:  # 'admin'
+    else:
         destinatarios = [ADMIN_EMAIL]
 
-    asunto, cuerpo = _construir_mensaje_estatus(
-        nuevo_estatus, unidad, proyecto, inmo_nombre, cliente_nombre_raw
-    )
-    _enviar(destinatarios, asunto, cuerpo)
+    tipo = f'cambio_estatus_{nuevo_estatus}'
+    filas = [
+        ('Cliente', cliente_nombre), ('Unidad', unidad),
+        ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
+    ]
+    vars_dict = {'cliente': cliente_nombre, 'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
 
-
-def _construir_mensaje_estatus(estatus, unidad, proyecto, inmo_nombre, cliente_nombre):
-    """Retorna (asunto, cuerpo_html) según el estatus, con los mensajes oficiales de JAM."""
-
-    COLOR = '#1a3c5e'
-    pie = '<br><p style="color:#aaa;font-size:12px;margin:0">(Mensaje automático)</p>'
-
-    def tabla_base(filas_extra=''):
-        return f'''
-        <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px">
-          <tr><td style="padding:7px 0;color:#888;width:130px">Proyecto</td><td style="padding:7px 0;font-weight:500;color:#222">{proyecto}</td></tr>
-          <tr><td style="padding:7px 0;color:#888">Unidad</td><td style="padding:7px 0;font-weight:500;color:#222">{unidad}</td></tr>
-          {filas_extra}
-          <tr><td style="padding:7px 0;color:#888">Inmobiliaria</td><td style="padding:7px 0;font-weight:500;color:#222">{inmo_nombre}</td></tr>
-        </table>'''
-
-    fila_cliente = f'<tr><td style="padding:7px 0;color:#888">Cliente</td><td style="padding:7px 0;font-weight:500;color:#222">{cliente_nombre}</td></tr>' if cliente_nombre else ''
-
-    def titulo(texto):
-        return f'<h3 style="color:{COLOR};margin-top:0;font-size:16px">{texto}</h3>'
-
-    if estatus == 'disponible':
-        return (
-            f'Unidad disponible — {proyecto}',
-            f'''{titulo("Unidad disponible")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que la unidad ha quedado disponible nuevamente por no haberse completado el proceso de reserva dentro del tiempo establecido.</p>
-            {tabla_base()}
-            <p style="margin:16px 0 0">Quedamos a la orden para cualquier consulta.</p>{pie}'''
-        )
-
-    if estatus == 'bloqueada':
-        return (
-            f'Unidad bloqueada — {proyecto}',
-            f'''{titulo("Unidad bloqueada")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que la unidad ha sido bloqueada y cuenta con un plazo de <b>48 horas</b> para completar el proceso de reserva.</p>
-            <p style="margin:0 0 10px">En caso de no recibirse el pago dentro de este período, la unidad quedará disponible nuevamente de forma automática.</p>
-            {tabla_base(fila_cliente)}
-            <p style="margin:16px 0 0">Quedamos a la orden para cualquier consulta.</p>{pie}'''
-        )
-
-    if estatus == 'reserva':
-        return (
-            f'Unidad reservada — {proyecto}',
-            f'''{titulo("Unidad reservada")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que hemos recibido el pago correspondiente a la <b>reserva</b> de la unidad <b>{unidad}</b>, a nombre del cliente <b>{cliente_nombre}</b>.</p>
-            <p style="margin:0 0 10px">Una vez contabilidad aplique el pago, estaremos remitiendo el recibo correspondiente.</p>
-            {tabla_base(fila_cliente)}
-            <p style="margin:16px 0 0">Quedamos a la orden para cualquier consulta.</p>{pie}'''
-        )
-
-    if estatus == 'separacion':
-        return (
-            f'Unidad separada — {proyecto}',
-            f'''{titulo("Separación registrada")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que hemos recibido el pago correspondiente a la <b>separación</b> de la unidad <b>{unidad}</b>, a nombre del cliente <b>{cliente_nombre}</b>.</p>
-            <p style="margin:0 0 10px">Una vez contabilidad aplique el pago, estaremos remitiendo el recibo correspondiente.</p>
-            {tabla_base(fila_cliente)}
-            <p style="margin:16px 0 0">Quedamos a la orden para cualquier consulta.</p>{pie}'''
-        )
-
-    if estatus == 'inicial':
-        return (
-            f'Contrato de promesa de venta firmado — {proyecto}',
-            f'''{titulo("Contrato de promesa de venta firmado")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que el contrato de promesa de venta correspondiente a la unidad <b>{unidad}</b>, a nombre del cliente <b>{cliente_nombre}</b> e inmobiliaria <b>{inmo_nombre}</b>, ha sido firmado exitosamente.</p>
-            {tabla_base(fila_cliente)}
-            <p style="margin:16px 0 0">Quedamos a la orden para cualquier consulta.</p>{pie}'''
-        )
-
-    if estatus == 'pagos_atrasados':
-        return (
-            f'Recordatorio de pago pendiente — {proyecto}',
-            f'''{titulo("Cliente con pagos atrasados")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que el cliente <b>{cliente_nombre}</b>, correspondiente a la unidad <b>{unidad}</b>, presenta pagos pendientes según el plan establecido.</p>
-            <p style="margin:0 0 10px">Agradecemos gestionar este caso a la mayor brevedad para evitar afectar el proceso de compra.</p>
-            {tabla_base(fila_cliente)}
-            <p style="margin:16px 0 0">Quedamos a la orden para cualquier consulta.</p>{pie}'''
-        )
-
-    if estatus == 'contra_entrega':
-        return (
-            f'Pago de contra entrega recibido — {proyecto}',
-            f'''{titulo("Contra entrega")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que hemos recibido el pago correspondiente a la <b>contra entrega</b> de la unidad <b>{unidad}</b>, a nombre del cliente <b>{cliente_nombre}</b>.</p>
-            <p style="margin:0 0 10px">Una vez contabilidad aplique el pago, estaremos remitiendo el recibo correspondiente.</p>
-            {tabla_base(fila_cliente)}
-            <p style="margin:16px 0 0">Quedamos a la orden para cualquier consulta.</p>{pie}'''
-        )
-
-    if estatus == 'vendida':
-        return (
-            f'Gracias por su compra — {proyecto}',
-            f'''{titulo("Unidad vendida")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que la unidad <b>{unidad}</b>, correspondiente al cliente <b>{cliente_nombre}</b>, ha sido entregada satisfactoriamente.</p>
-            <p style="margin:0 0 10px">Agradecemos la confianza depositada en nosotros. Quedamos a la orden para cualquier información relacionada con su garantía o proceso postventa.</p>
-            {tabla_base(fila_cliente)}
-            {pie}'''
-        )
-
-    if estatus == 'desvinculado':
-        return (
-            f'Cliente desvinculado — {proyecto}',
-            f'''{titulo("Cliente desvinculado")}
-            <p style="margin:0 0 10px">Saludos,</p>
-            <p style="margin:0 0 10px">Le informamos que el cliente <b>{cliente_nombre}</b>, correspondiente a la unidad <b>{unidad}</b>, ha sido desvinculado del proceso de compra.</p>
-            <p style="margin:0 0 10px">La unidad queda disponible conforme a las condiciones del proyecto.</p>
-            {tabla_base(fila_cliente)}
-            <p style="margin:16px 0 0">Quedamos a la orden para cualquier consulta.</p>{pie}'''
-        )
-
-    # Fallback genérico
-    return (
-        f'Actualización de estatus — {unidad}',
-        f'''{titulo("Actualización de estatus")}
-        {tabla_base(fila_cliente)}
-        <p style="margin:16px 0 0">Nuevo estatus: <b>{estatus}</b></p>{pie}'''
-    )
+    # Default titles/messages per status
+    defaults = {
+        'disponible':       ('Unidad disponible', 'La unidad ha quedado disponible nuevamente.'),
+        'bloqueada':        ('Unidad bloqueada', 'La unidad ha sido bloqueada con un plazo de 48 horas para completar la reserva.'),
+        'reserva':          ('Unidad reservada', 'Hemos recibido el pago de reserva de la unidad {unidad} a nombre de {cliente}.'),
+        'separacion':       ('Separación registrada', 'Hemos recibido el pago de separación de la unidad {unidad} a nombre de {cliente}.'),
+        'inicial':          ('Contrato de promesa de venta firmado', 'El contrato de promesa de venta de la unidad {unidad} a nombre de {cliente} ha sido firmado exitosamente.'),
+        'pagos_atrasados':  ('Cliente con pagos atrasados', 'El cliente {cliente} presenta pagos pendientes en la unidad {unidad}.'),
+        'contra_entrega':   ('Contra entrega', 'Hemos recibido el pago de contra entrega de la unidad {unidad} a nombre de {cliente}.'),
+        'vendida':          ('Gracias por su compra', 'La unidad {unidad} correspondiente al cliente {cliente} ha sido entregada satisfactoriamente.'),
+        'desvinculado':     ('Cliente desvinculado', 'El cliente {cliente} ha sido desvinculado del proceso de compra de la unidad {unidad}.'),
+    }
+    default_titulo, default_mensaje = defaults.get(nuevo_estatus, (f'Actualización — {nuevo_estatus}', ''))
+    titulo, cuerpo = _render_template(tipo, vars_dict, filas, default_titulo, default_mensaje)
+    _enviar(destinatarios, f'{titulo} — {proyecto}', cuerpo)
 
 
 def _alerta_separacion_vencida(msg):
@@ -485,20 +393,12 @@ def _alerta_separacion_vencida(msg):
     dias = meta.get('dias_sin_pago', 30)
     cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else cedula
 
-    _enviar(
-        [ADMIN_EMAIL],
-        f'⚠️ Separación vencida — {cedula}',
-        f'''
-        <h3 style="color:#c0392b;margin-top:0">⚠️ Alerta: separación vencida sin pago</h3>
-        <p>Han transcurrido <b>{dias} días</b> desde la separación sin registrar pago.</p>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666">Cliente</td><td style="padding:6px 0;font-weight:500">{cliente}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Unidad</td><td style="padding:6px 0;font-weight:500">{unidad}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Proyecto</td><td style="padding:6px 0;font-weight:500">{proyecto}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria</td><td style="padding:6px 0;font-weight:500">{inmo_nombre}</td></tr>
-        </table>
-        ''',
-    )
+    filas = [('Cliente', cliente), ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre)]
+    vars_dict = {'cliente': cliente, 'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
+    titulo, cuerpo = _render_template('alerta_separacion_vencida', vars_dict, filas,
+        '⚠️ Separación vencida sin pago',
+        f'Han transcurrido {dias} días desde la separación sin registrar pago.')
+    _enviar([ADMIN_EMAIL], f'{titulo} — {cedula}', cuerpo)
 
 
 def _cliente_captado(msg):
@@ -509,24 +409,19 @@ def _cliente_captado(msg):
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_id = msg.get('inmobiliaria_id', '')
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
+    cliente = f'{nombres} {apellidos} ({cedula})'.strip()
     fecha = msg.get('timestamp', '')
     fecha_fmt = fecha[:19].replace("T", " ") + " UTC" if fecha else ''
-    fila_fecha = f'<tr><td style="padding:6px 0;color:#666">Fecha</td><td style="padding:6px 0;font-weight:500">{fecha_fmt}</td></tr>' if fecha_fmt else ''
 
-    _enviar(
-        [ADMIN_EMAIL],
-        f'Nuevo cliente captado — {nombres} {apellidos}',
-        f'''
-        <h3 style="color:#1a5276;margin-top:0">Nuevo cliente captado</h3>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666">Nombre</td><td style="padding:6px 0;font-weight:500">{nombres} {apellidos}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Cédula</td><td style="padding:6px 0;font-weight:500">{cedula}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Proyecto</td><td style="padding:6px 0;font-weight:500">{proyecto}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria</td><td style="padding:6px 0;font-weight:500">{inmo_nombre}</td></tr>
-          {fila_fecha}
-        </table>
-        ''',
-    )
+    filas = [
+        ('Nombre', f'{nombres} {apellidos}'), ('Cédula', cedula),
+        ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Fecha', fecha_fmt),
+    ]
+    vars_dict = {'cliente': cliente, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    titulo, cuerpo = _render_template('cliente_captado', vars_dict, filas,
+        'Nuevo cliente captado',
+        'Se ha registrado un nuevo cliente en el sistema.')
+    _enviar([ADMIN_EMAIL], f'{titulo} — {nombres} {apellidos}', cuerpo)
 
 
 def _exclusividad_vencida(msg):
@@ -538,19 +433,12 @@ def _exclusividad_vencida(msg):
     correos_inmo = _correos_inmobiliaria(inmo_id)
     cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else cedula
 
-    _enviar(
-        [ADMIN_EMAIL] + correos_inmo,
-        f'Exclusividad vencida — {cedula}',
-        f'''
-        <h3 style="color:#e67e22;margin-top:0">Exclusividad de cliente vencida</h3>
-        <p>El período de exclusividad de 3 meses ha expirado. La unidad quedó disponible para otras inmobiliarias.</p>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666">Cliente</td><td style="padding:6px 0;font-weight:500">{cliente}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Proyecto</td><td style="padding:6px 0;font-weight:500">{proyecto}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria</td><td style="padding:6px 0;font-weight:500">{inmo_nombre}</td></tr>
-        </table>
-        ''',
-    )
+    filas = [('Cliente', cliente), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre)]
+    vars_dict = {'cliente': cliente, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
+    titulo, cuerpo = _render_template('exclusividad_vencida', vars_dict, filas,
+        'Exclusividad de cliente vencida',
+        'El período de exclusividad de 3 meses ha expirado. La unidad quedó disponible para otras inmobiliarias.')
+    _enviar([ADMIN_EMAIL] + correos_inmo, f'{titulo} — {cedula}', cuerpo)
 
 
 def _intento_duplicado(msg):
@@ -561,22 +449,17 @@ def _intento_duplicado(msg):
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_id = msg.get('inmobiliaria_id', '')
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    cliente = f'{nombres} {apellidos} ({cedula})'.strip(' ()') if (nombres or apellidos) else cedula
-
+    cliente = f'{nombres} {apellidos} ({cedula})'.strip(' ()')
     inmo_con_excl_id = meta.get('inmobiliaria_con_exclusividad', '')
-    inmo_con_excl_nombre = _nombre_inmobiliaria(inmo_con_excl_id) if inmo_con_excl_id else 'Otra inmobiliaria'
+    inmo_con_excl = _nombre_inmobiliaria(inmo_con_excl_id) if inmo_con_excl_id else 'Otra inmobiliaria'
 
-    _enviar(
-        [ADMIN_EMAIL],
-        f'⚠️ Intento de captación duplicada — {cedula}',
-        f'''
-        <h3 style="color:#c0392b;margin-top:0">⚠️ Intento de captación duplicada bloqueado</h3>
-        <p>Una inmobiliaria intentó captar un cliente que ya tiene exclusividad activa con otra inmobiliaria.</p>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:6px 0;color:#666">Cliente</td><td style="padding:6px 0;font-weight:500">{cliente}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Proyecto</td><td style="padding:6px 0;font-weight:500">{proyecto}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria solicitante</td><td style="padding:6px 0;font-weight:500">{inmo_nombre}</td></tr>
-          <tr><td style="padding:6px 0;color:#666">Inmobiliaria con exclusividad</td><td style="padding:6px 0;font-weight:500;color:#c0392b">{inmo_con_excl_nombre}</td></tr>
-        </table>
-        ''',
-    )
+    filas = [
+        ('Cliente', cliente), ('Proyecto', proyecto),
+        ('Inmobiliaria solicitante', inmo_nombre),
+        ('Inmobiliaria con exclusividad', inmo_con_excl),
+    ]
+    vars_dict = {'cliente': cliente, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
+    titulo, cuerpo = _render_template('intento_duplicado', vars_dict, filas,
+        '⚠️ Intento de captación duplicada bloqueado',
+        'Una inmobiliaria intentó captar un cliente que ya tiene exclusividad activa con otra inmobiliaria.')
+    _enviar([ADMIN_EMAIL], f'{titulo} — {cedula}', cuerpo)

@@ -97,9 +97,20 @@ export const apiGet = async <T>(path: string): Promise<T> => {
 
 export const apiPost = async <T>(path: string, data: unknown): Promise<T> => {
   try {
+    const [basePath, queryString] = path.split('?');
+    const queryParams: Record<string, string> = {};
+    if (queryString) {
+      const params = new URLSearchParams(queryString);
+      params.forEach((value, key) => { queryParams[key] = value; });
+    }
     const { body } = await post({
-      apiName: API_NAME, path,
-      options: { headers: await authHeaders(), body: data as never },
+      apiName: API_NAME,
+      path: basePath,
+      options: {
+        headers: await authHeaders(),
+        body: data as never,
+        queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+      },
     }).response;
     return (await body.json()) as T;
   } catch (error) {
@@ -109,9 +120,20 @@ export const apiPost = async <T>(path: string, data: unknown): Promise<T> => {
 
 export const apiPut = async <T>(path: string, data: unknown): Promise<T> => {
   try {
+    const [basePath, queryString] = path.split('?');
+    const queryParams: Record<string, string> = {};
+    if (queryString) {
+      const params = new URLSearchParams(queryString);
+      params.forEach((value, key) => { queryParams[key] = value; });
+    }
     const { body } = await put({
-      apiName: API_NAME, path,
-      options: { headers: await authHeaders(), body: data as never },
+      apiName: API_NAME,
+      path: basePath,
+      options: {
+        headers: await authHeaders(),
+        body: data as never,
+        queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
+      },
     }).response;
     return (await body.json()) as T;
   } catch (error) {

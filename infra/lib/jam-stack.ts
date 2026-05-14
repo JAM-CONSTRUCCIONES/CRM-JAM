@@ -972,6 +972,11 @@ def handler(event, context):
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // /admin/config/email-templates — routed via query param on existing endpoint
+    // No new API Gateway resources needed (stack at resource limit)
+    // Frontend calls GET /admin/inmobiliarias?_config=email-templates
+    // and PUT /admin/inmobiliarias?_config=email-templates&tipo=xxx
+
     // /publico — rutas sin auth para captura externa de clientes
     const publicoResource = api.root.addResource('publico');
 
@@ -1192,8 +1197,8 @@ def handler(event, context):
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-notificaciones')),
       timeout: cdk.Duration.seconds(30),
       environment: {
-        ADMIN_EMAIL: 'Venta@jamconstruccionesrl.com',
-        FROM_EMAIL: 'Venta@jamconstruccionesrl.com',
+        ADMIN_EMAIL: 'alvarez@methodicatechnology.com',
+        FROM_EMAIL: 'alvarez@methodicatechnology.com',
         USUARIOS_TABLE: usuariosTable.tableName,
         CLIENTES_TABLE: clientesTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,

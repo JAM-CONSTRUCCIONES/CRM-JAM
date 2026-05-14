@@ -35,6 +35,8 @@ export interface FilaMigracion {
   errores: string[];
   advertencias: string[];
   ia_sugerido: boolean;
+  etapa_nombre: string | null;
+  etapa_id?: string | null;
 }
 
 export interface PreviewMigracion {

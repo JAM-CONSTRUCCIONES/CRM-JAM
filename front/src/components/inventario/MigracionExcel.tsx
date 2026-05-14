@@ -1,7 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import {
   Upload, Button, Table, Tag, Input, InputNumber, Select, Space,
-  Alert, Typography, Steps, Spin, Result, Tooltip, Badge, Popover,
+  Alert, Typography, Steps, Spin, Result, Tooltip, Badge, Popover, Modal,
 } from 'antd';
 import {
   UploadOutlined, RobotOutlined, CheckCircleOutlined,
@@ -13,11 +13,49 @@ import {
   type FilaMigracion, type ReporteMigracion,
 } from '../../services/migracion.service';
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
+import { getEtapas } from '../../services/proyectos.service';
+import type { Etapa } from '../../types';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 const ESTADOS_VALIDOS = ['disponible', 'bloqueada', 'no_disponible'];
+
+// ── Local-state input cells — only call parent on blur, not on every keystroke ──
+const CeldaInputLocal = memo(({ value, placeholder, onChange, style }: {
+  value: string; placeholder?: string; onChange: (v: string) => void; style?: React.CSSProperties;
+}) => {
+  const [local, setLocal] = useState(value);
+  useEffect(() => { setLocal(value); }, [value]);
+  return (
+    <Input
+      value={local}
+      placeholder={placeholder}
+      style={style}
+      onChange={e => setLocal(e.target.value)}
+      onBlur={() => onChange(local)}
+    />
+  );
+});
+
+const CeldaNumberLocal = memo(({ value, min, onChange, formatter }: {
+  value: number | null; min?: number;
+  onChange: (v: number | null) => void;
+  formatter?: (v: number | undefined) => string;
+}) => {
+  const [local, setLocal] = useState<number | null>(value);
+  useEffect(() => { setLocal(value); }, [value]);
+  return (
+    <InputNumber
+      value={local ?? undefined}
+      min={min}
+      style={{ width: '100%' }}
+      formatter={formatter}
+      onChange={v => setLocal(v)}
+      onBlur={() => onChange(local)}
+    />
+  );
+});
 
 interface Props {
   proyectoId: string;
@@ -40,12 +78,14 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
   const [reporte, setReporte] = useState<ReporteMigracion | null>(null);
   const [error, setError] = useState('');
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
+  const [etapas, setEtapas] = useState<Etapa[]>([]);
   const tableRef = useRef<HTMLDivElement>(null);
 
   // Cargar inmobiliarias al montar
   useEffect(() => {
     getInmobiliarias().then(setInmobiliarias).catch(() => {});
-  }, []);
+    getEtapas(proyectoId).then(setEtapas).catch(() => {});
+  }, [proyectoId]);
 
   // ── Scroll horizontal con Shift+Scroll ───────────────────────────────────
   useEffect(() => {
@@ -150,6 +190,46 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
     }));
   }, [proyectoId]);
 
+  // ── Nueva etapa ───────────────────────────────────────────────────────────
+  const [nuevaEtapaModal, setNuevaEtapaModal] = useState(false);
+  const [nuevaEtapaNombre, setNuevaEtapaNombre] = useState('');
+  const [nuevaEtapaAplicar, setNuevaEtapaAplicar] = useState<'todos' | 'vacios' | 'ninguna'>('vacios');
+
+  const aplicarNuevaEtapa = useCallback(() => {
+    const nombre = nuevaEtapaNombre.trim();
+    if (!nombre) return;
+    if (nuevaEtapaAplicar !== 'ninguna') {
+      setFilas(prev => prev.map(f => {
+        if (nuevaEtapaAplicar === 'vacios' && f.etapa_nombre) return f;
+        return { ...f, etapa_nombre: nombre };
+      }));
+    }
+    setEtapas(prev => prev.some(e => e.nombre === nombre) ? prev : [
+      ...prev,
+      { pk: '', sk: '', etapa_id: `NEW-${nombre}`, nombre, activo: true, creado_en: '' },
+    ]);
+    setNuevaEtapaModal(false);
+    setNuevaEtapaNombre('');
+  }, [nuevaEtapaNombre, nuevaEtapaAplicar]);
+
+  // ── Nueva inmobiliaria ────────────────────────────────────────────────────
+  const [nuevaInmoModal, setNuevaInmoModal] = useState(false);
+  const [nuevaInmoNombre, setNuevaInmoNombre] = useState('');
+  const [nuevaInmoAplicar, setNuevaInmoAplicar] = useState<'todos' | 'vacios' | 'ninguna'>('vacios');
+
+  const aplicarNuevaInmo = useCallback(() => {
+    const nombre = nuevaInmoNombre.trim();
+    if (!nombre) return;
+    if (nuevaInmoAplicar !== 'ninguna') {
+      setFilas(prev => prev.map(f => {
+        if (nuevaInmoAplicar === 'vacios' && f.inmobiliaria_nombre_sugerido) return f;
+        return { ...f, inmobiliaria_nombre_sugerido: nombre, inmobiliaria_id_sugerido: null };
+      }));
+    }
+    setNuevaInmoModal(false);
+    setNuevaInmoNombre('');
+  }, [nuevaInmoNombre, nuevaInmoAplicar]);
+
   // ── Confirmar ────────────────────────────────────────────────────────────
   const handleConfirmar = useCallback(async () => {
     setCargando(true);
@@ -173,7 +253,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
   const filasConClienteSinCedula = filas.filter(f => f.cliente_nombre_excel && !f.cedula).length;
 
   // ── Columnas ─────────────────────────────────────────────────────────────
-  const columnas = [
+  const columnas = useMemo(() => [
     {
       title: 'Unidad', dataIndex: 'id_unidad', width: 100, fixed: 'left' as const,
       render: (v: string, r: FilaMigracion) => (
@@ -189,7 +269,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       title: 'Precio *', dataIndex: 'precio', width: 130,
       render: (v: number | null, r: FilaMigracion) => (
         <CeldaRequerida error={r.errores.some(e => e.includes('precio'))}>
-          <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }}
+          <CeldaNumberLocal value={v} min={0}
             formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
             onChange={val => actualizarFila(r.id_unidad, 'precio', val)} />
         </CeldaRequerida>
@@ -199,7 +279,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       title: 'Metraje *', dataIndex: 'metraje', width: 90,
       render: (v: number | null, r: FilaMigracion) => (
         <CeldaRequerida error={r.errores.some(e => e.includes('metraje'))}>
-          <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }}
+          <CeldaNumberLocal value={v} min={0}
             onChange={val => actualizarFila(r.id_unidad, 'metraje', val)} />
         </CeldaRequerida>
       ),
@@ -217,11 +297,28 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       ),
     },
     {
+      title: 'Etapa', dataIndex: 'etapa_nombre', width: 150,
+      render: (v: string | null, r: FilaMigracion) => (
+        <Select
+          value={v ?? undefined}
+          placeholder="Sin etapa"
+          style={{ width: '100%' }}
+          allowClear
+          onChange={val => actualizarFila(r.id_unidad, 'etapa_nombre', val ?? null)}
+        >
+          {etapas.map(e => (
+            <Select.Option key={e.etapa_id} value={e.nombre} label={e.nombre}>
+              {e.nombre}
+            </Select.Option>
+          ))}
+        </Select>
+      ),
+    },
+    {
       title: 'Nombres', dataIndex: 'nombres_sugerido', width: 140,
       render: (v: string | null, r: FilaMigracion) => (
         <CeldaIA sugerido={r.ia_sugerido && !!v}>
-          <Input value={v ?? ''} placeholder="Nombres"
-            onChange={e => actualizarFila(r.id_unidad, 'nombres_sugerido', e.target.value)} />
+          <CeldaInputLocal value={v ?? ''} placeholder="Nombres" onChange={val => actualizarFila(r.id_unidad, 'nombres_sugerido', val)} />
         </CeldaIA>
       ),
     },
@@ -229,8 +326,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       title: 'Apellidos', dataIndex: 'apellidos_sugerido', width: 140,
       render: (v: string | null, r: FilaMigracion) => (
         <CeldaIA sugerido={r.ia_sugerido && !!v}>
-          <Input value={v ?? ''} placeholder="Apellidos"
-            onChange={e => actualizarFila(r.id_unidad, 'apellidos_sugerido', e.target.value)} />
+          <CeldaInputLocal value={v ?? ''} placeholder="Apellidos" onChange={val => actualizarFila(r.id_unidad, 'apellidos_sugerido', val)} />
         </CeldaIA>
       ),
     },
@@ -239,11 +335,11 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       render: (v: string | null, r: FilaMigracion & { cedula_es_fantasma?: boolean }) => (
         <CeldaRequerida error={r.errores.some(e => e.includes('cédula'))}>
           <Tooltip title={r.cedula_es_fantasma ? 'Cédula temporal — completa la real después' : undefined}>
-            <Input
+            <CeldaInputLocal
               value={v ?? ''}
               placeholder="Cédula"
               style={r.cedula_es_fantasma ? { borderColor: '#faad14', background: '#fffbe6' } : undefined}
-              onChange={e => actualizarFila(r.id_unidad, 'cedula', e.target.value)}
+              onChange={val => actualizarFila(r.id_unidad, 'cedula', val)}
             />
           </Tooltip>
         </CeldaRequerida>
@@ -262,24 +358,11 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
               placeholder="Seleccionar..."
               style={{ width: '100%', borderColor: esNueva ? '#faad14' : undefined }}
               allowClear
-              showSearch
-              optionFilterProp="label"
               onChange={val => actualizarFila(r.id_unidad, 'inmobiliaria_nombre_sugerido', val ?? null)}
-              dropdownRender={menu => (
-                <>
-                  {menu}
-                  <div style={{ padding: '4px 8px', borderTop: '1px solid #f0f0f0' }}>
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      <PlusOutlined /> Escribe un nombre nuevo para crear una inmobiliaria
-                    </Text>
-                  </div>
-                </>
-              )}
             >
               {inmobiliarias.filter(i => i.activo).map(i => (
                 <Select.Option key={i.pk} value={i.nombre} label={i.nombre}>
                   {i.nombre}
-                  {i.pk.includes('migracion') && <Tag style={{ marginLeft: 6 }} color="orange">borrador</Tag>}
                 </Select.Option>
               ))}
             </Select>
@@ -288,29 +371,29 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       },
     },
     { title: 'Tipo', dataIndex: 'tipo', width: 70,
-      render: (v: string | null, r: FilaMigracion) => <Input value={v ?? ''} onChange={e => actualizarFila(r.id_unidad, 'tipo', e.target.value)} /> },
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} onChange={val => actualizarFila(r.id_unidad, 'tipo', val)} /> },
     { title: 'Piso', dataIndex: 'piso', width: 65,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} onChange={val => actualizarFila(r.id_unidad, 'piso', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'piso', val)} /> },
     { title: 'Manzana', dataIndex: 'manzana', width: 85,
-      render: (v: string | null, r: FilaMigracion) => <Input value={v ?? ''} onChange={e => actualizarFila(r.id_unidad, 'manzana', e.target.value)} /> },
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} onChange={val => actualizarFila(r.id_unidad, 'manzana', val)} /> },
     { title: 'Parqueos', dataIndex: 'parqueos', width: 85,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} onChange={val => actualizarFila(r.id_unidad, 'parqueos', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'parqueos', val)} /> },
     { title: 'Cuartos', dataIndex: 'num_cuartos', width: 75,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} onChange={val => actualizarFila(r.id_unidad, 'num_cuartos', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'num_cuartos', val)} /> },
     { title: 'Baños', dataIndex: 'num_banos', width: 70,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} onChange={val => actualizarFila(r.id_unidad, 'num_banos', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'num_banos', val)} /> },
     { title: 'P. Reserva', dataIndex: 'precio_reserva', width: 110,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_reserva', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_reserva', val)} /> },
     { title: 'P. Separación', dataIndex: 'precio_separacion', width: 120,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_separacion', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_separacion', val)} /> },
     { title: 'P. Inicial', dataIndex: 'precio_inicial', width: 110,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_inicial', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_inicial', val)} /> },
     { title: 'Cuota', dataIndex: 'cuota_monto', width: 100,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'cuota_monto', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'cuota_monto', val)} /> },
     { title: 'Contra entrega', dataIndex: 'contra_entrega', width: 120,
-      render: (v: number | null, r: FilaMigracion) => <InputNumber value={v ?? undefined} min={0} style={{ width: '100%' }} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'contra_entrega', val)} /> },
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'contra_entrega', val)} /> },
     { title: 'Comentario', dataIndex: 'comentario', width: 150,
-      render: (v: string | null, r: FilaMigracion) => <Input value={v ?? ''} placeholder="Opcional" onChange={e => actualizarFila(r.id_unidad, 'comentario', e.target.value)} /> },
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'comentario', val)} /> },
     {
       title: 'Errores / Advertencias', width: 200, fixed: 'right' as const,
       render: (_: unknown, r: FilaMigracion) => (
@@ -320,7 +403,8 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
         </Space>
       ),
     },
-  ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [etapas, inmobiliarias, actualizarFila]);
 
   return (
     <div style={{ padding: 24 }}>
@@ -421,7 +505,13 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
             <RellenarVaciosBtn campo="num_cuartos" label="Rellenar cuartos vacíos" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="num_banos" label="Rellenar baños vacíos" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="parqueos" label="Rellenar parqueos vacíos" tipo="numero" onRellenar={rellenarVacios} />
-          </Space>
+            <RellenarEtapaBtn etapas={etapas} onRellenar={rellenarVacios} />
+            <Button size="small" icon={<PlusOutlined />} onClick={() => { setNuevaEtapaNombre(''); setNuevaEtapaAplicar('vacios'); setNuevaEtapaModal(true); }}>
+              Nueva etapa
+            </Button>
+            <Button size="small" icon={<PlusOutlined />} onClick={() => { setNuevaInmoNombre(''); setNuevaInmoAplicar('vacios'); setNuevaInmoModal(true); }}>
+              Nueva inmobiliaria
+            </Button>          </Space>
 
           {error && <Alert type="error" message={error} style={{ marginBottom: 12 }} />}
           <Alert type="info" icon={<InfoCircleOutlined />}
@@ -431,7 +521,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
           <div ref={tableRef}>
             <Table
               dataSource={filas} columns={columnas} rowKey="id_unidad"
-              scroll={{ x: 2800 }} size="small" pagination={{ pageSize: 50 }}
+              scroll={{ x: 3000 }} size="small" pagination={{ pageSize: 50 }}
               rowClassName={r => r.errores.length > 0 ? 'fila-error' : r.advertencias.length > 0 ? 'fila-advertencia' : ''}
             />
           </div>
@@ -444,6 +534,73 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                 : `Confirmar carga (${filas.length} unidades)`}
             </Button>
           </Space>
+
+          {/* Modal nueva etapa */}
+          <Modal
+            title="Nueva etapa"
+            open={nuevaEtapaModal}
+            onCancel={() => setNuevaEtapaModal(false)}
+            onOk={aplicarNuevaEtapa}
+            okText="Aplicar"
+            okButtonProps={{ disabled: !nuevaEtapaNombre.trim() }}
+            cancelText="Cancelar"
+            width={380}
+          >
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Nombre de la etapa:</Text>
+                <Input
+                  autoFocus
+                  placeholder="Ej: Etapa 1, Fase A..."
+                  value={nuevaEtapaNombre}
+                  onChange={e => setNuevaEtapaNombre(e.target.value)}
+                  onPressEnter={aplicarNuevaEtapa}
+                />
+              </div>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Aplicar a:</Text>
+                <Select value={nuevaEtapaAplicar} onChange={setNuevaEtapaAplicar} style={{ width: '100%' }}>
+                  <Option value="vacios">Solo unidades sin etapa</Option>
+                  <Option value="todos">Todas las unidades</Option>
+                  <Option value="ninguna">Ninguna — solo crear la etapa</Option>
+                </Select>
+              </div>
+            </Space>
+          </Modal>
+
+          {/* Modal nueva inmobiliaria */}
+          <Modal
+            title="Nueva inmobiliaria"
+            open={nuevaInmoModal}
+            onCancel={() => setNuevaInmoModal(false)}
+            onOk={aplicarNuevaInmo}
+            okText="Aplicar"
+            okButtonProps={{ disabled: !nuevaInmoNombre.trim() }}
+            cancelText="Cancelar"
+            width={380}
+          >
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Nombre de la inmobiliaria:</Text>
+                <Input
+                  autoFocus
+                  placeholder="Ej: Oferta Inmobiliaria..."
+                  value={nuevaInmoNombre}
+                  onChange={e => setNuevaInmoNombre(e.target.value)}
+                  onPressEnter={aplicarNuevaInmo}
+                />
+              </div>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Aplicar a:</Text>
+                <Select value={nuevaInmoAplicar} onChange={setNuevaInmoAplicar} style={{ width: '100%' }}>
+                  <Option value="vacios">Solo unidades sin inmobiliaria</Option>
+                  <Option value="todos">Todas las unidades</Option>
+                  <Option value="ninguna">Ninguna — solo registrar el nombre</Option>
+                </Select>
+              </div>
+              <Alert type="info" showIcon message="La inmobiliaria se creará automáticamente al confirmar la migración." />
+            </Space>
+          </Modal>
         </>
       )}
 
@@ -505,7 +662,42 @@ function RellenarVaciosBtn({ campo, label, tipo, onRellenar }: {
   );
 }
 
-// ── Componentes auxiliares ────────────────────────────────────────────────────
+// ── Botón rellenar etapa vacía ────────────────────────────────────────────────
+function RellenarEtapaBtn({ etapas, onRellenar }: {
+  etapas: Etapa[];
+  onRellenar: (campo: keyof FilaMigracion, valor: unknown) => void;
+}) {
+  const [valor, setValor] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const content = (
+    <Space direction="vertical" size={8} style={{ width: 220 }}>
+      <Text type="secondary" style={{ fontSize: 12 }}>Etapa para unidades sin etapa:</Text>
+      <Select
+        style={{ width: '100%' }}
+        placeholder="Seleccionar etapa..."
+        value={valor ?? undefined}
+        allowClear
+        onChange={v => setValor(v ?? null)}
+      >
+        {etapas.map(e => (
+          <Select.Option key={e.etapa_id} value={e.nombre}>{e.nombre}</Select.Option>
+        ))}
+      </Select>
+      <Button type="primary" size="small" block
+        disabled={!valor}
+        onClick={() => { onRellenar('etapa_nombre', valor); setOpen(false); setValor(null); }}>
+        Aplicar a vacíos
+      </Button>
+    </Space>
+  );
+
+  return (
+    <Popover content={content} title="Rellenar etapa vacía" trigger="click" open={open} onOpenChange={setOpen}>
+      <Button size="small" icon={<ThunderboltOutlined />}>Rellenar etapa vacía</Button>
+    </Popover>
+  );
+}
 function CeldaRequerida({ children, error }: { children: React.ReactNode; error: boolean }) {
   return <div style={{ border: error ? '1px solid #ff4d4f' : undefined, borderRadius: 4 }}>{children}</div>;
 }

@@ -1,5 +1,5 @@
 from utils.response import not_found, forbidden
-from routes import auth, inmobiliarias, usuarios, sistema
+from routes import auth, inmobiliarias, usuarios, sistema, config
 
 
 def _get_claims(event):
@@ -38,6 +38,30 @@ def handler(event, context):
     # ── Admin: guard ──────────────────────────────────────────
     if not _is_admin(event):
         return forbidden('Sin permisos')
+
+    # ── Config: email templates (via query param or body marker) ─────────────
+    qs_params = event.get('queryStringParameters') or {}
+    body_raw = event.get('body') or '{}'
+    try:
+        import json as _json
+        body_parsed = _json.loads(body_raw)
+    except Exception:
+        body_parsed = {}
+
+    is_config = qs_params.get('_config') == 'email-templates' or body_parsed.get('_config') == 'email-templates'
+    if is_config:
+        tipo = qs_params.get('tipo') or body_parsed.get('tipo')
+        if method == 'GET' and not tipo:
+            return config.listar()
+        if method == 'GET' and tipo:
+            return config.obtener(tipo)
+        if method in ('PUT', 'POST'):
+            if not tipo:
+                from utils.response import bad_request
+                return bad_request('tipo requerido')
+            if body_parsed.get('action') == 'reset':
+                return config.restaurar(tipo)
+            return config.guardar(tipo, event)
 
     # ── Usuarios del sistema ──────────────────────────────────
     sistema_usuario_id = path_params.get('usuario_id') if '/sistema/' in path else None

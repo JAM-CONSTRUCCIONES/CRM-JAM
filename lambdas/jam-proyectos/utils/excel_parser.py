@@ -176,6 +176,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             'errores':                      errores,
             'advertencias':                 advertencias,
             'ia_sugerido':                  bool(nombres_ia.get('nombres') or nombres_final or inmo_id_sugerido),
+            'etapa_nombre':                 str(gc(['ETAPA', 'Etapa', 'etapa', 'FASE', 'Fase']) or '').strip() or None,
         })
 
     preview = {

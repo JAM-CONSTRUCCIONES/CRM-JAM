@@ -41,9 +41,26 @@ def escribir_migracion(proyecto_id, filas):
     print(f'LAMBDA_ARN: {LAMBDA_ARN}')
     print(f'SCHEDULER_ROLE_ARN: {SCHEDULER_ROLE_ARN}')
     print(f'SQS_URL: {SQS_URL}')
-    
-    inmos_cache = {}  # nombre_excel → inmobiliaria_id
-    ahora       = now()
+
+    inmos_cache  = {}  # nombre_excel → inmobiliaria_id
+    etapas_cache = {}  # nombre_etapa → etapa_id
+    ahora        = now()
+
+    # ── Pre-crear etapas únicas ───────────────────────────────────────────
+    nombres_etapa = list({
+        f['etapa_nombre'].strip()
+        for f in filas
+        if f.get('etapa_nombre') and f['etapa_nombre'].strip()
+    })
+    for nombre_etapa in nombres_etapa:
+        etapa_id = _resolver_etapa(proyecto_id, nombre_etapa, etapas_cache, ahora)
+        print(f'Etapa resuelta: {nombre_etapa} → {etapa_id}')
+
+    # Asignar etapa_id a cada fila
+    for fila in filas:
+        nombre_etapa = (fila.get('etapa_nombre') or '').strip()
+        if nombre_etapa and nombre_etapa in etapas_cache:
+            fila['etapa_id'] = etapas_cache[nombre_etapa]
 
     stats = {
         'unidades_cargadas':     0,
@@ -91,6 +108,37 @@ def escribir_migracion(proyecto_id, filas):
 
 
 # ─── Helpers internos ────────────────────────────────────────────────────────
+
+def _resolver_etapa(proyecto_id, nombre_etapa, cache, ahora):
+    """Busca etapa existente por nombre o la crea. Retorna etapa_id."""
+    if nombre_etapa in cache:
+        return cache[nombre_etapa]
+
+    # Buscar etapas existentes del proyecto
+    result = inventario_t.query(
+        KeyConditionExpression=boto3.dynamodb.conditions.Key('pk').eq(f'PROYECTO#{proyecto_id}') &
+                               boto3.dynamodb.conditions.Key('sk').begins_with('ETAPA#')
+    )
+    for item in result.get('Items', []):
+        if item.get('nombre', '').strip().lower() == nombre_etapa.strip().lower():
+            etapa_id = item['etapa_id']
+            cache[nombre_etapa] = etapa_id
+            return etapa_id
+
+    # No existe — crear nueva
+    etapa_id = str(uuid.uuid4())[:8].upper()
+    inventario_t.put_item(Item={
+        'pk':        f'PROYECTO#{proyecto_id}',
+        'sk':        f'ETAPA#{etapa_id}',
+        'etapa_id':  etapa_id,
+        'nombre':    nombre_etapa,
+        'activo':    True,
+        'creado_en': ahora,
+        'origen':    'migracion',
+    })
+    cache[nombre_etapa] = etapa_id
+    return etapa_id
+
 
 def _resolver_inmobiliaria(proyecto_id, fila, cache, stats, ahora, fila_num, id_unidad):
     # Usar el nombre que el admin confirmó/editó, con fallback al nombre del Excel

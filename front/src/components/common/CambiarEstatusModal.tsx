@@ -148,15 +148,14 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
                   icon={<TeamOutlined />}
                   onClick={() => handleConfirm('todos')}
                   loading={loading}
-                  disabled={!tieneContacto}
                   style={{ textAlign: 'left', height: 'auto', padding: '10px 14px', border: '1px solid #d9d9d9' }}
                 >
                   <div>
                     <div style={{ fontWeight: 500, fontSize: 14 }}>Notificar a todos</div>
                     <div style={{ fontSize: 12, color: '#888', fontWeight: 400, marginTop: 2 }}>
-                      {tieneContacto 
+                      {tieneContacto
                         ? 'Cliente, inmobiliaria y administración'
-                        : 'Cliente sin contacto registrado'}
+                        : 'Inmobiliaria y administración (cliente sin correo)'}
                     </div>
                   </div>
                 </Button>

@@ -103,7 +103,10 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
 
   // ── Validar fila ─────────────────────────────────────────────────────────
   const validarFila = (f: FilaMigracion) => {
-    const errores: string[] = [];
+    const erroresPersistentes = (f.errores ?? []).filter(e =>
+      e.includes('ya existe en este proyecto') || e.includes('duplicado') || e.includes('duplicada')
+    );
+    const errores: string[] = [...erroresPersistentes];
     const advertencias: string[] = [];
     if (!f.id_unidad) errores.push('id_unidad vacío');
     if (f.precio === null || f.precio === undefined) errores.push('precio inválido o vacío');
@@ -467,7 +470,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
             <Title level={4}>Migración de inventario — {proyectoNombre}</Title>
             <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
-              Sube el archivo Excel con el inventario. Solo aplica a proyectos sin unidades.
+              Sube el archivo Excel con inventario nuevo. Las unidades que ya existan en el proyecto seran rechazadas.
             </Text>
             {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
             <Spin spinning={cargando} tip="Procesando con IA...">
@@ -520,7 +523,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
 
           <div ref={tableRef}>
             <Table
-              dataSource={filas} columns={columnas} rowKey="id_unidad"
+              dataSource={filas} columns={columnas} rowKey="fila_excel"
               scroll={{ x: 3000 }} size="small" pagination={{ pageSize: 50 }}
               rowClassName={r => r.errores.length > 0 ? 'fila-error' : r.advertencias.length > 0 ? 'fila-advertencia' : ''}
             />

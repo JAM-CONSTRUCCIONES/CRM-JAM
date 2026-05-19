@@ -5,6 +5,7 @@ import os
 import json
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone, timedelta
+from boto3.dynamodb.conditions import Key
 from utils.helpers import now
 
 dynamodb     = boto3.resource('dynamodb')
@@ -41,6 +42,13 @@ def escribir_migracion(proyecto_id, filas):
     print(f'LAMBDA_ARN: {LAMBDA_ARN}')
     print(f'SCHEDULER_ROLE_ARN: {SCHEDULER_ROLE_ARN}')
     print(f'SQS_URL: {SQS_URL}')
+
+    duplicadas = _buscar_unidades_duplicadas(proyecto_id, filas)
+    if duplicadas:
+        raise ValueError(
+            'No se puede confirmar la migracion. Estas unidades ya existen o estan duplicadas: ' +
+            ', '.join(duplicadas[:10])
+        )
 
     inmos_cache  = {}  # nombre_excel → inmobiliaria_id
     etapas_cache = {}  # nombre_etapa → etapa_id
@@ -108,6 +116,55 @@ def escribir_migracion(proyecto_id, filas):
 
 
 # ─── Helpers internos ────────────────────────────────────────────────────────
+
+def _normalizar_id_unidad(id_unidad):
+    return (id_unidad or '').strip().upper()
+
+
+def _buscar_unidades_duplicadas(proyecto_id, filas):
+    duplicadas = []
+    vistas = set()
+    existentes = _obtener_ids_unidades_existentes(proyecto_id)
+
+    for fila in filas:
+        id_unidad = (fila.get('id_unidad') or '').strip()
+        id_normalizado = _normalizar_id_unidad(id_unidad)
+        if not id_normalizado:
+            continue
+
+        if id_normalizado in vistas:
+            duplicadas.append(f'{id_unidad} duplicada en el Excel')
+            continue
+        vistas.add(id_normalizado)
+
+        if id_normalizado in existentes:
+            duplicadas.append(f'{id_unidad} ya existe en el proyecto')
+
+    return duplicadas
+
+
+def _obtener_ids_unidades_existentes(proyecto_id):
+    ids = set()
+    last_key = None
+
+    while True:
+        kwargs = {
+            'ProjectionExpression': 'id_unidad',
+            'KeyConditionExpression': Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
+        }
+        if last_key:
+            kwargs['ExclusiveStartKey'] = last_key
+
+        result = inventario_t.query(**kwargs)
+        for item in result.get('Items', []):
+            id_unidad = _normalizar_id_unidad(item.get('id_unidad'))
+            if id_unidad:
+                ids.add(id_unidad)
+
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            return ids
+
 
 def _resolver_etapa(proyecto_id, nombre_etapa, cache, ahora):
     """Busca etapa existente por nombre o la crea. Retorna etapa_id."""
@@ -207,6 +264,7 @@ def _buscar_inmo_por_nombre(nombre):
 
 def _escribir_unidad(proyecto_id, id_unidad, fila, inmo_id, ahora):
     unidad_id = str(uuid.uuid4())[:8].upper()
+    proyecto_id_unidad = f"{proyecto_id}#{_normalizar_id_unidad(id_unidad)}"
 
     try:
         metraje_dec = Decimal(str(fila.get('metraje') or 0))
@@ -221,6 +279,7 @@ def _escribir_unidad(proyecto_id, id_unidad, fila, inmo_id, ahora):
         'unidad_id':      unidad_id,
         'id_unidad':      id_unidad,
         'proyecto_id':    proyecto_id,
+        'proyecto_id_unidad': proyecto_id_unidad,
         'etapa_id':       fila.get('etapa_id') or '',
         'metraje':        metraje_dec,
         'precio':         precio_dec,

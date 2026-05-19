@@ -11,6 +11,7 @@ from utils.excel_bedrock import llamar_bedrock
 s3_client  = boto3.client('s3')
 dynamodb   = boto3.resource('dynamodb')
 usuarios_t = dynamodb.Table(os.environ['USUARIOS_TABLE'])
+inventario_t = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 
 ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
 
@@ -81,6 +82,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
 
     filas              = []
     id_unidades_vistos = set()
+    id_unidades_existentes = _obtener_ids_unidades_existentes(proyecto_id)
 
     for i, row in enumerate(data_rows):
         if not row or all(c is None for c in row):
@@ -137,7 +139,8 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
 
         errores, advertencias = _validar_fila(
             id_unidad, id_unidades_vistos, precio, metraje, estatus_norm, estatus_raw,
-            inmo_excel, inmo_confianza, inmo_es_nueva, nombre_cliente, nombres_final, apellidos_final,
+            inmo_excel, inmo_confianza, inmo_es_nueva, id_unidades_existentes,
+            nombre_cliente, nombres_final, apellidos_final,
         )
         id_unidades_vistos.add(id_unidad)
 
@@ -197,13 +200,46 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
     return preview
 
 
+def _normalizar_id_unidad(id_unidad):
+    return (id_unidad or '').strip().upper()
+
+
+def _obtener_ids_unidades_existentes(proyecto_id):
+    ids = set()
+    last_key = None
+
+    while True:
+        kwargs = {
+            'ProjectionExpression': 'id_unidad',
+            'KeyConditionExpression': Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
+        }
+        if last_key:
+            kwargs['ExclusiveStartKey'] = last_key
+
+        result = inventario_t.query(**kwargs)
+        for item in result.get('Items', []):
+            id_unidad = _normalizar_id_unidad(item.get('id_unidad'))
+            if id_unidad:
+                ids.add(id_unidad)
+
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            return ids
+
+
 def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
-                  inmo_excel, inmo_confianza, inmo_es_nueva, nombre_cliente='', nombres='', apellidos=''):
+                  inmo_excel, inmo_confianza, inmo_es_nueva, existentes=None,
+                  nombre_cliente='', nombres='', apellidos=''):
     errores, advertencias = [], []
+    existentes = existentes or set()
+    id_normalizado = _normalizar_id_unidad(id_unidad)
+    vistos_normalizados = {_normalizar_id_unidad(v) for v in vistos}
     if not id_unidad:
         errores.append('id_unidad vacío')
-    if id_unidad in vistos:
+    if id_normalizado in vistos_normalizados:
         errores.append(f'id_unidad duplicado: {id_unidad}')
+    if id_normalizado in existentes:
+        errores.append(f'La unidad {id_unidad} ya existe en este proyecto')
     if precio is None:
         errores.append('precio inválido o vacío')
     if metraje is None:

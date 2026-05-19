@@ -4,7 +4,7 @@ import boto3
 import os
 from io import BytesIO
 from boto3.dynamodb.conditions import Key
-from utils.response import ok, bad_request, conflict, not_found
+from utils.response import ok, bad_request, not_found
 from utils.helpers import now
 from utils.excel_parser import parsear_excel  # noqa: F401 — usado por jam-excel-parser
 from utils.excel_writer import escribir_migracion
@@ -24,13 +24,6 @@ def get_upload_url(event):
     proyecto_id = qs.get('proyecto_id', '').strip()
     if not proyecto_id:
         return bad_request('proyecto_id requerido')
-
-    result = inventario_t.query(
-        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
-        Limit=1,
-    )
-    if result.get('Items'):
-        return conflict('Este proyecto ya tiene unidades. La migracion solo aplica a proyectos nuevos.')
 
     job_id = str(uuid.uuid4())
     key    = f'inventario/uploads/{proyecto_id}/{job_id}.xlsx'
@@ -68,19 +61,41 @@ def confirmar(job_id, event):
 
     proyecto_id = preview['proyecto_id']
 
-    filas_map = {f['id_unidad']: f for f in preview['filas']}
-    for fe in filas_editadas:
-        id_u = fe.get('id_unidad')
-        if id_u and id_u in filas_map:
-            filas_map[id_u].update(fe)
+    filas = [dict(f) for f in preview['filas']]
+    editadas_por_fila = {
+        fe.get('fila_excel'): fe
+        for fe in filas_editadas
+        if fe.get('fila_excel') is not None
+    }
+    editadas_por_unidad = {
+        fe.get('id_unidad'): fe
+        for fe in filas_editadas
+        if fe.get('id_unidad')
+    }
 
-    filas = list(filas_map.values())
+    for fila in filas:
+        fila_excel = fila.get('fila_excel')
+        id_unidad = fila.get('id_unidad')
+        if fila_excel in editadas_por_fila:
+            fila.update(editadas_por_fila[fila_excel])
+        elif id_unidad in editadas_por_unidad:
+            fila.update(editadas_por_unidad[id_unidad])
+
+    errores_duplicados = _validar_duplicados_confirmacion(proyecto_id, filas)
+    if errores_duplicados:
+        return bad_request(
+            f'{len(errores_duplicados)} unidad(es) ya existen o estan duplicadas: ' +
+            ', '.join(errores_duplicados[:10])
+        )
 
     filas_con_error = [f for f in filas if f.get('errores')]
     if filas_con_error:
         return bad_request(f'{len(filas_con_error)} filas tienen errores. Corrigelas antes de confirmar.')
 
-    stats = escribir_migracion(proyecto_id, filas)
+    try:
+        stats = escribir_migracion(proyecto_id, filas)
+    except ValueError as e:
+        return bad_request(str(e))
 
     reporte = {
         'job_id':        job_id,
@@ -105,6 +120,55 @@ def confirmar(job_id, event):
         pass  # No crítico si falla el borrado
 
     return ok(reporte)
+
+
+def _normalizar_id_unidad(id_unidad):
+    return str(id_unidad or '').strip().upper()
+
+
+def _validar_duplicados_confirmacion(proyecto_id, filas):
+    errores = []
+    vistos = set()
+    existentes = _obtener_ids_unidades_existentes(proyecto_id)
+
+    for fila in filas:
+        id_unidad = (fila.get('id_unidad') or '').strip()
+        id_norm = _normalizar_id_unidad(id_unidad)
+        if not id_norm:
+            continue
+
+        if id_norm in vistos:
+            errores.append(f'{id_unidad} duplicada en el Excel')
+            continue
+        vistos.add(id_norm)
+
+        if id_norm in existentes:
+            errores.append(f'{id_unidad} ya existe en el proyecto')
+
+    return errores
+
+
+def _obtener_ids_unidades_existentes(proyecto_id):
+    ids = set()
+    last_key = None
+
+    while True:
+        kwargs = {
+            'ProjectionExpression': 'id_unidad',
+            'KeyConditionExpression': Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
+        }
+        if last_key:
+            kwargs['ExclusiveStartKey'] = last_key
+
+        result = inventario_t.query(**kwargs)
+        for item in result.get('Items', []):
+            id_unidad = _normalizar_id_unidad(item.get('id_unidad'))
+            if id_unidad:
+                ids.add(id_unidad)
+
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            return ids
 
 
 def listar_reportes(event):

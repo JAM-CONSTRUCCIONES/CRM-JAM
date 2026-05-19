@@ -17,14 +17,28 @@ import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
+export interface JamStackProps extends cdk.StackProps {
+  stage?: 'dev' | 'prod';
+}
+
 export class JamStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: JamStackProps) {
     super(scope, id, props);
+
+    const stage = props?.stage ?? 'dev';
+    const isProd = stage === 'prod';
+    const resourceName = (baseName: string) => isProd ? `${baseName}-prod` : baseName;
+    const bucketName = (baseName: string) => isProd
+      ? `${baseName}-prod-${this.account}`
+      : `${baseName}-${this.account}`;
+    const notificationEmail = isProd
+      ? 'Venta@jamconstruccionesrl.com'
+      : 'alvarez@methodicatechnology.com';
 
     // ─── COGNITO ────────────────────────────────────────────────────────────
 
     const userPool = new cognito.UserPool(this, 'JamUserPool', {
-      userPoolName: 'jam-user-pool',
+      userPoolName: resourceName('jam-user-pool'),
       selfSignUpEnabled: false,
       signInAliases: { username: true },
       passwordPolicy: {
@@ -41,7 +55,7 @@ export class JamStack extends cdk.Stack {
 
     const userPoolClient = new cognito.UserPoolClient(this, 'JamUserPoolClient', {
       userPool,
-      userPoolClientName: 'jam-client',
+      userPoolClientName: resourceName('jam-client'),
       authFlows: {
         userPassword: true,
         userSrp: true,
@@ -80,7 +94,7 @@ export class JamStack extends cdk.Stack {
     // ─── DYNAMODB ───────────────────────────────────────────────────────────
 
     const usuariosTable = new dynamodb.Table(this, 'JamUsuariosTable', {
-      tableName: 'jam-usuarios',
+      tableName: resourceName('jam-usuarios'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -100,7 +114,7 @@ export class JamStack extends cdk.Stack {
     });
 
     const inventarioTable = new dynamodb.Table(this, 'JamInventarioTable', {
-      tableName: 'jam-inventario',
+      tableName: resourceName('jam-inventario'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -133,7 +147,7 @@ export class JamStack extends cdk.Stack {
     // ─── LAMBDA jam-auth ────────────────────────────────────────────────────
 
     const authLambda = new lambda.Function(this, 'JamAuthLambda', {
-      functionName: 'jam-auth',
+      functionName: resourceName('jam-auth'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-auth')),
@@ -170,7 +184,7 @@ export class JamStack extends cdk.Stack {
     // ─── LAMBDA jam-proyectos ────────────────────────────────────────────────
 
     const proyectosLambda = new lambda.Function(this, 'JamProyectosLambda', {
-      functionName: 'jam-proyectos',
+      functionName: resourceName('jam-proyectos'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-proyectos')),
@@ -187,7 +201,7 @@ export class JamStack extends cdk.Stack {
     // ─── DYNAMODB jam-clientes ───────────────────────────────────────────────
 
     const clientesTable = new dynamodb.Table(this, 'JamClientesTable', {
-      tableName: 'jam-clientes',
+      tableName: resourceName('jam-clientes'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -216,7 +230,7 @@ export class JamStack extends cdk.Stack {
     // ─── DYNAMODB jam-historial-estatus ──────────────────────────────────────
 
     const historialEstatusTable = new dynamodb.Table(this, 'JamHistorialEstatusTable', {
-      tableName: 'jam-historial-estatus',
+      tableName: resourceName('jam-historial-estatus'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -226,7 +240,7 @@ export class JamStack extends cdk.Stack {
     // ─── DYNAMODB jam-procesos ────────────────────────────────────────────────
 
     const procesosTable = new dynamodb.Table(this, 'JamProcesosTable', {
-      tableName: 'jam-procesos',
+      tableName: resourceName('jam-procesos'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -257,7 +271,7 @@ export class JamStack extends cdk.Stack {
     // ─── DYNAMODB jam-historial-bloqueos ─────────────────────────────────────
 
     const historialTable = new dynamodb.Table(this, 'JamHistorialBloqueosTable', {
-      tableName: 'jam-historial-bloqueos',
+      tableName: resourceName('jam-historial-bloqueos'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -275,12 +289,12 @@ export class JamStack extends cdk.Stack {
     clientesTable.grantReadData(authLambda);
 
     const notificacionesDlq = new sqs.Queue(this, 'JamNotificacionesDlq', {
-      queueName: 'jam-notificaciones-dlq',
+      queueName: resourceName('jam-notificaciones-dlq'),
       retentionPeriod: cdk.Duration.days(14),
     });
 
     const notificacionesQueue = new sqs.Queue(this, 'JamNotificacionesQueue', {
-      queueName: 'jam-notificaciones-queue',
+      queueName: resourceName('jam-notificaciones-queue'),
       retentionPeriod: cdk.Duration.days(7),
       visibilityTimeout: cdk.Duration.seconds(60),
       deadLetterQueue: { queue: notificacionesDlq, maxReceiveCount: 3 },
@@ -289,18 +303,18 @@ export class JamStack extends cdk.Stack {
     // ─── IAM Role para EventBridge Scheduler ─────────────────────────────────
 
     const schedulerRole = new iam.Role(this, 'JamSchedulerRole', {
-      roleName: 'jam-scheduler-role',
+      roleName: resourceName('jam-scheduler-role'),
       assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
     });
 
     // ─── LAMBDA jam-bloqueos ─────────────────────────────────────────────────
 
     // Construir ARNs manualmente para evitar dependencia circular
-    const bloqueosLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:jam-bloqueos`;
-    const captacionLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:jam-captacion`;
+    const bloqueosLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-bloqueos')}`;
+    const captacionLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-captacion')}`;
 
     const bloqueosLambda = new lambda.Function(this, 'JamBloqueosLambda', {
-      functionName: 'jam-bloqueos',
+      functionName: resourceName('jam-bloqueos'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-bloqueos')),
@@ -343,7 +357,7 @@ export class JamStack extends cdk.Stack {
     // ─── LAMBDA jam-captacion ────────────────────────────────────────────────
 
     const captacionLambda = new lambda.Function(this, 'JamCaptacionLambda', {
-      functionName: 'jam-captacion',
+      functionName: resourceName('jam-captacion'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-captacion')),
@@ -402,10 +416,10 @@ export class JamStack extends cdk.Stack {
 
     // ─── LAMBDA jam-crm ──────────────────────────────────────────────────────
 
-    const crmLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:jam-crm`;
+    const crmLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-crm')}`;
 
     const crmLambda = new lambda.Function(this, 'JamCrmLambda', {
-      functionName: 'jam-crm',
+      functionName: resourceName('jam-crm'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-crm')),
@@ -443,7 +457,7 @@ export class JamStack extends cdk.Stack {
     // ─── LAMBDA jam-transferir-cliente ───────────────────────────────────────
 
     const transferirClienteLambda = new lambda.Function(this, 'JamTransferirClienteLambda', {
-      functionName: 'jam-transferir-cliente',
+      functionName: resourceName('jam-transferir-cliente'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-transferir-cliente')),
@@ -545,14 +559,14 @@ export class JamStack extends cdk.Stack {
     const definition = validarStep.next(verificarValidacion);
 
     const transferirClienteStateMachine = new sfn.StateMachine(this, 'TransferirClienteStateMachine', {
-      stateMachineName: 'jam-transferir-cliente-workflow',
+      stateMachineName: resourceName('jam-transferir-cliente-workflow'),
       definition,
       timeout: cdk.Duration.minutes(5),
     });
 
     // Lambda para iniciar la Step Function desde API Gateway
     const iniciarTransferenciaLambda = new lambda.Function(this, 'JamIniciarTransferenciaLambda', {
-      functionName: 'jam-iniciar-transferencia',
+      functionName: resourceName('jam-iniciar-transferencia'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
@@ -562,16 +576,25 @@ import os
 
 sfn = boto3.client('stepfunctions')
 STATE_MACHINE_ARN = os.environ['STATE_MACHINE_ARN']
+CEDULA_STATE_MACHINE_ARN = os.environ.get('CEDULA_STATE_MACHINE_ARN', '')
 
 def handler(event, context):
     body = json.loads(event.get('body', '{}'))
-    
-    # Iniciar la ejecución de la Step Function
+    path = event.get('path', '')
+
+    # Route to correct state machine based on path
+    if 'cambiar-cedula' in path:
+        arn = CEDULA_STATE_MACHINE_ARN
+        msg = 'Cambio de cedula iniciado'
+    else:
+        arn = STATE_MACHINE_ARN
+        msg = 'Transferencia iniciada'
+
     response = sfn.start_execution(
-        stateMachineArn=STATE_MACHINE_ARN,
+        stateMachineArn=arn,
         input=json.dumps(body)
     )
-    
+
     return {
         'statusCode': 200,
         'headers': {
@@ -579,7 +602,7 @@ def handler(event, context):
             'Access-Control-Allow-Origin': '*',
         },
         'body': json.dumps({
-            'message': 'Transferencia iniciada',
+            'message': msg,
             'execution_arn': response['executionArn']
         })
     }
@@ -592,10 +615,73 @@ def handler(event, context):
 
     transferirClienteStateMachine.grantStartExecution(iniciarTransferenciaLambda);
 
+    // ─── STEP FUNCTION: Cambiar Cédula ───────────────────────────────────────
+
+    const validarCedulaStep = new tasks.LambdaInvoke(this, 'ValidarCambioCedula', {
+      lambdaFunction: transferirClienteLambda,
+      payload: sfn.TaskInput.fromObject({
+        action: 'validar_cedula',
+        'cedula_antigua.$': '$.cedula_antigua',
+        'cedula_nueva.$': '$.cedula_nueva',
+      }),
+      resultPath: '$.validacion',
+      outputPath: '$.validacion.Payload',
+    });
+
+    const eliminarCedulaStep = new tasks.LambdaInvoke(this, 'EliminarRegistrosCedula', {
+      lambdaFunction: transferirClienteLambda,
+      payload: sfn.TaskInput.fromObject({
+        action: 'eliminar_cedula',
+        'cedula_antigua.$': '$.cedula_antigua',
+        'cedula_nueva.$': '$.cedula_nueva',
+        'clientes.$': '$.clientes',
+        'procesos.$': '$.procesos',
+        'unidades_vinculadas.$': '$.unidades_vinculadas',
+      }),
+      resultPath: '$.eliminacion',
+      outputPath: '$.eliminacion.Payload',
+    });
+
+    const crearCedulaStep = new tasks.LambdaInvoke(this, 'CrearRegistrosCedula', {
+      lambdaFunction: transferirClienteLambda,
+      payload: sfn.TaskInput.fromObject({
+        action: 'crear_cedula',
+        'cedula_antigua.$': '$.cedula_antigua',
+        'cedula_nueva.$': '$.cedula_nueva',
+        'clientes.$': '$.clientes',
+        'procesos.$': '$.procesos',
+        'unidades_vinculadas.$': '$.unidades_vinculadas',
+      }),
+      resultPath: '$.creacion',
+      outputPath: '$.creacion.Payload',
+    });
+
+    const validacionCedulaFallida = new sfn.Fail(this, 'ValidacionCedulaFallida', {
+      cause: 'La validación del cambio de cédula falló',
+      error: 'VALIDACION_CEDULA_ERROR',
+    });
+
+    eliminarCedulaStep.next(crearCedulaStep);
+
+    const verificarValidacionCedula = new sfn.Choice(this, 'VerificarValidacionCedula')
+      .when(sfn.Condition.booleanEquals('$.valido', false), validacionCedulaFallida)
+      .otherwise(eliminarCedulaStep);
+
+    const definitionCedula = validarCedulaStep.next(verificarValidacionCedula);
+
+    const cambiarCedulaStateMachine = new sfn.StateMachine(this, 'CambiarCedulaStateMachine', {
+      stateMachineName: resourceName('jam-cambiar-cedula-workflow'),
+      definition: definitionCedula,
+      timeout: cdk.Duration.minutes(5),
+    });
+
+    cambiarCedulaStateMachine.grantStartExecution(iniciarTransferenciaLambda);
+    iniciarTransferenciaLambda.addEnvironment('CEDULA_STATE_MACHINE_ARN', cambiarCedulaStateMachine.stateMachineArn);
+
     // ─── API GATEWAY ────────────────────────────────────────────────────────
 
     const api = new apigateway.RestApi(this, 'JamApi', {
-      restApiName: 'jam-api',
+      restApiName: resourceName('jam-api'),
       deployOptions: { stageName: 'api' },
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
@@ -607,7 +693,7 @@ def handler(event, context):
     const cognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(
       this, 'JamCognitoAuthorizer', {
         cognitoUserPools: [userPool],
-        authorizerName: 'jam-authorizer',
+        authorizerName: resourceName('jam-authorizer'),
       }
     );
 
@@ -862,6 +948,12 @@ def handler(event, context):
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // /admin/clientes/{cedula}/cambiar-cedula
+    adminClienteResource.addResource('cambiar-cedula').addMethod('POST', iniciarTransferenciaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     // /admin/clientes/{cedula}/proyecto/{proyecto_id}/unidad/{unidad_id}/estatus y /historial
     const adminUnidadProcesoResource = adminClienteProyectoResource
       .addResource('unidad')
@@ -1008,14 +1100,14 @@ def handler(event, context):
     // ─── S3 + CLOUDFRONT ────────────────────────────────────────────────────
 
     const frontendBucket = new s3.Bucket(this, 'JamFrontendBucket', {
-      bucketName: `jam-frontend-${this.account}`,
+      bucketName: bucketName('jam-frontend'),
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     // Bucket para archivos de migración (Excel uploads)
     const archivosBucket = new s3.Bucket(this, 'JamArchivosBucket', {
-      bucketName: `jam-archivos-${this.account}`,
+      bucketName: bucketName('jam-archivos'),
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       cors: [{
@@ -1032,7 +1124,7 @@ def handler(event, context):
 
     // Bucket para assets (imágenes de proyectos, etc.)
     const assetsBucket = new s3.Bucket(this, 'JamAssetsBucket', {
-      bucketName: `jam-assets-${this.account}`,
+      bucketName: bucketName('jam-assets'),
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       cors: [{
@@ -1103,7 +1195,7 @@ def handler(event, context):
     // Layer con openpyxl para parsear Excel en jam-excel-parser
     // Para crear el layer: pip install openpyxl -t lambdas/layers/openpyxl/python
     const openpyxlLayer = new lambda.LayerVersion(this, 'OpenpyxlLayer', {
-      layerVersionName: 'jam-openpyxl',
+      layerVersionName: resourceName('jam-openpyxl'),
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/layers/openpyxl')),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
       description: 'openpyxl para parseo de archivos Excel',
@@ -1116,7 +1208,7 @@ def handler(event, context):
     // Lambda separada para parsear Excel — timeout largo, disparada por evento S3
 
     const excelParserLambda = new lambda.Function(this, 'JamExcelParserLambda', {
-      functionName: 'jam-excel-parser',
+      functionName: resourceName('jam-excel-parser'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler_excel_parser.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-proyectos')),
@@ -1158,16 +1250,16 @@ def handler(event, context):
     // ─── AWS BACKUP ─────────────────────────────────────────────────────────
 
     const backupVault = new backup.BackupVault(this, 'JamBackupVault', {
-      backupVaultName: 'jam-backup-vault',
+      backupVaultName: resourceName('jam-backup-vault'),
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     const backupPlan = new backup.BackupPlan(this, 'JamBackupPlan', {
-      backupPlanName: 'jam-backup-plan',
+      backupPlanName: resourceName('jam-backup-plan'),
       backupVault,
       backupPlanRules: [
         new backup.BackupPlanRule({
-          ruleName: 'jam-daily-backup',
+          ruleName: resourceName('jam-daily-backup'),
           scheduleExpression: events.Schedule.cron({ hour: '4', minute: '0' }), // 12am RD (UTC-4)
           deleteAfter: cdk.Duration.days(30),
           startWindow: cdk.Duration.hours(1),
@@ -1177,7 +1269,7 @@ def handler(event, context):
     });
 
     backupPlan.addSelection('JamBackupSelection', {
-      backupSelectionName: 'jam-dynamodb-tables',
+      backupSelectionName: resourceName('jam-dynamodb-tables'),
       resources: [
         backup.BackupResource.fromDynamoDbTable(usuariosTable),
         backup.BackupResource.fromDynamoDbTable(inventarioTable),
@@ -1191,14 +1283,14 @@ def handler(event, context):
     // ─── LAMBDA jam-notificaciones ───────────────────────────────────────────
 
     const notificacionesLambda = new lambda.Function(this, 'JamNotificacionesLambda', {
-      functionName: 'jam-notificaciones',
+      functionName: resourceName('jam-notificaciones'),
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-notificaciones')),
       timeout: cdk.Duration.seconds(30),
       environment: {
-        ADMIN_EMAIL: 'alvarez@methodicatechnology.com',
-        FROM_EMAIL: 'alvarez@methodicatechnology.com',
+        ADMIN_EMAIL: notificationEmail,
+        FROM_EMAIL: notificationEmail,
         USUARIOS_TABLE: usuariosTable.tableName,
         CLIENTES_TABLE: clientesTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,

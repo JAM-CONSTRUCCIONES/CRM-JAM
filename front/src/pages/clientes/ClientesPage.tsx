@@ -12,7 +12,7 @@ import dayjs from 'dayjs';
 import {
   getClientes, getClientesAdmin, buscarClienteAdmin, buscarClientesAdmin,
   registrarCliente, actualizarClienteAdmin, transferirClienteInmobiliaria,
-  eliminarClienteAdmin,
+  eliminarClienteAdmin, cambiarCedula,
 } from '../../services/clientes.service';
 import { getProcesosCliente, getMisProcesos, cambiarEstatus } from '../../services/crm.service';
 import { getProyectos } from '../../services/proyectos.service';
@@ -103,9 +103,15 @@ const ClientesPage = () => {
   // Modal transferir inmobiliaria
   const [transferirModal, setTransferirModal] = useState(false);
   const [clienteTransferir, setClienteTransferir] = useState<Cliente | null>(null);
-  const [procesoTransferir, setProcesoTransferir] = useState<any | null>(null);  // Proceso específico a transferir
+  const [procesoTransferir, setProcesoTransferir] = useState<any | null>(null);
   const [formTransferir] = Form.useForm();
   const [transfiriendo, setTransfiriendo] = useState(false);
+
+  // Modal cambiar cédula
+  const [cedulaModal, setCedulaModal] = useState(false);
+  const [clienteCedula, setClienteCedula] = useState<Cliente | null>(null);
+  const [nuevaCedula, setNuevaCedula] = useState('');
+  const [cambiandoCedula, setCambiandoCedula] = useState(false);
 
   // Modal eliminar cliente
   const [eliminarModal, setEliminarModal] = useState(false);
@@ -337,6 +343,37 @@ const ClientesPage = () => {
     setProcesoTransferir(proceso || null);
     formTransferir.resetFields();
     setTransferirModal(true);
+  };
+
+  const abrirCambiarCedula = (cliente: Cliente) => {
+    setClienteCedula(cliente);
+    setNuevaCedula('');
+    setCedulaModal(true);
+  };
+
+  const handleCambiarCedula = async () => {
+    if (!clienteCedula || !nuevaCedula.trim()) return;
+    setCambiandoCedula(true);
+    try {
+      await cambiarCedula(clienteCedula.cedula, nuevaCedula.trim());
+      message.success('Cambio de cédula iniciado. Actualizando datos en 5 segundos...');
+      setCedulaModal(false);
+      setClienteCedula(null);
+      setNuevaCedula('');
+      // Close detail drawer if open
+      setDrawerCedula(null);
+      setDrawerRegistros([]);
+      // Reload list after Step Function completes
+      setTimeout(() => {
+        setNextToken(undefined);
+        cargar(proyectoFiltro, inmoFiltro);
+        message.info('Datos actualizados.');
+      }, 5000);
+    } catch (err: any) {
+      message.error(err?.message || 'Error al cambiar la cédula');
+    } finally {
+      setCambiandoCedula(false);
+    }
   };
 
   const handleTransferir = async (values: { inmobiliaria_destino: string }) => {
@@ -745,6 +782,7 @@ const ClientesPage = () => {
                   <Title level={5} style={{ margin: 0 }}>Datos personales</Title>
                   <Space>
                     <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(reg)}>Editar</Button>
+                    <Button size="small" icon={<SwapOutlined />} onClick={() => abrirCambiarCedula(reg)}>Cambiar cédula</Button>
                     <Button size="small" danger icon={<DeleteOutlined />} onClick={() => abrirEliminar(reg)}>Eliminar</Button>
                   </Space>
                 </div>
@@ -1214,6 +1252,51 @@ const ClientesPage = () => {
       {/* Drawer historial */}
       <HistorialEstatusDrawer open={!!historialProceso} proceso={historialProceso}
         clienteNombre={historialNombre} onClose={() => setHistorialProceso(null)} />
+
+      {/* Modal cambiar cédula */}
+      <Modal
+        title="Cambiar cédula del cliente"
+        open={cedulaModal}
+        onCancel={() => { setCedulaModal(false); setClienteCedula(null); setNuevaCedula(''); }}
+        onOk={handleCambiarCedula}
+        okText="Cambiar cédula"
+        cancelText="Cancelar"
+        confirmLoading={cambiandoCedula}
+        okButtonProps={{ disabled: !nuevaCedula.trim() || nuevaCedula.trim() === clienteCedula?.cedula }}
+        width={460}
+      >
+        {clienteCedula && (
+          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <div style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8, padding: '12px 16px' }}>
+              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE</Text>
+              <Text strong>{clienteCedula.nombres} {clienteCedula.apellidos}</Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: 12 }}>Cédula actual: <strong>{clienteCedula.cedula}</strong></Text>
+            </div>
+
+            <Alert
+              type="warning"
+              showIcon
+              message="Acción irreversible"
+              description="Esta acción actualizará la cédula en todos los registros del cliente: datos personales, procesos de venta y unidades vinculadas. Se ejecuta mediante una Step Function y puede tardar unos segundos."
+            />
+
+            <div>
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Nueva cédula / pasaporte:</Text>
+              <Input
+                autoFocus
+                placeholder="Ej: V-12345678"
+                value={nuevaCedula}
+                onChange={e => setNuevaCedula(e.target.value)}
+                onPressEnter={handleCambiarCedula}
+              />
+              {nuevaCedula.trim() === clienteCedula.cedula && (
+                <Text type="danger" style={{ fontSize: 12 }}>La nueva cédula debe ser diferente a la actual</Text>
+              )}
+            </div>
+          </Space>
+        )}
+      </Modal>
     </div>
   );
 };

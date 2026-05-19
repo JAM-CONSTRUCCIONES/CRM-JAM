@@ -119,3 +119,12 @@ export const eliminarClienteAdmin = (
   proyectoId: string
 ): Promise<{ message: string; items_eliminados: string[]; registros_eliminados: number; cliente: any }> =>
   apiPut(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}?accion=eliminar`, {});
+
+export const cambiarCedula = (
+  cedulaAntigua: string,
+  cedulaNueva: string
+): Promise<{ message: string; execution_arn: string }> =>
+  apiPost(`/admin/clientes/${encodeURIComponent(cedulaAntigua)}/cambiar-cedula`, {
+    cedula_antigua: cedulaAntigua,
+    cedula_nueva: cedulaNueva,
+  });

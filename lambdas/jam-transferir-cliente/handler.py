@@ -509,7 +509,160 @@ def handler(event, context):
         result = crear_registros(event, context)
         print(f"[HANDLER] Resultado crear: {json.dumps(result, default=str)}")
         return result
+    elif action == 'validar_cedula':
+        result = validar_cambio_cedula(event, context)
+        print(f"[HANDLER] Resultado validar_cedula: {json.dumps(result, default=str)}")
+        return result
+    elif action == 'eliminar_cedula':
+        result = eliminar_registros_cedula(event, context)
+        print(f"[HANDLER] Resultado eliminar_cedula: {json.dumps(result, default=str)}")
+        return result
+    elif action == 'crear_cedula':
+        result = crear_registros_cedula(event, context)
+        print(f"[HANDLER] Resultado crear_cedula: {json.dumps(result, default=str)}")
+        return result
     else:
         error = {'error': f'Acción desconocida: {action}'}
         print(f"[HANDLER] ERROR: {error}")
         return error
+
+
+# ─── Cambio de cédula ────────────────────────────────────────────────────────
+
+def validar_cambio_cedula(event, context):
+    """
+    Valida que el cambio de cédula sea posible.
+    Input: { cedula_antigua, cedula_nueva }
+    """
+    cedula_antigua = event['cedula_antigua']
+    cedula_nueva   = event['cedula_nueva']
+
+    print(f"[VALIDAR_CEDULA] {cedula_antigua} → {cedula_nueva}")
+
+    # Verificar que la cédula nueva no existe ya
+    existing = clientes_table.query(
+        IndexName='gsi-cedula-proyecto',
+        KeyConditionExpression=Key('cedula').eq(cedula_nueva),
+        Limit=1,
+    )
+    if existing.get('Items'):
+        return {'valido': False, 'error': f'La cédula {cedula_nueva} ya está registrada en el sistema'}
+
+    # Buscar todos los registros de la cédula antigua
+    clientes = clientes_table.query(
+        IndexName='gsi-cedula-proyecto',
+        KeyConditionExpression=Key('cedula').eq(cedula_antigua),
+    ).get('Items', [])
+
+    if not clientes:
+        return {'valido': False, 'error': f'No se encontraron registros para la cédula {cedula_antigua}'}
+
+    # Buscar todos los procesos
+    procesos = []
+    inmo_ids = list({c['inmobiliaria_id'] for c in clientes})
+    for inmo_id in inmo_ids:
+        pk = f'PROCESO#{cedula_antigua}#{inmo_id}'
+        result = procesos_table.query(KeyConditionExpression=Key('pk').eq(pk))
+        procesos.extend(result.get('Items', []))
+
+    # Buscar unidades con cliente_cedula = cedula_antigua
+    unidades_vinculadas = []
+    proyectos_ids = list({c['proyecto_id'] for c in clientes})
+    for proyecto_id in proyectos_ids:
+        result = inventario_table.query(
+            KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
+            FilterExpression='cliente_cedula = :c',
+            ExpressionAttributeValues={':c': cedula_antigua},
+        )
+        unidades_vinculadas.extend(result.get('Items', []))
+
+    print(f"[VALIDAR_CEDULA] Clientes: {len(clientes)}, Procesos: {len(procesos)}, Unidades: {len(unidades_vinculadas)}")
+
+    return {
+        'valido': True,
+        'cedula_antigua': cedula_antigua,
+        'cedula_nueva': cedula_nueva,
+        'clientes': clientes,
+        'procesos': procesos,
+        'unidades_vinculadas': [{'pk': u['pk'], 'sk': u['sk']} for u in unidades_vinculadas],
+    }
+
+
+def eliminar_registros_cedula(event, context):
+    """Elimina todos los registros con la cédula antigua."""
+    cedula_antigua = event['cedula_antigua']
+    cedula_nueva   = event['cedula_nueva']
+    clientes       = event['clientes']
+    procesos       = event['procesos']
+
+    print(f"[ELIMINAR_CEDULA] Eliminando registros de {cedula_antigua}")
+
+    for c in clientes:
+        clientes_table.delete_item(Key={'pk': c['pk'], 'sk': c['sk']})
+    print(f"[ELIMINAR_CEDULA] {len(clientes)} clientes eliminados")
+
+    for p in procesos:
+        procesos_table.delete_item(Key={'pk': p['pk'], 'sk': p['sk']})
+    print(f"[ELIMINAR_CEDULA] {len(procesos)} procesos eliminados")
+
+    return {
+        'cedula_antigua': cedula_antigua,
+        'cedula_nueva': cedula_nueva,
+        'clientes': clientes,
+        'procesos': procesos,
+        'unidades_vinculadas': event['unidades_vinculadas'],
+    }
+
+
+def crear_registros_cedula(event, context):
+    """Crea todos los registros con la cédula nueva y actualiza unidades."""
+    import datetime
+    cedula_antigua = event['cedula_antigua']
+    cedula_nueva   = event['cedula_nueva']
+    clientes       = event['clientes']
+    procesos       = event['procesos']
+    unidades       = event['unidades_vinculadas']
+
+    print(f"[CREAR_CEDULA] Creando registros para {cedula_nueva}")
+    ahora = datetime.datetime.utcnow().isoformat() + 'Z'
+
+    # Recrear clientes con nueva cédula
+    for c in clientes:
+        inmo_id    = c['inmobiliaria_id']
+        proyecto_id = c['proyecto_id']
+        nuevo_pk   = f'CLIENTE#{cedula_nueva}#{inmo_id}'
+        nuevo_item = {**c, 'pk': nuevo_pk, 'cedula': cedula_nueva}
+        clientes_table.put_item(Item=nuevo_item)
+    print(f"[CREAR_CEDULA] {len(clientes)} clientes creados")
+
+    # Recrear procesos con nueva cédula
+    for p in procesos:
+        # pk = PROCESO#{cedula}#{inmo_id}
+        partes  = p['pk'].split('#')
+        inmo_id = partes[2] if len(partes) > 2 else ''
+        nuevo_pk = f'PROCESO#{cedula_nueva}#{inmo_id}'
+        nuevo_item = {**p, 'pk': nuevo_pk, 'cedula': cedula_nueva}
+        procesos_table.put_item(Item=nuevo_item)
+    print(f"[CREAR_CEDULA] {len(procesos)} procesos creados")
+
+    # Actualizar unidades vinculadas
+    for u in unidades:
+        try:
+            inventario_table.update_item(
+                Key={'pk': u['pk'], 'sk': u['sk']},
+                UpdateExpression='SET cliente_cedula = :c',
+                ExpressionAttributeValues={':c': cedula_nueva},
+            )
+        except Exception as e:
+            print(f"[CREAR_CEDULA] Error actualizando unidad {u['sk']}: {e}")
+    print(f"[CREAR_CEDULA] {len(unidades)} unidades actualizadas")
+
+    return {
+        'cambiado': True,
+        'cedula_antigua': cedula_antigua,
+        'cedula_nueva': cedula_nueva,
+        'clientes_actualizados': len(clientes),
+        'procesos_actualizados': len(procesos),
+        'unidades_actualizadas': len(unidades),
+        'mensaje': f'Cédula cambiada de {cedula_antigua} a {cedula_nueva} exitosamente',
+    }

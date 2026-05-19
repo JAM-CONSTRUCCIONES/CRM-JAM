@@ -4,9 +4,10 @@ import { JamStack } from '../lib/jam-stack';
 
 const app = new cdk.App();
 
-new JamStack(app, 'JamConstrucciones', {
+new JamStack(app, 'JamConstruccionesProd', {
+  stage: 'prod',
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION,
+    region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1',
   },
 });

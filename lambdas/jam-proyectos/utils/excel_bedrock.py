@@ -39,6 +39,10 @@ def llamar_bedrock(headers, nombres, inmos_excel, inmos_sistema):
         '  }\n'
         '}'
     )
+    logger.info(
+        '[excel_bedrock] invoke start model=%s headers_count=%s nombres_count=%s inmos_excel_count=%s inmos_sistema_count=%s prompt_chars=%s',
+        BEDROCK_MODEL, len(headers), len(nombres), len(inmos_excel), len(inmos_sistema), len(prompt),
+    )
 
     try:
         response = bedrock_client.invoke_model(
@@ -51,10 +55,23 @@ def llamar_bedrock(headers, nombres, inmos_excel, inmos_sistema):
         )
         result = json.loads(response['body'].read())
         text   = result['content'][0]['text']
+        logger.info(
+            '[excel_bedrock] invoke ok stop_reason=%s response_chars=%s text_preview=%r',
+            result.get('stop_reason'), len(text), text[:500],
+        )
         match  = re.search(r'\{.*\}', text, re.DOTALL)
         if match:
-            return json.loads(match.group())
+            parsed = json.loads(match.group())
+            logger.info(
+                '[excel_bedrock] json parsed column_map_count=%s nombres_map_count=%s inmos_map_count=%s',
+                len(parsed.get('column_map', {})),
+                len(parsed.get('nombres_map', {})),
+                len(parsed.get('inmos_map', {})),
+            )
+            return parsed
+        logger.warning('[excel_bedrock] respuesta sin JSON util text_preview=%r', text[:500])
     except Exception as e:
-        logger.warning(f'Bedrock error: {e}')
+        logger.warning('[excel_bedrock] Bedrock error type=%s message=%s', type(e).__name__, e)
 
+    logger.info('[excel_bedrock] fallback vacio usado')
     return {'column_map': {}, 'nombres_map': {}, 'inmos_map': {}}

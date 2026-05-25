@@ -3,6 +3,7 @@ import uuid
 import boto3
 import os
 import json
+import logging
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone, timedelta
 from boto3.dynamodb.conditions import Key
@@ -14,6 +15,7 @@ usuarios_t   = dynamodb.Table(os.environ['USUARIOS_TABLE'])
 clientes_t   = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 procesos_t   = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 historial_t  = dynamodb.Table(os.environ['HISTORIAL_TABLE'])
+logger       = logging.getLogger()
 
 # Cliente para schedules y SQS
 scheduler = boto3.client('scheduler')
@@ -201,17 +203,27 @@ def _resolver_inmobiliaria(proyecto_id, fila, cache, stats, ahora, fila_num, id_
     # Usar el nombre que el admin confirmó/editó, con fallback al nombre del Excel
     nombre_final = (fila.get('inmobiliaria_nombre_sugerido') or fila.get('inmobiliaria_excel') or '').strip()
     inmo_excel   = (fila.get('inmobiliaria_excel') or nombre_final).strip()
+    logger.info(
+        '[excel_writer] resolver inmo proyecto_id=%s fila=%s unidad=%s nombre_final=%r inmo_excel=%r id_sugerido=%r confianza=%s es_nueva=%s',
+        proyecto_id, fila_num, id_unidad, nombre_final, inmo_excel,
+        fila.get('inmobiliaria_id_sugerido'),
+        fila.get('inmobiliaria_confianza'),
+        fila.get('inmobiliaria_es_nueva'),
+    )
 
     if not nombre_final:
+        logger.info('[excel_writer] sin nombre inmobiliaria fila=%s unidad=%s', fila_num, id_unidad)
         return None
 
     # Cache por nombre final (lo que el admin ve y edita)
     if nombre_final in cache:
+        logger.info('[excel_writer] cache hit nombre_final=%r inmo_id=%s', nombre_final, cache[nombre_final])
         return cache[nombre_final]
 
     # Si Bedrock ya resolvió el ID, usarlo directamente
     if fila.get('inmobiliaria_id_sugerido'):
         inmo_id = fila['inmobiliaria_id_sugerido']
+        logger.info('[excel_writer] usando id_sugerido nombre_final=%r inmo_id=%s', nombre_final, inmo_id)
         _agregar_proyecto_a_inmo(inmo_id, proyecto_id)
         cache[nombre_final] = inmo_id
         return inmo_id
@@ -219,12 +231,14 @@ def _resolver_inmobiliaria(proyecto_id, fila, cache, stats, ahora, fila_num, id_
     # Buscar por nombre en jam-usuarios (case-insensitive)
     inmo_id = _buscar_inmo_por_nombre(nombre_final)
     if inmo_id:
+        logger.info('[excel_writer] match exacto por nombre nombre_final=%r inmo_id=%s', nombre_final, inmo_id)
         _agregar_proyecto_a_inmo(inmo_id, proyecto_id)
         cache[nombre_final] = inmo_id
         return inmo_id
 
     # No existe — crear nueva
     inmo_id = str(uuid.uuid4())[:8].upper()
+    logger.info('[excel_writer] creando inmobiliaria nueva nombre_final=%r inmo_id=%s', nombre_final, inmo_id)
     usuarios_t.put_item(Item={
         'pk':        f'INMOBILIARIA#{inmo_id}',
         'sk':        'METADATA',
@@ -254,11 +268,20 @@ def _buscar_inmo_por_nombre(nombre):
             KeyConditionExpression=DKey('tipo').eq('INMOBILIARIA'),
         )
         nombre_norm = nombre.strip().lower()
+        logger.info(
+            '[excel_writer] buscar por nombre nombre=%r nombre_norm=%r candidatos=%s',
+            nombre, nombre_norm, len(result.get('Items', [])),
+        )
         for item in result.get('Items', []):
             if item.get('nombre', '').strip().lower() == nombre_norm:
+                logger.info(
+                    '[excel_writer] buscar por nombre match nombre=%r candidato=%r pk=%s',
+                    nombre, item.get('nombre', ''), item.get('pk'),
+                )
                 return item['pk'].replace('INMOBILIARIA#', '')
-    except Exception:
-        pass
+        logger.info('[excel_writer] buscar por nombre sin match nombre=%r', nombre)
+    except Exception as e:
+        logger.warning('[excel_writer] buscar por nombre error type=%s message=%s', type(e).__name__, e)
     return None
 
 
@@ -405,6 +428,10 @@ def _agregar_proyecto_a_inmo(inmo_id, proyecto_id):
     try:
         item      = usuarios_t.get_item(Key={'pk': f'INMOBILIARIA#{inmo_id}', 'sk': 'METADATA'}).get('Item', {})
         proyectos = item.get('proyectos', [])
+        logger.info(
+            '[excel_writer] agregar proyecto inmo_id=%s proyecto_id=%s existe_item=%s proyectos_actuales=%s',
+            inmo_id, proyecto_id, bool(item), proyectos,
+        )
         if proyecto_id not in proyectos:
             proyectos.append(proyecto_id)
             usuarios_t.update_item(
@@ -412,8 +439,11 @@ def _agregar_proyecto_a_inmo(inmo_id, proyecto_id):
                 UpdateExpression='SET proyectos = :p',
                 ExpressionAttributeValues={':p': proyectos},
             )
-    except Exception:
-        pass
+            logger.info('[excel_writer] proyecto agregado inmo_id=%s proyecto_id=%s', inmo_id, proyecto_id)
+        else:
+            logger.info('[excel_writer] proyecto ya asignado inmo_id=%s proyecto_id=%s', inmo_id, proyecto_id)
+    except Exception as e:
+        logger.warning('[excel_writer] agregar proyecto error inmo_id=%s type=%s message=%s', inmo_id, type(e).__name__, e)
 
 
 def _schedule_name(unidad_id, suffix):

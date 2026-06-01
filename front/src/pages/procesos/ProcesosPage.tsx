@@ -152,7 +152,11 @@ const ProcesosPage = () => {
     try {
       if (esInmobiliaria) {
         const items = await getMisProcesos(proyectoId);
-        setProcesos((items as ProcesoEnriquecido[]).sort((a, b) =>
+        const enriched: ProcesoEnriquecido[] = items.map((p: any) => ({
+          ...p,
+          cliente: p.nombres ? { nombres: p.nombres, apellidos: p.apellidos ?? '' } : undefined,
+        }));
+        setProcesos(enriched.sort((a, b) =>
           (a.unidad_nombre || a.unidad_id || '').localeCompare(b.unidad_nombre || b.unidad_id || '')
         ));
       } else {
@@ -495,7 +499,7 @@ const ProcesosPage = () => {
     
     const menuItems = [
       ...(puedeAvanzar ? [{ key: 'estatus', icon: <SwapOutlined />, label: 'Cambiar estatus', onClick: () => setEstatusModal(p) }] : []),
-      { key: 'historial', icon: <HistoryOutlined />, label: 'Ver historial', onClick: () => { setHistorialProceso(p); setHistorialNombre(nombreCliente(p)); } },
+      ...(!esInmobiliaria ? [{ key: 'historial', icon: <HistoryOutlined />, label: 'Ver historial', onClick: () => { setHistorialProceso(p); setHistorialNombre(nombreCliente(p)); } }] : []),
       ...(esBloqueada && !esInmobiliaria ? [
         { key: 'extender', icon: <FieldTimeOutlined />, label: 'Extender bloqueo', onClick: () => { setExtenderProcesoModal(p); formExtenderProceso.resetFields(); } },
         {
@@ -528,7 +532,7 @@ const ProcesosPage = () => {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
               <Text strong style={{ fontSize: 14 }}>{nombreCliente(p)}</Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>{p.cedula}</Text>
+              {p.cliente?.nombres && <Text type="secondary" style={{ fontSize: 12 }}>{p.cedula}</Text>}
             </div>
             <Space size={4} wrap>
               <Tag
@@ -586,7 +590,7 @@ const ProcesosPage = () => {
         <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
         <div>
           <Text strong style={{ fontSize: 13 }}>{nombreCliente(p)}</Text>
-          <br /><Text type="secondary" style={{ fontSize: 11 }}>{p.cedula}</Text>
+          {p.cliente?.nombres && <><br /><Text type="secondary" style={{ fontSize: 11 }}>{p.cedula}</Text></>}
         </div>
         <Badge status={vencida ? 'error' : proxima ? 'warning' : 'default'} text={
           <Space size={4}>
@@ -617,7 +621,7 @@ const ProcesosPage = () => {
               })} />
             </Tooltip>
           )}
-          <Tooltip title="Historial"><Button size="small" icon={<HistoryOutlined />} onClick={() => { setHistorialProceso(p); setHistorialNombre(nombreCliente(p)); }} /></Tooltip>
+          {!esInmobiliaria && <Tooltip title="Historial"><Button size="small" icon={<HistoryOutlined />} onClick={() => { setHistorialProceso(p); setHistorialNombre(nombreCliente(p)); }} /></Tooltip>}
         </div>
       </div>
     );

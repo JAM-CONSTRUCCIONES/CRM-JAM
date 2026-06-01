@@ -479,7 +479,26 @@ def listar_mis_procesos(event):
         kwargs['FilterExpression'] = Attr('proyecto_id').eq(proyecto_id)
 
     result = procesos.query(**kwargs)
-    return ok(result.get('Items', []))
+    items = result.get('Items', [])
+
+    # Enriquecer con nombre del cliente desde la tabla de clientes
+    inmo_id_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
+    for p in items:
+        cedula = p.get('cedula', '')
+        pid = (proyecto_id or p.get('proyecto_id', '')).replace('PROYECTO#', '')
+        if not cedula or not pid:
+            continue
+        try:
+            cliente = clientes.get_item(
+                Key={'pk': f'CLIENTE#{cedula}#{inmo_id_clean}', 'sk': f'PROYECTO#{pid}'}
+            ).get('Item') or {}
+            if cliente.get('nombres'):
+                p['nombres'] = cliente['nombres']
+                p['apellidos'] = cliente.get('apellidos', '')
+        except Exception:
+            pass
+
+    return ok(items)
 
 
 def registrar_publico(event):

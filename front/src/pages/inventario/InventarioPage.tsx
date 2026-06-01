@@ -399,13 +399,15 @@ const InventarioPage = () => {
                 inv.setFiltroEstado(nuevoValor); 
                 inv.cargarUnidades(undefined, { estado: nuevoValor });
               }}>
-              {Object.entries(ESTADO_UNIDAD_CONFIG).map(([k, v]) => (
-                <Option key={k} value={k}>
-                  <Tooltip title={v.descripcion} placement="right">
-                    <span>{v.label}</span>
-                  </Tooltip>
-                </Option>
-              ))}
+              {Object.entries(ESTADO_UNIDAD_CONFIG)
+                .filter(([k]) => !isInmobiliariaEffective || k === 'disponible' || k === 'bloqueada')
+                .map(([k, v]) => (
+                  <Option key={k} value={k}>
+                    <Tooltip title={v.descripcion} placement="right">
+                      <span>{v.label}</span>
+                    </Tooltip>
+                  </Option>
+                ))}
             </Select>
             <Input placeholder="Unidad (ej: 101)" style={{ width: isMobile ? '100%' : 140 }} 
               value={inv.filtroUnidad} 

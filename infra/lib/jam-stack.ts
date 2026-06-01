@@ -14,7 +14,6 @@ import * as backup from 'aws-cdk-lib/aws-backup';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
-import * as ses from 'aws-cdk-lib/aws-ses';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
@@ -1373,13 +1372,6 @@ def handler(event, context):
         backup.BackupResource.fromDynamoDbTable(historialEstatusTable),
         backup.BackupResource.fromDynamoDbTable(historialTable),
       ],
-    });
-
-    // ─── SES EMAIL IDENTITY ──────────────────────────────────────────────────
-    // Verifica el email remitente en SES para que pueda enviar correos.
-    // Al hacer deploy, AWS envía un link de verificación a notificationEmail.
-    new ses.EmailIdentity(this, 'SesFromEmailIdentity', {
-      identity: ses.Identity.email(notificationEmail),
     });
 
     // ─── LAMBDA jam-notificaciones ───────────────────────────────────────────

@@ -365,9 +365,18 @@ const InventarioPage = () => {
                 <div style={{ padding: '14px 16px 16px' }}>
                   <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>{p.nombre}</Text>
                   {p.descripcion ? (
-                    <Text type="secondary" style={{ fontSize: 13, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
-                      {p.descripcion}
-                    </Text>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                      <div style={{ flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        <Text type="secondary" style={{ fontSize: 13 }}>{p.descripcion}</Text>
+                      </div>
+                      {p.descripcion.length > 80 && (
+                        <Button type="link" size="small"
+                          style={{ padding: 0, fontSize: 12, flexShrink: 0, marginTop: 1 }}
+                          onClick={e => { e.stopPropagation(); setProyectoDetalle(p); }}>
+                          Ver más
+                        </Button>
+                      )}
+                    </div>
                   ) : (
                     <Text type="secondary" style={{ fontSize: 13, fontStyle: 'italic' }}>Sin descripción</Text>
                   )}

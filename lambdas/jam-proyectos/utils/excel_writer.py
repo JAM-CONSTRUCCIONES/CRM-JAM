@@ -338,7 +338,7 @@ def _escribir_unidad(proyecto_id, id_unidad, fila, inmo_id, ahora):
 
     for campo_num in ('num_cuartos', 'num_banos', 'parqueos', 'metraje_terraza',
                       'metraje_patio', 'precio_reserva', 'precio_separacion',
-                      'precio_inicial', 'cuota_monto', 'contra_entrega'):
+                      'precio_inicial', 'cuota_monto', 'cuota_meses', 'contra_entrega'):
         if fila.get(campo_num) is not None:
             try:
                 item[campo_num] = Decimal(str(fila[campo_num]))
@@ -363,8 +363,8 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
         'proyecto_id':       proyecto_id,
         'nombres':           nombres,
         'apellidos':         apellidos,
-        'correo':            '',
-        'telefono':          '',
+        'correo':            (fila.get('cliente_correo') or '').strip(),
+        'telefono':          (fila.get('cliente_telefono') or '').strip(),
         'estado_civil':      '',
         'nacionalidad':      '',
         'pais_residencia':   '',

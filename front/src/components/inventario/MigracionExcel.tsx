@@ -377,14 +377,18 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} onChange={val => actualizarFila(r.id_unidad, 'tipo', val)} /> },
     { title: 'Piso', dataIndex: 'piso', width: 65,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'piso', val)} /> },
-    { title: 'Manzana', dataIndex: 'manzana', width: 85,
+    { title: 'Bloque', dataIndex: 'manzana', width: 85,
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} onChange={val => actualizarFila(r.id_unidad, 'manzana', val)} /> },
     { title: 'Parqueos', dataIndex: 'parqueos', width: 85,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'parqueos', val)} /> },
-    { title: 'Cuartos', dataIndex: 'num_cuartos', width: 75,
+    { title: 'Habitaciones', dataIndex: 'num_cuartos', width: 100,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'num_cuartos', val)} /> },
     { title: 'Baños', dataIndex: 'num_banos', width: 70,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'num_banos', val)} /> },
+    { title: 'M. Terraza', dataIndex: 'metraje_terraza', width: 95,
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'metraje_terraza', val)} /> },
+    { title: 'M. Patio', dataIndex: 'metraje_patio', width: 85,
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'metraje_patio', val)} /> },
     { title: 'P. Reserva', dataIndex: 'precio_reserva', width: 110,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_reserva', val)} /> },
     { title: 'P. Separación', dataIndex: 'precio_separacion', width: 120,
@@ -393,8 +397,14 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_inicial', val)} /> },
     { title: 'Cuota', dataIndex: 'cuota_monto', width: 100,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'cuota_monto', val)} /> },
+    { title: 'Meses', dataIndex: 'cuota_meses', width: 70,
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'cuota_meses', val)} /> },
     { title: 'Contra entrega', dataIndex: 'contra_entrega', width: 120,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'contra_entrega', val)} /> },
+    { title: 'Teléfono', dataIndex: 'cliente_telefono', width: 120,
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'cliente_telefono', val)} /> },
+    { title: 'Correo', dataIndex: 'cliente_correo', width: 160,
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'cliente_correo', val)} /> },
     { title: 'Comentario', dataIndex: 'comentario', width: 150,
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'comentario', val)} /> },
     {
@@ -432,9 +442,10 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                   <thead>
                     <tr style={{ background: '#e6f4ff' }}>
                       {[
-                        'unidad','Area','No Cuartos','No. baños','Tipo','Piso','Parqueos',
-                        'NOMBRE CLIENTE','Precios US$','RESERVA','SEPARACION','INICIAL',
-                        'CUOTAS 24','CONTRA ENTREGA','ESTATUS','INMOBILIARIA',
+                        'unidad','Area','Metraje Terraza','Metraje Patio','No Cuartos','No. baños','Tipo','Piso','Parqueos',
+                        'NOMBRE CLIENTE','CEDULA','TELEFONO','CORREO',
+                        'Precios US$','RESERVA','SEPARACION','INICIAL',
+                        'CUOTAS 24','Cuota Meses','CONTRA ENTREGA','ESTATUS','INMOBILIARIA',
                         'FECHA BLOQUEO','FECHA FIN BLOQUEO/ PAGO SEPARACION','COMENTARIO',
                       ].map(h => (
                         <th key={h} style={{ border: '1px solid #91caff', padding: '4px 8px', color: '#1677ff', fontWeight: 600 }}>{h}</th>
@@ -442,9 +453,10 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                     </tr>
                     <tr style={{ background: '#fafafa' }}>
                       {[
-                        'B-A-101','76.34','3','2','D','1','1',
-                        'JOSE MIGUEL BARRERA','75958.30','500','3297.91','11393.74',
-                        '474.73','60766.64','CONTRATO FIRMADO','Plusval',
+                        'B-A-101','76.34','12.5','8.0','3','2','D','1','1',
+                        'JOSE MIGUEL BARRERA','0912345678','0991234567','jose@email.com',
+                        '75958.30','500','3297.91','11393.74',
+                        '474.73','24','60766.64','CONTRATO FIRMADO','Plusval',
                         '2026-02-21','2026-03-21','',
                       ].map((v, i) => (
                         <td key={i} style={{ border: '1px solid #d9d9d9', padding: '4px 8px', color: '#555' }}>{v || <span style={{ color: '#bbb' }}>vacío</span>}</td>
@@ -458,7 +470,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                   <Tag color="blue">Area — obligatorio</Tag>
                   <Tag color="blue">ESTATUS — obligatorio</Tag>
                   <Tag color="default">El resto es opcional</Tag>
-                  <Tag color="orange">Si hay cliente, INMOBILIARIA también es obligatoria</Tag>
+                  <Tag color="orange">Si hay cliente, INMOBILIARIA y CEDULA también son obligatorias</Tag>
                 </div>
                 <div style={{ marginTop: 6, color: '#888', fontSize: 11 }}>
                   💡 Los nombres de columna no tienen que ser exactos — la IA intenta mapearlos automáticamente. Pero si coinciden, el resultado es más preciso.
@@ -504,10 +516,13 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
               </Tooltip>
             )}
             <RellenarVaciosBtn campo="metraje" label="Rellenar metraje vacío" tipo="numero" onRellenar={rellenarVacios} />
+            <RellenarVaciosBtn campo="metraje_terraza" label="Rellenar terraza vacía" tipo="numero" onRellenar={rellenarVacios} />
+            <RellenarVaciosBtn campo="metraje_patio" label="Rellenar patio vacío" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="precio" label="Rellenar precio vacío" tipo="numero" onRellenar={rellenarVacios} />
-            <RellenarVaciosBtn campo="num_cuartos" label="Rellenar cuartos vacíos" tipo="numero" onRellenar={rellenarVacios} />
+            <RellenarVaciosBtn campo="num_cuartos" label="Rellenar habitaciones vacías" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="num_banos" label="Rellenar baños vacíos" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="parqueos" label="Rellenar parqueos vacíos" tipo="numero" onRellenar={rellenarVacios} />
+            <RellenarVaciosBtn campo="cuota_meses" label="Rellenar meses cuota" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarEtapaBtn etapas={etapas} onRellenar={rellenarVacios} />
             <Button size="small" icon={<PlusOutlined />} onClick={() => { setNuevaEtapaNombre(''); setNuevaEtapaAplicar('vacios'); setNuevaEtapaModal(true); }}>
               Nueva etapa
@@ -524,7 +539,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
           <div ref={tableRef}>
             <Table
               dataSource={filas} columns={columnas} rowKey="fila_excel"
-              scroll={{ x: 3000 }} size="small" pagination={{ pageSize: 50 }}
+              scroll={{ x: 3600 }} size="small" pagination={{ pageSize: 50 }}
               rowClassName={r => r.errores.length > 0 ? 'fila-error' : r.advertencias.length > 0 ? 'fila-advertencia' : ''}
             />
           </div>

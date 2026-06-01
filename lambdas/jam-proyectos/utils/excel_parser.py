@@ -122,7 +122,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             idx = col_idx(headers, keys, col_map)
             return row[idx] if idx is not None and idx < len(row) else None
 
-        id_unidad_raw = gc(['unidad', 'id_unidad', 'UNIDAD'])
+        id_unidad_raw = gc(['unidad', 'id_unidad', 'UNIDAD', 'ID Unidad', 'ID UNIDAD'])
         if not id_unidad_raw:
             continue
         id_unidad = str(id_unidad_raw).strip()
@@ -135,13 +135,16 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             if torre_str and not id_unidad.upper().startswith(torre_str):
                 id_unidad = f'{torre_str}-{id_unidad}'
 
-        metraje      = parse_decimal(gc(['Area', 'AREA', 'metraje', 'M2']), metraje=True)
-        precio       = parse_decimal(gc(['Precios US$', 'precio', 'PRECIO', 'PRECIO VENTA', 'Precios US']))
-        estatus_raw  = gc(['ESTATUS', 'ESTADO', 'STATUS', 'estado'])
+        metraje      = parse_decimal(gc(['Area', 'AREA', 'Metraje', 'METRAJE', 'metraje', 'M2',
+                                         'Área', 'Area Total', 'Área Total', 'Area Construida',
+                                         'Area Util', 'Área Útil', 'M2 Construidos', 'Sup. Construida',
+                                         'Metros', 'Metros Cuadrados']), metraje=True)
+        precio       = parse_decimal(gc(['Precios US$', 'precio', 'PRECIO', 'PRECIO VENTA', 'Precios US', 'Precio']))
+        estatus_raw  = gc(['ESTATUS', 'ESTADO', 'STATUS', 'estado', 'Estado'])
         estatus_norm = str(estatus_raw).strip().upper() if estatus_raw else 'DISPONIBLE'
         estado_interno, estado_proceso = ESTATUS_MAP.get(estatus_norm, ('disponible', None))
 
-        nombre_cliente = str(gc(['NOMBRE CLIENTE', 'NOMBRE', 'CLIENTE']) or '').strip()
+        nombre_cliente = str(gc(['NOMBRE CLIENTE', 'Cliente Nombre', 'NOMBRE', 'CLIENTE']) or '').strip()
         nombres_ia     = nombres_map.get(nombre_cliente, {})
 
         # Fallback: si la IA no separó, intentar separación simple por palabras
@@ -161,7 +164,21 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             else:
                 nombres_final   = nombre_cliente
 
-        inmo_excel           = str(gc(['INMOBILIARIA', 'INMO', 'AGENCIA']) or '').strip()
+        cedula_raw           = str(gc(['Cliente Cédula', 'Cliente Cedula', 'CLIENTE CEDULA',
+                                       'Cédula', 'Cedula', 'CEDULA', 'CC', 'DNI',
+                                       'Identificacion', 'Identificación', 'No. Cedula',
+                                       'Num Cedula', 'No Identificacion']) or '').strip()
+        cedula_excel         = cedula_raw or None
+
+        telefono_excel       = str(gc(['Cliente Teléfono', 'Cliente Telefono', 'CLIENTE TELEFONO',
+                                       'Teléfono', 'Telefono', 'TELEFONO', 'Celular', 'CELULAR',
+                                       'Cel', 'Móvil', 'Movil', 'Tel', 'Whatsapp', 'Contacto']) or '').strip() or None
+
+        correo_excel         = str(gc(['Cliente Correo', 'CLIENTE CORREO', 'Correo', 'CORREO',
+                                       'Email', 'EMAIL', 'Correo Electronico', 'Correo Electrónico',
+                                       'E-mail', 'Mail']) or '').strip() or None
+
+        inmo_excel           = str(gc(['INMOBILIARIA', 'Inmobiliaria', 'INMO', 'AGENCIA']) or '').strip()
         inmo_match           = inmos_map.get(inmo_excel, {})
         inmo_id_sugerido     = inmo_match.get('id', '')
         inmo_confianza       = inmo_match.get('confianza', 0)
@@ -176,42 +193,60 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
         errores, advertencias = _validar_fila(
             id_unidad, id_unidades_vistos, precio, metraje, estatus_norm, estatus_raw,
             inmo_excel, inmo_confianza, inmo_es_nueva, id_unidades_existentes,
-            nombre_cliente, nombres_final, apellidos_final,
+            nombre_cliente, nombres_final, apellidos_final, cedula_excel,
         )
         id_unidades_vistos.add(id_unidad)
+
+        def _dec(keys):
+            v = parse_decimal(gc(keys))
+            return str(v) if v is not None else None
 
         filas.append({
             'fila_excel':                   header_row_idx + 2 + i,
             'id_unidad':                    id_unidad,
             'metraje':                      str(metraje) if metraje is not None else None,
             'precio':                       str(precio)  if precio  is not None else None,
-            'num_cuartos':                  parse_int(gc(['No Cuartos', 'CUARTOS', 'HABITACIONES'])),
-            'num_banos':                    parse_int(gc(['No. baños', 'BAÑOS', 'BANOS'])),
+            'num_cuartos':                  parse_int(gc(['No Cuartos', 'Cuartos', 'CUARTOS', 'HABITACIONES'])),
+            'num_banos':                    parse_int(gc(['No. baños', 'Baños', 'BAÑOS', 'BANOS'])),
             'tipo':                         str(gc(['Tipo', 'TIPO']) or '').strip() or None,
             'piso':                         parse_int(gc(['Piso', 'PISO'])),
             'parqueos':                     parse_int(gc(['Parqueos', 'PARQUEOS', 'PARKING'])),
             'estado':                       estado_interno,
             'estado_proceso':               estado_proceso,
             'cliente_nombre_excel':         nombre_cliente or None,
+            'cliente_telefono':             telefono_excel,
+            'cliente_correo':               correo_excel,
             'nombres_sugerido':             nombres_final or None,
             'apellidos_sugerido':           apellidos_final or None,
-            'cedula':                       None,
+            'cedula':                       cedula_excel,
             'inmobiliaria_excel':           inmo_excel or None,
             'inmobiliaria_id_sugerido':     inmo_id_sugerido or None,
             'inmobiliaria_nombre_sugerido': inmo_match.get('nombre', inmo_excel) or None,
             'inmobiliaria_confianza':       inmo_confianza,
             'inmobiliaria_es_nueva':        inmo_es_nueva,
-            'fecha_bloqueo':                parse_fecha(gc(['FECHA BLOQUEO', 'FECHA_BLOQUEO', 'FECHA INICIO'])),
-            'fecha_liberacion':             parse_fecha(gc(['FECHA FIN BLOQUEO/ PAGO SEPARACION', 'FECHA FIN', 'FECHA_FIN'])),
-            'comentario':                   str(gc(['COMENTARIO', 'OBSERVACION', 'NOTAS']) or '').strip() or None,
+            'fecha_bloqueo':                parse_fecha(gc(['FECHA BLOQUEO', 'Fecha Bloqueo', 'FECHA_BLOQUEO', 'FECHA INICIO'])),
+            'fecha_liberacion':             parse_fecha(gc(['FECHA FIN BLOQUEO/ PAGO SEPARACION',
+                                                            'Fecha Liberación', 'FECHA LIBERACION',
+                                                            'FECHA LIBERACIÓN', 'FECHA FIN', 'FECHA_FIN'])),
+            'comentario':                   str(gc(['COMENTARIO', 'Comentario', 'OBSERVACION', 'NOTAS']) or '').strip() or None,
             'manzana':                      str(gc(['Manzana', 'MANZANA', 'MZ']) or '').strip() or None,
-            'metraje_terraza':              str(parse_decimal(gc(['Metraje Terraza', 'TERRAZA', 'M2 TERRAZA']))) if parse_decimal(gc(['Metraje Terraza', 'TERRAZA', 'M2 TERRAZA'])) is not None else None,
-            'metraje_patio':                str(parse_decimal(gc(['Metraje Patio', 'PATIO', 'M2 PATIO']))) if parse_decimal(gc(['Metraje Patio', 'PATIO', 'M2 PATIO'])) is not None else None,
-            'precio_reserva':               str(parse_decimal(gc(['RESERVA', 'Precio Reserva', 'PRECIO RESERVA']))) if parse_decimal(gc(['RESERVA', 'Precio Reserva', 'PRECIO RESERVA'])) is not None else None,
-            'precio_separacion':            str(parse_decimal(gc(['SEPARACION', 'Precio Separacion', 'PRECIO SEPARACION']))) if parse_decimal(gc(['SEPARACION', 'Precio Separacion', 'PRECIO SEPARACION'])) is not None else None,
-            'precio_inicial':               str(parse_decimal(gc(['INICIAL', 'Precio Inicial', 'PRECIO INICIAL']))) if parse_decimal(gc(['INICIAL', 'Precio Inicial', 'PRECIO INICIAL'])) is not None else None,
-            'cuota_monto':                  str(parse_decimal(gc(['CUOTAS 24', 'CUOTA', 'CUOTA MONTO']))) if parse_decimal(gc(['CUOTAS 24', 'CUOTA', 'CUOTA MONTO'])) is not None else None,
-            'contra_entrega':               str(parse_decimal(gc(['CONTRA ENTREGA', 'CONTRAENTREGA']))) if parse_decimal(gc(['CONTRA ENTREGA', 'CONTRAENTREGA'])) is not None else None,
+            'metraje_terraza':              _dec(['Metraje Terraza', 'METRAJE TERRAZA', 'TERRAZA',
+                                                  'M2 TERRAZA', 'Area Terraza', 'Área Terraza',
+                                                  'Metros Terraza', 'M2 Balcon', 'Balcon', 'Balcón',
+                                                  'Sup. Terraza']),
+            'metraje_patio':                _dec(['Metraje Patio', 'METRAJE PATIO', 'PATIO',
+                                                  'M2 PATIO', 'Area Patio', 'Área Patio',
+                                                  'Metros Patio', 'Jardín', 'Jardin',
+                                                  'Sup. Patio', 'M2 Jardin']),
+            'precio_reserva':               _dec(['Precio Reserva', 'PRECIO RESERVA', 'RESERVA']),
+            'precio_separacion':            _dec(['Precio Separación', 'Precio Separacion',
+                                                  'PRECIO SEPARACIÓN', 'PRECIO SEPARACION', 'SEPARACION']),
+            'precio_inicial':               _dec(['Precio Inicial', 'PRECIO INICIAL', 'INICIAL']),
+            'cuota_monto':                  _dec(['Cuota Monto', 'CUOTA MONTO', 'CUOTAS 24', 'CUOTA']),
+            'cuota_meses':                  parse_int(gc(['Cuota Meses', 'CUOTA MESES', 'Meses',
+                                                          'Plazo', 'PLAZO', 'Cuotas', 'N Cuotas',
+                                                          'Num Cuotas', 'Meses Plazo'])),
+            'contra_entrega':               _dec(['Contra Entrega', 'CONTRA ENTREGA', 'CONTRAENTREGA']),
             'errores':                      errores,
             'advertencias':                 advertencias,
             'ia_sugerido':                  bool(nombres_ia.get('nombres') or nombres_final or inmo_id_sugerido),
@@ -273,7 +308,7 @@ def _obtener_ids_unidades_existentes(proyecto_id):
 
 def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
                   inmo_excel, inmo_confianza, inmo_es_nueva, existentes=None,
-                  nombre_cliente='', nombres='', apellidos=''):
+                  nombre_cliente='', nombres='', apellidos='', cedula=None):
     errores, advertencias = [], []
     existentes = existentes or set()
     id_normalizado = _normalizar_id_unidad(id_unidad)
@@ -295,8 +330,8 @@ def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
         errores.append('inmobiliaria requerida para este estado')
     if inmo_excel and inmo_confianza < 80 and not inmo_es_nueva:
         advertencias.append(f'Inmobiliaria con baja confianza ({inmo_confianza}%)')
-    # Si hay nombre de cliente → cédula obligatoria (error, no advertencia)
-    if nombre_cliente:
+    # Si hay nombre de cliente y NO viene cédula del Excel → error (debe ingresarla)
+    if nombre_cliente and not cedula:
         errores.append('cédula obligatoria cuando hay cliente')
     if nombre_cliente and not inmo_excel:
         advertencias.append('Sin inmobiliaria, el cliente no se registrará')

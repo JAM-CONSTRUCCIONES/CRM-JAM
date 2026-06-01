@@ -9,7 +9,7 @@ import ModalUnidad from '../../components/inventario/ModalUnidad';
 import ModalBloqueo from '../../components/inventario/ModalBloqueo';
 import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloqueoAdmin';
 import { ESTADO_UNIDAD_CONFIG, projectGradient } from '../../constants/estados';
-import { eliminarProyecto, exportarInventario } from '../../services/proyectos.service';
+import { eliminarProyecto, getProyecto, exportarInventario } from '../../services/proyectos.service';
 import { bloquearUnidad } from '../../services/bloqueos.service';
 import { buscarClientePorCedula } from '../../services/clientes.service';
 import type { Cliente, Unidad } from '../../types';
@@ -58,6 +58,12 @@ const InventarioPage = () => {
 
   // Exportación
   const [exportando, setExportando] = useState(false);
+
+  // Proyecto siendo eliminado (muestra spinner y bloquea otros botones de eliminar)
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+
+  // Modal detalles de proyecto (descripción larga)
+  const [proyectoDetalle, setProyectoDetalle] = useState<typeof inv.proyectos[0] | null>(null);
 
   // Form refs para modales que necesitan reset externo
   const [formProyecto] = Form.useForm();
@@ -305,28 +311,52 @@ const InventarioPage = () => {
                       <Space>
                         <Button size="small" type="text" icon={<EditOutlined />} style={{ color: '#fff', background: 'rgba(0,0,0,0.25)', borderRadius: 6 }}
                           onClick={() => { inv.setModoProyecto('editar'); inv.setProyectoEditando(p); setImagenFile(null); formProyecto.setFieldsValue({ nombre: p.nombre, descripcion: p.descripcion }); inv.setModalProyecto(true); }} />
-                        <Popconfirm 
-                          title="¿Eliminar proyecto?" 
-                          description="Se eliminarán todas las unidades disponibles. No se puede eliminar si hay unidades bloqueadas o en procesos activos."
-                          okText="Sí, eliminar" 
-                          cancelText="Cancelar" 
+                        <Popconfirm
+                          title="¿Eliminar proyecto?"
+                          description="Se eliminarán inventario, procesos e historiales del proyecto. Los clientes se conservarán como desvinculados."
+                          okText="Sí, eliminar"
+                          cancelText="Cancelar"
                           okButtonProps={{ danger: true }}
+                          disabled={!!eliminandoId}
                           onConfirm={async () => {
+                            setEliminandoId(p.proyecto_id);
+                            const hide = message.loading(`Eliminando proyecto "${p.nombre}"...`, 0);
                             try {
                               await eliminarProyecto(p.proyecto_id);
+                              // Polling hasta que el proyecto desaparezca (SF async)
+                              let intentos = 0;
+                              while (intentos < 40) {
+                                await new Promise(r => setTimeout(r, 2000));
+                                try {
+                                  const actual = await getProyecto(p.proyecto_id);
+                                  if (!actual || actual.activo === false) break;
+                                } catch {
+                                  break; // 404 = ya eliminado
+                                }
+                                intentos++;
+                              }
+                              hide();
                               message.success('Proyecto eliminado correctamente');
                               inv.cargarProyectos();
                             } catch (err: any) {
+                              hide();
                               const status = err?.response?.status ?? err?.response?.statusCode;
                               const msg = err?.response?.data?.message || err?.message;
                               if (status === 409) {
-                                message.error(msg || 'No se puede eliminar el proyecto porque tiene unidades bloqueadas o en procesos activos.');
+                                message.error(msg || 'El proyecto ya tiene una eliminación en curso.');
                               } else {
                                 message.error(msg || 'Error al eliminar el proyecto.');
                               }
+                            } finally {
+                              setEliminandoId(null);
                             }
                           }}>
-                          <Button size="small" type="text" danger icon={<DeleteOutlined />} style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 6 }} />
+                          <Button
+                            size="small" type="text" danger icon={<DeleteOutlined />}
+                            style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 6 }}
+                            loading={eliminandoId === p.proyecto_id}
+                            disabled={!!eliminandoId && eliminandoId !== p.proyecto_id}
+                          />
                         </Popconfirm>
                       </Space>
                     </div>
@@ -334,8 +364,13 @@ const InventarioPage = () => {
                 </div>
                 <div style={{ padding: '14px 16px 16px' }}>
                   <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>{p.nombre}</Text>
-                  {p.descripcion ? <Text type="secondary" style={{ fontSize: 13 }} ellipsis={{ tooltip: p.descripcion }}>{p.descripcion}</Text>
-                    : <Text type="secondary" style={{ fontSize: 13, fontStyle: 'italic' }}>Sin descripción</Text>}
+                  {p.descripcion ? (
+                    <Text type="secondary" style={{ fontSize: 13, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
+                      {p.descripcion}
+                    </Text>
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: 13, fontStyle: 'italic' }}>Sin descripción</Text>
+                  )}
                 </div>
               </div>
             </Col>
@@ -382,7 +417,7 @@ const InventarioPage = () => {
               onChange={e => inv.setFiltroTipo(e.target.value)} 
               allowClear 
               onClear={() => { inv.setFiltroTipo(''); }} />
-            <Input placeholder="Manzana (ej: A)" style={{ width: isMobile ? '100%' : 140 }} 
+            <Input placeholder="Bloque (ej: A)" style={{ width: isMobile ? '100%' : 140 }}
               value={inv.filtroManzana} 
               onChange={e => inv.setFiltroManzana(e.target.value)} 
               allowClear 
@@ -479,6 +514,31 @@ const InventarioPage = () => {
         onBloquear={handleCrearBloqueoAdmin}
         guardando={guardandoBloqueo}
       />
+
+      {/* ── Modal: detalles del proyecto ────────────────────────────────── */}
+      <Modal
+        open={!!proyectoDetalle}
+        onCancel={() => setProyectoDetalle(null)}
+        footer={<Button onClick={() => setProyectoDetalle(null)}>Cerrar</Button>}
+        title={proyectoDetalle?.nombre}
+        width={560}
+      >
+        {proyectoDetalle && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {proyectoDetalle.imagen_url && (
+              <img
+                src={proyectoDetalle.imagen_url}
+                alt={proyectoDetalle.nombre}
+                style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8 }}
+              />
+            )}
+            <Typography.Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 14 }}>
+              {proyectoDetalle.descripcion}
+            </Typography.Paragraph>
+          </div>
+        )}
+      </Modal>
+
     </div>
   );
 };

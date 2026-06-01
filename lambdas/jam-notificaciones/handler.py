@@ -164,6 +164,10 @@ def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensa
 
     # Safe variable substitution — ignore unknown keys
     try:
+        titulo = titulo.format(**vars_dict)
+    except (KeyError, ValueError):
+        pass
+    try:
         mensaje = mensaje.format(**vars_dict)
     except (KeyError, ValueError):
         pass
@@ -178,7 +182,24 @@ def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensa
     return titulo, cuerpo
 
 
-def _firma():
+def _nombre_unidad(unidad_id_o_nombre, proyecto_id=''):
+    """
+    Returns the human-readable unit name.
+    If the value looks like an internal UUID (8 chars alphanumeric), look up id_unidad from inventory.
+    """
+    if not unidad_id_o_nombre:
+        return ''
+    # If it looks like a UUID (8 uppercase alphanumeric chars), resolve it
+    import re
+    if re.match(r'^[A-Z0-9]{8}$', str(unidad_id_o_nombre)) and inventario_table and proyecto_id:
+        try:
+            item = inventario_table.get_item(
+                Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id_o_nombre}'}
+            ).get('Item', {})
+            return item.get('id_unidad') or unidad_id_o_nombre
+        except Exception:
+            pass
+    return unidad_id_o_nombre
     return '''
     <br>
     <hr style="border:none;border-top:1px solid #e0e0e0;margin:24px 0">
@@ -214,7 +235,13 @@ def _wrap(contenido):
 
 
 def _enviar(destinatarios, asunto, cuerpo_html):
-    destinatarios = [d for d in destinatarios if d]
+    seen = set()
+    dedup = []
+    for d in destinatarios:
+        if d and d.lower() not in seen:
+            seen.add(d.lower())
+            dedup.append(d)
+    destinatarios = dedup
     if not destinatarios:
         logger.warning('Sin destinatarios, email no enviado')
         return
@@ -236,7 +263,7 @@ def _bloqueo_registrado(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
     correos = _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id', ''), msg.get('proyecto_id', ''))
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     fecha_bloqueo = meta.get('fecha_bloqueo', '')
@@ -264,10 +291,11 @@ def _alerta_vencimiento(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
     correos = _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    proyecto_id = msg.get('proyecto_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    fecha_liberacion = meta.get('fecha_liberacion', '')
+    fecha_liberacion = meta.get('fecha_liberacion') or msg.get('fecha_liberacion', '')
     fecha_fmt = ''
     if fecha_liberacion:
         try:
@@ -289,10 +317,11 @@ def _liberacion_automatica(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
     correos = _correos_inmobiliaria(inmo_id)
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    proyecto_id = msg.get('proyecto_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    fecha = meta.get('fecha_liberacion', '')
+    fecha = meta.get('fecha_liberacion') or msg.get('fecha_liberacion', '')
     fecha_fmt = ''
     if fecha:
         try:
@@ -314,12 +343,13 @@ def _liberacion_manual(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
     correos = _correos_inmobiliaria(inmo_id)
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    proyecto_id = msg.get('proyecto_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    liberado_por = meta.get('liberado_por', 'Administrador')
-    justificacion = meta.get('justificacion', '')
-    cedula = meta.get('cedula', '')
+    liberado_por = meta.get('liberado_por') or msg.get('liberado_por', 'Administrador')
+    justificacion = meta.get('justificacion') or msg.get('justificacion', '')
+    cedula = meta.get('cedula') or msg.get('cedula', '')
     cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else ''
 
     filas = [
@@ -344,7 +374,7 @@ def _cambio_estatus(msg):
     cedula = msg.get('cedula', '') or meta.get('cedula', '')
     proyecto_id = msg.get('proyecto_id', '')
     nuevo_estatus = msg.get('estatus_nuevo', '') or meta.get('nuevo_estatus', '')
-    unidad = msg.get('unidad_nombre', '') or meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    unidad = _nombre_unidad(msg.get('unidad_nombre', '') or meta.get('unidad_nombre') or meta.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(proyecto_id)
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     cliente_nombre = f"{msg.get('nombres', '')} {msg.get('apellidos', '')}".strip()
@@ -385,12 +415,12 @@ def _cambio_estatus(msg):
 
 def _alerta_separacion_vencida(msg):
     meta = msg.get('metadata', {})
-    cedula = meta.get('cedula', '')
+    cedula = meta.get('cedula') or msg.get('cedula', '')
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_nombre') or msg.get('unidad_id', ''), msg.get('proyecto_id', ''))
     inmo_id = msg.get('inmobiliaria_id', '')
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    dias = meta.get('dias_sin_pago', 30)
+    dias = meta.get('dias_sin_pago') or msg.get('dias_sin_pago', 30)
     cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else cedula
 
     filas = [('Cliente', cliente), ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre)]

@@ -156,7 +156,7 @@ const DashboardContent = ({
   inmoNombre: (id: string) => string;
 }) => {
   const { unidad_stats, proceso_stats, cierres_mensuales, conversion_por_inmobiliaria,
-          ventas_por_piso, ventas_por_metraje } = data;
+          ventas_por_piso, ventas_por_metraje, demograficos } = data;
 
   // ── 1. Estatus de unidades (torta) ────────────────────────────────────────
   const estatusData = [
@@ -389,8 +389,136 @@ const DashboardContent = ({
           </div>
         )}
 
+        {/* ── Demograficos ── */}
+        {isInterno && demograficos && <DemograficosSection demograficos={demograficos} />}
+
       </Col>
     </Row>
+  );
+};
+
+// ── Sección demográficos ──────────────────────────────────────────────────────
+const COLORES_DEMO = ['#2E75B6','#ED7D31','#375623','#9DC3E6','#F4B942','#70AD47','#C00000','#7030A0','#00B0F0','#FF0000'];
+
+const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<AnalyticsData['demograficos']> }) => {
+  const { rangos_edad, pais_residencia, nacionalidad } = demograficos;
+
+  const chartCard: React.CSSProperties = {
+    background: '#fff', border: '1px solid #d9d9d9',
+    borderRadius: 4, padding: '16px 16px 12px', marginBottom: 20,
+  };
+  const chartTitle: React.CSSProperties = {
+    textAlign: 'center', fontWeight: 600, fontSize: 14,
+    letterSpacing: 1, marginBottom: 12, color: '#222',
+  };
+
+  // Rangos de edad — barras verticales, ordenados naturalmente
+  const ORDEN_EDAD = ['<18','18-24','25-34','35-44','45-54','55-64','65+'];
+  const edadData = ORDEN_EDAD
+    .filter(k => (rangos_edad?.[k] ?? 0) > 0)
+    .map(k => ({ rango: k, Total: rangos_edad[k] }));
+  // Si hay rangos no estándar, agregarlos al final
+  Object.entries(rangos_edad ?? {}).forEach(([k, v]) => {
+    if (!ORDEN_EDAD.includes(k) && v > 0) edadData.push({ rango: k, Total: v });
+  });
+  const totalEdad = edadData.reduce((s, r) => s + r.Total, 0);
+
+  // Residencia — torta, top 8 + "Otros"
+  const residenciaEntries = Object.entries(pais_residencia ?? {})
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const TOP = 8;
+  const residenciaTop = residenciaEntries.slice(0, TOP);
+  const residenciaOtros = residenciaEntries.slice(TOP).reduce((s, [, v]) => s + v, 0);
+  const residenciaData = [
+    ...residenciaTop.map(([pais, v], i) => ({ name: pais, value: v, color: COLORES_DEMO[i] })),
+    ...(residenciaOtros > 0 ? [{ name: 'Otros', value: residenciaOtros, color: '#ccc' }] : []),
+  ];
+  const residenciaRows: SummaryRow[] = [
+    ...residenciaEntries.map(([l, v]) => ({ label: l, value: v })),
+    { label: 'Total', value: residenciaEntries.reduce((s, [, v]) => s + v, 0), bold: true },
+  ];
+
+  // Nacionalidad — torta, top 8 + "Otros"
+  const nacionalidadEntries = Object.entries(nacionalidad ?? {})
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const nacionalidadTop = nacionalidadEntries.slice(0, TOP);
+  const nacionalidadOtros = nacionalidadEntries.slice(TOP).reduce((s, [, v]) => s + v, 0);
+  const nacionalidadData = [
+    ...nacionalidadTop.map(([nac, v], i) => ({ name: nac, value: v, color: COLORES_DEMO[i] })),
+    ...(nacionalidadOtros > 0 ? [{ name: 'Otros', value: nacionalidadOtros, color: '#ccc' }] : []),
+  ];
+  const nacionalidadRows: SummaryRow[] = [
+    ...nacionalidadEntries.map(([l, v]) => ({ label: l, value: v })),
+    { label: 'Total', value: nacionalidadEntries.reduce((s, [, v]) => s + v, 0), bold: true },
+  ];
+
+  return (
+    <>
+      {/* Rangos de edad */}
+      {edadData.length > 0 && (
+        <div style={chartCard}>
+          <div style={chartTitle}>RANGO DE EDAD DE COMPRADORES</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={edadData} margin={{ left: 0, right: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="rango" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+              <RTooltip formatter={(v: number) => [`${v} clientes (${totalEdad > 0 ? ((v/totalEdad)*100).toFixed(1) : 0}%)`, 'Total']} />
+              <Bar dataKey="Total" fill={ORANGE} barSize={36} radius={[3, 3, 0, 0]}
+                label={{ position: 'top', fontSize: 11, fill: '#555' }} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div style={{ marginTop: 12 }}>
+            <SummaryTable col1="Rango de edad" col2="Clientes" rows={[
+              ...edadData.map(r => ({ label: r.rango, value: r.Total })),
+              { label: 'Total', value: totalEdad, bold: true },
+            ]} />
+          </div>
+        </div>
+      )}
+
+      {/* País de residencia */}
+      {residenciaData.length > 0 && (
+        <div style={chartCard}>
+          <div style={chartTitle}>PAÍS DE RESIDENCIA</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={residenciaData} dataKey="value" cx="40%" outerRadius={100} label={false}>
+                {residenciaData.map((e, i) => <Cell key={i} fill={e.color} />)}
+              </Pie>
+              <Legend
+                layout="vertical" align="right" verticalAlign="middle"
+                formatter={(value) => <span style={{ fontSize: 11, color: '#333' }}>{value}</span>}
+              />
+              <RTooltip />
+            </PieChart>
+          </ResponsiveContainer>
+          <SummaryTable col1="País de residencia" col2="Clientes" rows={residenciaRows} />
+        </div>
+      )}
+
+      {/* Nacionalidad */}
+      {nacionalidadData.length > 0 && (
+        <div style={chartCard}>
+          <div style={chartTitle}>NACIONALIDAD</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={nacionalidadData} dataKey="value" cx="40%" outerRadius={100} label={false}>
+                {nacionalidadData.map((e, i) => <Cell key={i} fill={e.color} />)}
+              </Pie>
+              <Legend
+                layout="vertical" align="right" verticalAlign="middle"
+                formatter={(value) => <span style={{ fontSize: 11, color: '#333' }}>{value}</span>}
+              />
+              <RTooltip />
+            </PieChart>
+          </ResponsiveContainer>
+          <SummaryTable col1="Nacionalidad" col2="Clientes" rows={nacionalidadRows} />
+        </div>
+      )}
+    </>
   );
 };
 

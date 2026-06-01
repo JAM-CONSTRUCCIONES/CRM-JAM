@@ -14,6 +14,7 @@ import * as backup from 'aws-cdk-lib/aws-backup';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import * as ses from 'aws-cdk-lib/aws-ses';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
@@ -188,7 +189,8 @@ export class JamStack extends cdk.Stack {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-proyectos')),
-      timeout: cdk.Duration.seconds(30),
+      // 60s: cada paso del SF de eliminación puede tomar hasta ~50s (schedules en proyectos grandes)
+      timeout: cdk.Duration.seconds(60),
       environment: {
         INVENTARIO_TABLE: inventarioTable.tableName,
         USUARIOS_TABLE: usuariosTable.tableName,
@@ -196,7 +198,8 @@ export class JamStack extends cdk.Stack {
     });
 
     inventarioTable.grantReadWriteData(proyectosLambda);
-    usuariosTable.grantReadData(proyectosLambda);
+    // Necesita escritura para desvincular el proyecto de las inmobiliarias al eliminar
+    usuariosTable.grantReadWriteData(proyectosLambda);
 
     // ─── DYNAMODB jam-clientes ───────────────────────────────────────────────
 
@@ -413,6 +416,98 @@ export class JamStack extends cdk.Stack {
       actions: ['iam:PassRole'],
       resources: [schedulerRole.roleArn],
     }));
+
+    // ─── STEP FUNCTION: Eliminar Proyecto ────────────────────────────────────
+    // Soluciona el timeout de 30s al dividir la eliminación en 5 pasos independientes.
+    // Cada paso tiene sus propios logs en /aws/lambda/jam-proyectos (buscar [sf_X]).
+    //
+    // IMPORTANTE: El ARN se construye manualmente ANTES de crear la SF para romper la
+    // dependencia circular (Lambda → SF ARN → SF → Lambda permission → Lambda → ∞).
+    const eliminarProyectoSFArn = `arn:aws:states:${this.region}:${this.account}:stateMachine:${resourceName('jam-eliminar-proyecto')}`;
+    proyectosLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['states:StartExecution'],
+      resources: [eliminarProyectoSFArn],
+    }));
+    proyectosLambda.addEnvironment('ELIMINAR_PROYECTO_SF_ARN', eliminarProyectoSFArn);
+
+    const sfEliminarPreparar = new tasks.LambdaInvoke(this, 'EliminarPreparar', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Valida el proyecto y cuenta unidades/procesos/clientes',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_preparar',
+        'proyecto_id.$': '$.proyecto_id',
+      }),
+      outputPath: '$.Payload',
+    });
+
+    const sfEliminarSchedules = new tasks.LambdaInvoke(this, 'EliminarSchedules', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Cancela todos los schedules de EventBridge del proyecto',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_schedules',
+        'proyecto_id.$': '$.proyecto_id',
+        'total_unidades.$': '$.total_unidades',
+        'total_procesos.$': '$.total_procesos',
+        'total_clientes.$': '$.total_clientes',
+      }),
+      outputPath: '$.Payload',
+      // Puede durar hasta ~50s en proyectos con muchas unidades (era el cuello de botella)
+      taskTimeout: sfn.Timeout.duration(cdk.Duration.seconds(90)),
+    });
+
+    const sfEliminarDesvincular = new tasks.LambdaInvoke(this, 'EliminarDesvincular', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Marca procesos y clientes como desvinculados',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_desvincular',
+        'proyecto_id.$': '$.proyecto_id',
+        'total_unidades.$': '$.total_unidades',
+        'schedules_cancelados.$': '$.schedules_cancelados',
+      }),
+      outputPath: '$.Payload',
+    });
+
+    const sfEliminarInventario = new tasks.LambdaInvoke(this, 'EliminarInventario', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Borra historial de bloqueos y todas las unidades del inventario',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_inventario',
+        'proyecto_id.$': '$.proyecto_id',
+        'total_unidades.$': '$.total_unidades',
+        'schedules_cancelados.$': '$.schedules_cancelados',
+        'procesos_desvinculados.$': '$.procesos_desvinculados',
+        'clientes_desvinculados.$': '$.clientes_desvinculados',
+      }),
+      outputPath: '$.Payload',
+    });
+
+    const sfEliminarFinalizar = new tasks.LambdaInvoke(this, 'EliminarFinalizar', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Soft-delete del proyecto y desvinculación de inmobiliarias',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_finalizar',
+        'proyecto_id.$': '$.proyecto_id',
+        'total_unidades.$': '$.total_unidades',
+        'schedules_cancelados.$': '$.schedules_cancelados',
+        'procesos_desvinculados.$': '$.procesos_desvinculados',
+        'clientes_desvinculados.$': '$.clientes_desvinculados',
+        'inventario_eliminado.$': '$.inventario_eliminado',
+        'historial_eliminado.$': '$.historial_eliminado',
+      }),
+      outputPath: '$.Payload',
+    });
+
+    const eliminarProyectoSF = new sfn.StateMachine(this, 'EliminarProyectoSF', {
+      stateMachineName: resourceName('jam-eliminar-proyecto'),
+      definitionBody: sfn.DefinitionBody.fromChainable(
+        sfEliminarPreparar
+          .next(sfEliminarSchedules)
+          .next(sfEliminarDesvincular)
+          .next(sfEliminarInventario)
+          .next(sfEliminarFinalizar)
+      ),
+      timeout: cdk.Duration.minutes(10),
+    });
 
     // ─── LAMBDA jam-crm ──────────────────────────────────────────────────────
 
@@ -1278,6 +1373,13 @@ def handler(event, context):
         backup.BackupResource.fromDynamoDbTable(historialEstatusTable),
         backup.BackupResource.fromDynamoDbTable(historialTable),
       ],
+    });
+
+    // ─── SES EMAIL IDENTITY ──────────────────────────────────────────────────
+    // Verifica el email remitente en SES para que pueda enviar correos.
+    // Al hacer deploy, AWS envía un link de verificación a notificationEmail.
+    new ses.EmailIdentity(this, 'SesFromEmailIdentity', {
+      identity: ses.Identity.email(notificationEmail),
     });
 
     // ─── LAMBDA jam-notificaciones ───────────────────────────────────────────

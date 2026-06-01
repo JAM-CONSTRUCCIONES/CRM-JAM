@@ -3,8 +3,27 @@ from utils.response import forbidden, not_found
 from routes import proyectos, etapas, unidades, excel
 
 
+# Acciones directas desde Step Function (no tienen httpMethod)
+_SF_ACTIONS = {
+    'sf_eliminar_preparar':    proyectos.sf_eliminar_preparar,
+    'sf_eliminar_schedules':   proyectos.sf_eliminar_schedules,
+    'sf_eliminar_desvincular': proyectos.sf_eliminar_desvincular,
+    'sf_eliminar_inventario':  proyectos.sf_eliminar_inventario,
+    'sf_eliminar_finalizar':   proyectos.sf_eliminar_finalizar,
+}
+
+
 def handler(event, context):
     try:
+        # ── Invocación directa desde Step Function ────────────────────────────
+        if not event.get('httpMethod') and event.get('action'):
+            fn = _SF_ACTIONS.get(event['action'])
+            if fn:
+                # Lanza excepción en error; SF lo captura como tarea fallida
+                return fn(event)
+            raise ValueError(f"Acción SF desconocida: {event['action']}")
+
+        # ── Petición HTTP normal ──────────────────────────────────────────────
         method = event.get('httpMethod')
         path = event.get('path', '')
         rol = get_rol(event)
@@ -65,7 +84,7 @@ def handler(event, context):
             return proyectos.actualizar(proyecto_id, event)
 
         if method == 'DELETE' and proyecto_id and path.endswith(f'/{proyecto_id}') and is_admin:
-            return proyectos.eliminar(proyecto_id)
+            return proyectos.iniciar_eliminacion(proyecto_id)
 
         if method == 'POST' and path.endswith('/imagen') and is_admin:
             return proyectos.presigned_imagen(proyecto_id, event)

@@ -1,7 +1,9 @@
 import json
 import uuid
+import time
 import boto3
 import os
+import logging
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found, conflict
@@ -9,8 +11,13 @@ from utils.helpers import now
 
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 s3_client = boto3.client('s3')
+scheduler_client = boto3.client('scheduler')
+sfn_client = boto3.client('stepfunctions')
 ASSETS_BUCKET = os.environ.get('ASSETS_BUCKET', '')
 CLOUDFRONT_URL = os.environ.get('CLOUDFRONT_URL', '')
+SF_ELIMINAR_ARN = os.environ.get('ELIMINAR_PROYECTO_SF_ARN', '')
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def listar(event):
@@ -95,7 +102,7 @@ def actualizar(proyecto_id, event):
         raise
 
 
-def eliminar(proyecto_id):
+def _eliminar_legacy_disponibles(proyecto_id):
     """
     Elimina (desactiva) un proyecto.
     Permite eliminar si tiene unidades, pero solo si están en estado 'disponible'.
@@ -283,3 +290,524 @@ def presigned_imagen(proyecto_id, event=None):
         'public_url': public_url,
         'key': key,
     })
+
+
+# Conserva clientes y limpia las entidades operativas del proyecto.
+def eliminar(proyecto_id):
+    """Elimina el proyecto y sus dependencias; conserva clientes desvinculados."""
+    ts = now()
+
+    proyecto = inventario.get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    ).get('Item')
+    if not proyecto:
+        return not_found('Proyecto no encontrado')
+
+    inventario_items = _query_all(
+        inventario,
+        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}'),
+    )
+    unidades = [i for i in inventario_items if i.get('sk', '').startswith('UNIDAD#')]
+    hijos_inventario = [i for i in inventario_items if i.get('sk') != 'METADATA']
+    procesos = _obtener_procesos_proyecto(proyecto_id)
+    clientes = _obtener_clientes_proyecto(proyecto_id)
+    clientes_keys = {(c.get('pk'), c.get('sk')) for c in clientes}
+
+    logger.info(
+        '[eliminar_proyecto] inicio proyecto_id=%s unidades=%s inventario_hijos=%s procesos=%s clientes=%s',
+        proyecto_id, len(unidades), len(hijos_inventario), len(procesos), len(clientes),
+    )
+
+    for unidad in unidades:
+        unidad_id = unidad.get('unidad_id') or unidad.get('sk', '').replace('UNIDAD#', '')
+        if unidad_id:
+            _cancelar_schedules_bloqueo(unidad_id)
+
+    for proceso in procesos:
+        cedula = proceso.get('cedula')
+        inmo_id = proceso.get('inmobiliaria_id')
+        unidad_id = proceso.get('unidad_id')
+        if cedula and unidad_id:
+            _cancelar_schedule_separacion(cedula, unidad_id)
+        if cedula and inmo_id:
+            _cancelar_schedule_exclusividad(cedula, inmo_id, proyecto_id)
+
+    for cliente in clientes:
+        cedula = cliente.get('cedula')
+        inmo_id = cliente.get('inmobiliaria_id')
+        if cedula and inmo_id:
+            _cancelar_schedule_exclusividad(cedula, inmo_id, proyecto_id)
+
+    clientes_table = _tabla_env('CLIENTES_TABLE')
+    clientes_desvinculados = 0
+    if clientes_table:
+        for cliente in clientes:
+            _desvincular_cliente(clientes_table, cliente, ts)
+            clientes_desvinculados += 1
+
+        for proceso in procesos:
+            cedula = proceso.get('cedula')
+            inmo_id = proceso.get('inmobiliaria_id')
+            if not cedula or not inmo_id:
+                continue
+            pk = f'CLIENTE#{cedula}#{inmo_id}'
+            sk = f'PROYECTO#{proyecto_id}'
+            if (pk, sk) in clientes_keys:
+                continue
+            item = clientes_table.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
+            if item:
+                _desvincular_cliente(clientes_table, item, ts)
+                clientes_desvinculados += 1
+                clientes_keys.add((pk, sk))
+
+    procesos_table = _tabla_env('PROCESOS_TABLE')
+    procesos_desvinculados = 0
+    if procesos_table and procesos:
+        for proceso in procesos:
+            if _desvincular_proceso(procesos_table, proceso, ts):
+                procesos_desvinculados += 1
+
+    historial_eliminado = 0
+    historial_table = _tabla_env('HISTORIAL_TABLE')
+    if historial_table:
+        for unidad in unidades:
+            unidad_id = unidad.get('unidad_id') or unidad.get('sk', '').replace('UNIDAD#', '')
+            if unidad_id:
+                historial_eliminado += _eliminar_historial_unidad(historial_table, unidad_id)
+
+    inventario_eliminado = 0
+    if hijos_inventario:
+        with inventario.batch_writer() as batch:
+            for item in hijos_inventario:
+                batch.delete_item(Key={'pk': item['pk'], 'sk': item['sk']})
+                inventario_eliminado += 1
+
+    resumen = {
+        'unidades_eliminadas': len(unidades),
+        'inventario_eliminado': inventario_eliminado,
+        'procesos_desvinculados': procesos_desvinculados,
+        'clientes_desvinculados': clientes_desvinculados,
+        'historial_eliminado': historial_eliminado,
+    }
+
+    inventario.update_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'},
+        UpdateExpression=(
+            'SET activo = :false, eliminado_en = :ts, actualizado_en = :ts, '
+            'eliminacion_resumen = :resumen'
+        ),
+        ExpressionAttributeValues={
+            ':false': False,
+            ':ts': ts,
+            ':resumen': resumen,
+        },
+    )
+
+    resumen['inmobiliarias_actualizadas'] = _desvincular_proyecto_de_inmobiliarias(proyecto_id)
+
+    logger.info('[eliminar_proyecto] fin proyecto_id=%s resumen=%s', proyecto_id, resumen)
+    return ok({
+        'message': 'Proyecto eliminado. Clientes conservados como desvinculados.',
+        'proyecto_id': proyecto_id,
+        'resumen': resumen,
+    })
+
+
+def _tabla_env(nombre_env):
+    table_name = os.environ.get(nombre_env, '')
+    return boto3.resource('dynamodb').Table(table_name) if table_name else None
+
+
+def _query_all(table, **kwargs):
+    items = []
+    while True:
+        result = table.query(**kwargs)
+        items.extend(result.get('Items', []))
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            return items
+        kwargs['ExclusiveStartKey'] = last_key
+
+
+def _obtener_procesos_proyecto(proyecto_id):
+    table = _tabla_env('PROCESOS_TABLE')
+    if not table:
+        return []
+    return _query_all(
+        table,
+        IndexName='gsi-proyecto-procesos',
+        KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
+    )
+
+
+def _obtener_clientes_proyecto(proyecto_id):
+    table = _tabla_env('CLIENTES_TABLE')
+    if not table:
+        return []
+    return _query_all(
+        table,
+        IndexName='gsi-proyecto-clientes',
+        KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
+    )
+
+
+def _desvincular_cliente(table, cliente, ts):
+    table.update_item(
+        Key={'pk': cliente['pk'], 'sk': cliente['sk']},
+        UpdateExpression=(
+            'SET exclusividad_activa = :false, #estado = :estado, '
+            'desvinculado_en = :ts, motivo_desvinculacion = :motivo, '
+            'proyecto_eliminado = :true, actualizado_en = :ts '
+            'REMOVE fecha_vencimiento'
+        ),
+        ExpressionAttributeNames={'#estado': 'estado'},
+        ExpressionAttributeValues={
+            ':false': False,
+            ':true': True,
+            ':estado': 'desvinculado',
+            ':ts': ts,
+            ':motivo': 'proyecto_eliminado',
+        },
+    )
+
+
+def _desvincular_proceso(table, proceso, ts):
+    estado_actual = proceso.get('estado', 'captacion')
+    if estado_actual == 'desvinculado':
+        return False
+
+    entrada_historial = {
+        'estatus_anterior': estado_actual,
+        'estatus_nuevo': 'desvinculado',
+        'ejecutado_por': 'sistema',
+        'ejecutado_por_nombre': 'Eliminacion de proyecto',
+        'notificacion_enviada': False,
+        'timestamp': ts,
+    }
+
+    table.update_item(
+        Key={'pk': proceso['pk'], 'sk': proceso['sk']},
+        UpdateExpression=(
+            'SET #estado = :estado, actualizado_en = :ts, '
+            'desvinculado_en = :ts, motivo_desvinculacion = :motivo, '
+            'proyecto_eliminado = :true, '
+            'historial = list_append(if_not_exists(historial, :empty), :entrada) '
+            'REMOVE alerta_separacion_vencida'
+        ),
+        ExpressionAttributeNames={'#estado': 'estado'},
+        ExpressionAttributeValues={
+            ':estado': 'desvinculado',
+            ':ts': ts,
+            ':motivo': 'proyecto_eliminado',
+            ':true': True,
+            ':empty': [],
+            ':entrada': [entrada_historial],
+        },
+    )
+    return True
+
+
+def _eliminar_historial_unidad(table, unidad_id):
+    items = _query_all(
+        table,
+        KeyConditionExpression=Key('pk').eq(f'UNIDAD#{unidad_id}'),
+    )
+    if not items:
+        return 0
+    with table.batch_writer() as batch:
+        for item in items:
+            batch.delete_item(Key={'pk': item['pk'], 'sk': item['sk']})
+    return len(items)
+
+
+def _desvincular_proyecto_de_inmobiliarias(proyecto_id):
+    table = _tabla_env('USUARIOS_TABLE')
+    if not table:
+        return 0
+    actualizadas = 0
+    inmos = _query_all(
+        table,
+        IndexName='gsi-tipo',
+        KeyConditionExpression=Key('tipo').eq('INMOBILIARIA'),
+    )
+    for inmo in inmos:
+        proyectos_asignados = inmo.get('proyectos', [])
+        if proyecto_id not in proyectos_asignados:
+            continue
+        nuevos = [p for p in proyectos_asignados if p != proyecto_id]
+        table.update_item(
+            Key={'pk': inmo['pk'], 'sk': 'METADATA'},
+            UpdateExpression='SET proyectos = :p',
+            ExpressionAttributeValues={':p': nuevos},
+        )
+        actualizadas += 1
+    return actualizadas
+
+
+def _cancelar_schedules_bloqueo(unidad_id):
+    safe = unidad_id.replace('/', '-').replace('#', '-')
+    for suffix in ('alerta', 'liberacion'):
+        _delete_schedule(f'bloqueo-{safe}-{suffix}')
+
+
+def _cancelar_schedule_separacion(cedula, unidad_id):
+    safe_cedula = cedula.replace('/', '-').replace('#', '-').replace(' ', '-')
+    safe_unidad = unidad_id.replace('/', '-').replace('#', '-')
+    _delete_schedule(f'sep-{safe_cedula}-{safe_unidad}'[:64])
+
+
+def _cancelar_schedule_exclusividad(cedula, inmobiliaria_id, proyecto_id):
+    inmo_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
+    for inmo_id in (inmo_clean, f'INMOBILIARIA#{inmo_clean}'):
+        safe_cedula = cedula.replace('/', '-').replace('#', '-')
+        safe_inmo = inmo_id.replace('/', '-').replace('#', '-').replace('INMOBILIARIA', 'I')
+        safe_proy = proyecto_id.replace('/', '-').replace('#', '-').replace('PROYECTO', 'P')
+        _delete_schedule(f'exclusividad-{safe_cedula}-{safe_inmo}-{safe_proy}')
+
+
+def _delete_schedule(name):
+    try:
+        scheduler_client.delete_schedule(Name=name)
+    except scheduler_client.exceptions.ResourceNotFoundException:
+        return
+    except Exception as e:
+        logger.warning('[eliminar_proyecto] no se pudo eliminar schedule %s: %s', name, e)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ELIMINAR PROYECTO via Step Function
+# ─────────────────────────────────────────────────────────────────────────────
+
+def iniciar_eliminacion(proyecto_id):
+    """
+    Punto de entrada HTTP para borrar un proyecto.
+    Si SF_ELIMINAR_ARN está configurado inicia la Step Function (async).
+    Si no, ejecuta la eliminación directa como fallback (solo dev).
+    """
+    proyecto = inventario.get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    ).get('Item')
+    if not proyecto:
+        return not_found('Proyecto no encontrado')
+    if not proyecto.get('activo', True):
+        return conflict('El proyecto ya fue eliminado')
+    if proyecto.get('eliminando'):
+        return conflict('El proyecto ya tiene una eliminación en curso')
+
+    if not SF_ELIMINAR_ARN:
+        logger.warning('[iniciar_eliminacion] SF_ELIMINAR_ARN no configurado, ejecutando síncronamente')
+        return eliminar(proyecto_id)
+
+    # Marcar como "en eliminación" para que el frontend pueda hacer polling
+    inventario.update_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'},
+        UpdateExpression='SET eliminando = :true, actualizado_en = :ts',
+        ExpressionAttributeValues={':true': True, ':ts': now()},
+    )
+
+    execution_name = f'del-{proyecto_id}-{int(time.time())}'[:80]
+    execution = sfn_client.start_execution(
+        stateMachineArn=SF_ELIMINAR_ARN,
+        name=execution_name,
+        input=json.dumps({'proyecto_id': proyecto_id}),
+    )
+
+    print(f'[iniciar_eliminacion] SF iniciada proyecto_id={proyecto_id} execution={execution_name}')
+    return ok({
+        'message': 'Eliminación iniciada',
+        'proyecto_id': proyecto_id,
+        'execution_arn': execution['executionArn'],
+    })
+
+
+# ── Step 1: Validar y recopilar conteos ──────────────────────────────────────
+
+def sf_eliminar_preparar(event):
+    proyecto_id = event['proyecto_id']
+    print(f'[sf_preparar] INICIO proyecto_id={proyecto_id}')
+
+    proyecto = inventario.get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    ).get('Item')
+    if not proyecto:
+        raise ValueError(f'Proyecto {proyecto_id} no encontrado')
+
+    items = _query_all(
+        inventario,
+        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}'),
+    )
+    total_unidades = sum(1 for i in items if i.get('sk', '').startswith('UNIDAD#'))
+    total_items = len([i for i in items if i.get('sk') != 'METADATA'])
+
+    procesos = _obtener_procesos_proyecto(proyecto_id)
+    clientes = _obtener_clientes_proyecto(proyecto_id)
+
+    print(f'[sf_preparar] unidades={total_unidades} items_inventario={total_items} procesos={len(procesos)} clientes={len(clientes)}')
+    return {
+        'proyecto_id': proyecto_id,
+        'total_unidades': total_unidades,
+        'total_procesos': len(procesos),
+        'total_clientes': len(clientes),
+    }
+
+
+# ── Step 2: Cancelar schedules de EventBridge ────────────────────────────────
+
+def sf_eliminar_schedules(event):
+    proyecto_id = event['proyecto_id']
+    print(f'[sf_schedules] INICIO proyecto_id={proyecto_id}')
+
+    items = _query_all(
+        inventario,
+        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}'),
+    )
+    unidades_ids = [
+        i.get('unidad_id') or i['sk'].replace('UNIDAD#', '')
+        for i in items
+        if i.get('sk', '').startswith('UNIDAD#')
+    ]
+    procesos = _obtener_procesos_proyecto(proyecto_id)
+    clientes = _obtener_clientes_proyecto(proyecto_id)
+
+    cancelados = 0
+    for uid in unidades_ids:
+        _cancelar_schedules_bloqueo(uid)
+        cancelados += 2  # alerta + liberacion
+
+    for p in procesos:
+        cedula, inmo_id, uid = p.get('cedula'), p.get('inmobiliaria_id'), p.get('unidad_id')
+        if cedula and uid:
+            _cancelar_schedule_separacion(cedula, uid)
+            cancelados += 1
+        if cedula and inmo_id:
+            _cancelar_schedule_exclusividad(cedula, inmo_id, proyecto_id)
+            cancelados += 2
+
+    for c in clientes:
+        cedula, inmo_id = c.get('cedula'), c.get('inmobiliaria_id')
+        if cedula and inmo_id:
+            _cancelar_schedule_exclusividad(cedula, inmo_id, proyecto_id)
+            cancelados += 2
+
+    print(f'[sf_schedules] schedules_cancelados_intentados={cancelados}')
+    return {**event, 'schedules_cancelados': cancelados}
+
+
+# ── Step 3: Desvincular procesos y clientes ───────────────────────────────────
+
+def sf_eliminar_desvincular(event):
+    proyecto_id = event['proyecto_id']
+    ts = now()
+    print(f'[sf_desvincular] INICIO proyecto_id={proyecto_id}')
+
+    procesos = _obtener_procesos_proyecto(proyecto_id)
+    clientes = _obtener_clientes_proyecto(proyecto_id)
+
+    clientes_table = _tabla_env('CLIENTES_TABLE')
+    clientes_desvinculados = 0
+    if clientes_table:
+        clientes_keys = set()
+        for c in clientes:
+            _desvincular_cliente(clientes_table, c, ts)
+            clientes_desvinculados += 1
+            clientes_keys.add((c['pk'], c['sk']))
+
+        # Clientes que aparecen en procesos pero no en la query de clientes
+        for p in procesos:
+            cedula, inmo_id = p.get('cedula'), p.get('inmobiliaria_id')
+            if not cedula or not inmo_id:
+                continue
+            pk = f'CLIENTE#{cedula}#{inmo_id}'
+            sk = f'PROYECTO#{proyecto_id}'
+            if (pk, sk) in clientes_keys:
+                continue
+            item = clientes_table.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
+            if item:
+                _desvincular_cliente(clientes_table, item, ts)
+                clientes_desvinculados += 1
+                clientes_keys.add((pk, sk))
+
+    procesos_table = _tabla_env('PROCESOS_TABLE')
+    procesos_desvinculados = 0
+    if procesos_table:
+        for p in procesos:
+            if _desvincular_proceso(procesos_table, p, ts):
+                procesos_desvinculados += 1
+
+    print(f'[sf_desvincular] procesos_desvinculados={procesos_desvinculados} clientes_desvinculados={clientes_desvinculados}')
+    return {**event, 'procesos_desvinculados': procesos_desvinculados, 'clientes_desvinculados': clientes_desvinculados}
+
+
+# ── Step 4: Borrar historial y unidades del inventario ───────────────────────
+
+def sf_eliminar_inventario(event):
+    proyecto_id = event['proyecto_id']
+    print(f'[sf_inventario] INICIO proyecto_id={proyecto_id}')
+
+    items = _query_all(
+        inventario,
+        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}'),
+    )
+    unidades_ids = [
+        i.get('unidad_id') or i['sk'].replace('UNIDAD#', '')
+        for i in items
+        if i.get('sk', '').startswith('UNIDAD#')
+    ]
+    hijos = [i for i in items if i.get('sk') != 'METADATA']
+
+    historial_eliminado = 0
+    historial_table = _tabla_env('HISTORIAL_TABLE')
+    if historial_table:
+        for uid in unidades_ids:
+            historial_eliminado += _eliminar_historial_unidad(historial_table, uid)
+        print(f'[sf_inventario] historial_eliminado={historial_eliminado}')
+
+    inventario_eliminado = 0
+    if hijos:
+        with inventario.batch_writer() as batch:
+            for item in hijos:
+                batch.delete_item(Key={'pk': item['pk'], 'sk': item['sk']})
+                inventario_eliminado += 1
+        print(f'[sf_inventario] inventario_eliminado={inventario_eliminado}')
+
+    return {**event, 'inventario_eliminado': inventario_eliminado, 'historial_eliminado': historial_eliminado}
+
+
+# ── Step 5: Soft-delete del proyecto y desvincular inmobiliarias ─────────────
+
+def sf_eliminar_finalizar(event):
+    proyecto_id = event['proyecto_id']
+    ts = now()
+
+    resumen = {
+        'unidades_eliminadas':     event.get('total_unidades', 0),
+        'inventario_eliminado':    event.get('inventario_eliminado', 0),
+        'procesos_desvinculados':  event.get('procesos_desvinculados', 0),
+        'clientes_desvinculados':  event.get('clientes_desvinculados', 0),
+        'historial_eliminado':     event.get('historial_eliminado', 0),
+        'schedules_cancelados':    event.get('schedules_cancelados', 0),
+    }
+    print(f'[sf_finalizar] INICIO proyecto_id={proyecto_id} resumen={resumen}')
+
+    inventario.update_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'},
+        UpdateExpression=(
+            'SET activo = :false, eliminado_en = :ts, actualizado_en = :ts, '
+            'eliminacion_resumen = :resumen '
+            'REMOVE eliminando'
+        ),
+        ExpressionAttributeValues={
+            ':false': False,
+            ':ts': ts,
+            ':resumen': resumen,
+        },
+    )
+
+    resumen['inmobiliarias_actualizadas'] = _desvincular_proyecto_de_inmobiliarias(proyecto_id)
+    print(f'[sf_finalizar] FIN proyecto_id={proyecto_id} resumen_final={resumen}')
+
+    return {
+        'proyecto_id': proyecto_id,
+        'message': 'Proyecto eliminado. Clientes conservados como desvinculados.',
+        'resumen': resumen,
+    }

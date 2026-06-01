@@ -75,7 +75,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
 
         {/* Info grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 8 }}>
-          {u.manzana && <div><Text type="secondary" style={{ fontSize: 11 }}>MANZANA</Text><div><Text>{u.manzana}</Text></div></div>}
+          {u.manzana && <div><Text type="secondary" style={{ fontSize: 11 }}>BLOQUE</Text><div><Text>{u.manzana}</Text></div></div>}
           {u.piso && <div><Text type="secondary" style={{ fontSize: 11 }}>PISO</Text><div><Text>{u.piso}</Text></div></div>}
           <div>
             <Text type="secondary" style={{ fontSize: 11 }}>METRAJE</Text>
@@ -86,7 +86,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
             </div>
           </div>
           {u.parqueos != null && <div><Text type="secondary" style={{ fontSize: 11 }}>PARQUEOS</Text><div><Text>{u.parqueos}</Text></div></div>}
-          {(u as any).num_cuartos != null && <div><Text type="secondary" style={{ fontSize: 11 }}>CUARTOS</Text><div><Text>{(u as any).num_cuartos}</Text></div></div>}
+          {(u as any).num_cuartos != null && <div><Text type="secondary" style={{ fontSize: 11 }}>HABITACIONES</Text><div><Text>{(u as any).num_cuartos}</Text></div></div>}
           {(u as any).num_banos != null && <div><Text type="secondary" style={{ fontSize: 11 }}>BAÑOS</Text><div><Text>{(u as any).num_banos}</Text></div></div>}
         </div>
 
@@ -171,7 +171,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
       return e ? <Tag color="blue">{e.nombre}</Tag> : <Text type="secondary">—</Text>;
     }},
     { title: 'Tipo', dataIndex: 'tipo', key: 'tipo', render: (v: string) => v ? <Tag>{v}</Tag> : <Text type="secondary">—</Text> },
-    { title: 'Manzana', dataIndex: 'manzana', key: 'manzana', render: (v: string) => v || <Text type="secondary">—</Text> },
+    { title: 'Bloque', dataIndex: 'manzana', key: 'manzana', render: (v: string) => v || <Text type="secondary">—</Text> },
     { title: 'Piso', dataIndex: 'piso', key: 'piso', render: (v: string) => v || <Text type="secondary">—</Text> },
     {
       title: 'Metraje', key: 'metraje',
@@ -185,7 +185,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
     },
     { title: 'Parqueos', dataIndex: 'parqueos', key: 'parqueos', render: (v: any) => v != null ? <Tag>{v}</Tag> : <Text type="secondary">—</Text> },
     {
-      title: 'Cuartos / Baños', key: 'cuartos_banos',
+      title: 'Habitaciones / Baños', key: 'cuartos_banos',
       render: (_: any, u: Unidad) => {
         const c = (u as any).num_cuartos;
         const b = (u as any).num_banos;

@@ -12,14 +12,15 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { listarTodosProcesos, cambiarEstatus, getMisProcesos, type ProcesoEnriquecido } from '../../services/crm.service';
-import { getProyectos, getUnidades } from '../../services/proyectos.service';
+import { getProyectos, getUnidades, getEtapas } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import { extenderBloqueo, getBloquesActivos, bloquearUnidad, liberarBloqueo, getHistorialBloqueos } from '../../services/bloqueos.service';
 import { getClientesAdmin } from '../../services/clientes.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
-import type { Proyecto, Proceso, Bloqueo, Cliente, HistorialBloqueo, Unidad } from '../../types';
+import type { Proyecto, Proceso, Bloqueo, Cliente, HistorialBloqueo, Unidad, Etapa } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
+import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloqueoAdmin';
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
 import { useAuthContext } from '../../context/AuthContext';
 
@@ -67,19 +68,48 @@ const ProcesosPage = () => {
   // ── Drawer detalle unidad ─────────────────────────────────────────────────
   const [unidadDrawer, setUnidadDrawer] = useState<Unidad | null>(null);
   const [loadingUnidad, setLoadingUnidad] = useState(false);
+  const [etapasDrawer, setEtapasDrawer] = useState<Etapa[]>([]);
+  const [drawerProyectoId, setDrawerProyectoId] = useState<string>('');
+  const [modalBloqueoAdmin, setModalBloqueoAdmin] = useState(false);
+  const [guardandoBloqueoAdmin, setGuardandoBloqueoAdmin] = useState(false);
 
   const abrirDetalleUnidad = async (unidadId: string, proyectoId: string) => {
     setUnidadDrawer(null);
     setLoadingUnidad(true);
+    setDrawerProyectoId(proyectoId);
     try {
-      const items = await getUnidades(proyectoId, { limit: 1000 });
+      const [items, etapas] = await Promise.all([
+        getUnidades(proyectoId, { limit: 1000 }),
+        getEtapas(proyectoId).catch(() => [] as Etapa[]),
+      ]);
       const found = items.find(u => u.unidad_id === unidadId || u.id_unidad === unidadId);
       setUnidadDrawer(found ?? null);
+      setEtapasDrawer(etapas);
       if (!found) message.warning('No se encontraron detalles de la unidad');
     } catch {
       message.error('Error al cargar detalles de la unidad');
     } finally {
       setLoadingUnidad(false);
+    }
+  };
+
+  const handleCrearBloqueoAdmin = async (payload: any) => {
+    if (!unidadDrawer) return;
+    setGuardandoBloqueoAdmin(true);
+    try {
+      await bloquearUnidad({ ...payload, proyecto_id: drawerProyectoId, unidad_id: unidadDrawer.unidad_id });
+      message.success(`Unidad ${unidadDrawer.id_unidad} bloqueada`);
+      setModalBloqueoAdmin(false);
+      // Recargar unidad para reflejar el nuevo estado
+      await abrirDetalleUnidad(unidadDrawer.unidad_id, drawerProyectoId);
+    } catch (err: any) {
+      const s = err?.response?.statusCode ?? err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message;
+      if (s === 409) message.error(msg || 'La unidad ya no está disponible');
+      else if (s === 429) message.warning(msg || 'No puedes re-bloquear esta unidad antes de 24h');
+      else message.error(msg || 'Error al bloquear');
+    } finally {
+      setGuardandoBloqueoAdmin(false);
     }
   };
 
@@ -1094,9 +1124,45 @@ const ProcesosPage = () => {
             <Descriptions title="Identificación" bordered size="small" column={1}>
               <Descriptions.Item label="ID Unidad">{unidadDrawer.id_unidad}</Descriptions.Item>
               {unidadDrawer.tipo && <Descriptions.Item label="Tipo">{unidadDrawer.tipo}</Descriptions.Item>}
+              {unidadDrawer.etapa_id && etapasDrawer.find(e => e.etapa_id === unidadDrawer.etapa_id) && (
+                <Descriptions.Item label="Etapa">
+                  <Tag color="blue">{etapasDrawer.find(e => e.etapa_id === unidadDrawer.etapa_id)?.nombre}</Tag>
+                </Descriptions.Item>
+              )}
               {unidadDrawer.piso && <Descriptions.Item label="Piso">{unidadDrawer.piso}</Descriptions.Item>}
-              {unidadDrawer.manzana && <Descriptions.Item label="Manzana">{unidadDrawer.manzana}</Descriptions.Item>}
+              {unidadDrawer.manzana && <Descriptions.Item label="Bloque">{unidadDrawer.manzana}</Descriptions.Item>}
             </Descriptions>
+
+            {/* Estado de bloqueo */}
+            {unidadDrawer.estado === 'bloqueada' && (
+              <Descriptions title="Bloqueo activo" bordered size="small" column={1}>
+                {unidadDrawer.bloqueado_por && (
+                  <Descriptions.Item label="Inmobiliaria">
+                    {inmoNombre(unidadDrawer.bloqueado_por)}
+                  </Descriptions.Item>
+                )}
+                {unidadDrawer.cliente_cedula && (
+                  <Descriptions.Item label="Cédula cliente">{unidadDrawer.cliente_cedula}</Descriptions.Item>
+                )}
+                {unidadDrawer.fecha_bloqueo && (
+                  <Descriptions.Item label="Inicio bloqueo">
+                    {dayjs(unidadDrawer.fecha_bloqueo).format('DD/MM/YYYY HH:mm')}
+                  </Descriptions.Item>
+                )}
+                {unidadDrawer.fecha_liberacion && (
+                  <Descriptions.Item label="Vence">
+                    {dayjs(unidadDrawer.fecha_liberacion).format('DD/MM/YYYY HH:mm')}
+                  </Descriptions.Item>
+                )}
+                {unidadDrawer.tiempo_restante != null && (
+                  <Descriptions.Item label="Tiempo restante">
+                    <Tag color={unidadDrawer.tiempo_restante <= 0 ? 'red' : unidadDrawer.tiempo_restante < 3600 ? 'orange' : 'green'}>
+                      {formatTiempo(unidadDrawer.tiempo_restante)}
+                    </Tag>
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+            )}
 
             {/* Dimensiones */}
             <Descriptions title="Dimensiones" bordered size="small" column={1}>
@@ -1108,7 +1174,7 @@ const ProcesosPage = () => {
                 <Descriptions.Item label="Patio">{unidadDrawer.metraje_patio} m²</Descriptions.Item>
               )}
               {unidadDrawer.num_cuartos != null && (
-                <Descriptions.Item label="Cuartos">{unidadDrawer.num_cuartos}</Descriptions.Item>
+                <Descriptions.Item label="Habitaciones">{unidadDrawer.num_cuartos}</Descriptions.Item>
               )}
               {unidadDrawer.num_banos != null && (
                 <Descriptions.Item label="Baños">{unidadDrawer.num_banos}</Descriptions.Item>
@@ -1157,9 +1223,33 @@ const ProcesosPage = () => {
               </Descriptions>
             )}
 
+            {/* Botón bloquear (solo admin, solo disponible) */}
+            {!esInmobiliaria && unidadDrawer.estado === 'disponible' && (
+              <Button
+                type="primary"
+                icon={<LockOutlined />}
+                block
+                onClick={() => setModalBloqueoAdmin(true)}
+              >
+                Crear bloqueo
+              </Button>
+            )}
+
           </div>
         ) : null}
       </Drawer>
+
+      {/* ── Modal crear bloqueo admin (desde drawer unidad) ──────────────── */}
+      <ModalCrearBloqueoAdmin
+        open={modalBloqueoAdmin}
+        unidad={unidadDrawer}
+        proyectoId={drawerProyectoId}
+        inmobiliarias={inmobiliarias}
+        guardando={guardandoBloqueoAdmin}
+        onCancel={() => setModalBloqueoAdmin(false)}
+        onBloquear={handleCrearBloqueoAdmin}
+      />
+
     </div>
   );
 };

@@ -67,8 +67,12 @@ def listar(proyecto_id, event, rol):
         filter_expr = filter_expr & new_filter if filter_expr else new_filter
     
     if qs.get('piso'):
-        # Búsqueda parcial (contains) para piso
-        new_filter = Attr('piso').contains(qs['piso'])
+        # Piso puede estar almacenado como número o string según la fuente (Excel vs UI)
+        try:
+            piso_int = int(qs['piso'])
+            new_filter = Attr('piso').eq(piso_int) | Attr('piso').eq(qs['piso'])
+        except (ValueError, TypeError):
+            new_filter = Attr('piso').eq(qs['piso'])
         filter_expr = filter_expr & new_filter if filter_expr else new_filter
     
     if qs.get('torre_id'):

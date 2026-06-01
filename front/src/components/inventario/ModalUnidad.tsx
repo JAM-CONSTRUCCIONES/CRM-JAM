@@ -81,7 +81,7 @@ const ModalUnidad = ({ open, modo, etapas, unidadEditando, onCancel, onFinish }:
             </Form.Item>
           </Col>
           <Col span={8}>
-            <Form.Item name="manzana" label="Manzana">
+            <Form.Item name="manzana" label="Bloque">
               <Input placeholder="A, B, C..." />
             </Form.Item>
           </Col>
@@ -119,7 +119,7 @@ const ModalUnidad = ({ open, modo, etapas, unidadEditando, onCancel, onFinish }:
             </Form.Item>
           </Col>
           <Col span={8}>
-            <Form.Item name="num_cuartos" label="Cuartos">
+            <Form.Item name="num_cuartos" label="Habitaciones">
               <InputNumber style={{ width: '100%' }} placeholder="3" min={0} max={20} />
             </Form.Item>
           </Col>

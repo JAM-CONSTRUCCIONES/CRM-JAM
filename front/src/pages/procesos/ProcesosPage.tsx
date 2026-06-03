@@ -215,6 +215,15 @@ const ProcesosPage = () => {
   const nombreCliente = (p: ProcesoEnriquecido) =>
     p.cliente?.nombres ? `${p.cliente.nombres} ${p.cliente.apellidos}` : p.cedula;
 
+  const PASO_ANTERIOR: Record<string, string> = {
+    reserva:        'captacion',
+    separacion:     'reserva',
+    inicial:        'separacion',
+    pagos_atrasados:'separacion',
+    contra_entrega: 'inicial',
+    vendida:        'contra_entrega',
+  };
+
   // ── Handlers procesos ─────────────────────────────────────────────────────
   const handleCambiarEstatus = async (estatus: string, notificar: ModoNotificacion) => {
     if (!estatusModal) return;
@@ -497,8 +506,26 @@ const ProcesosPage = () => {
       colorTiempo = tiempoRestante <= 0 ? '#ff4d4f' : tiempoRestante < 5 * 3600 ? '#faad14' : '#52c41a';
     }
     
+    const pasoAtras = PASO_ANTERIOR[p.estado];
     const menuItems = [
       ...(puedeAvanzar ? [{ key: 'estatus', icon: <SwapOutlined />, label: 'Cambiar estatus', onClick: () => setEstatusModal(p) }] : []),
+      ...(!esInmobiliaria && pasoAtras ? [{
+        key: 'retroceder', icon: <ArrowLeftOutlined />, label: `Retroceder a ${ESTADO_PROCESO_LABEL[pasoAtras] ?? pasoAtras}`,
+        onClick: () => Modal.confirm({
+          title: '¿Retroceder estado?',
+          content: `El proceso volverá de "${ESTADO_PROCESO_LABEL[p.estado]}" a "${ESTADO_PROCESO_LABEL[pasoAtras] ?? pasoAtras}".`,
+          okText: 'Sí, retroceder', cancelText: 'Cancelar',
+          onOk: async () => {
+            try {
+              await cambiarEstatus(p.cedula, p.proyecto_id, p.unidad_id, { estatus: pasoAtras, inmobiliaria_id: p.inmobiliaria_id, notificar: false });
+              message.success(`Retrocedido a ${ESTADO_PROCESO_LABEL[pasoAtras] ?? pasoAtras}`);
+              cargar();
+            } catch (err: any) {
+              message.error(err?.response?.data?.message || 'Error al retroceder estatus');
+            }
+          },
+        }),
+      }] : []),
       ...(!esInmobiliaria ? [{ key: 'historial', icon: <HistoryOutlined />, label: 'Ver historial', onClick: () => { setHistorialProceso(p); setHistorialNombre(nombreCliente(p)); } }] : []),
       ...(esBloqueada && !esInmobiliaria ? [
         { key: 'extender', icon: <FieldTimeOutlined />, label: 'Extender bloqueo', onClick: () => { setExtenderProcesoModal(p); formExtenderProceso.resetFields(); } },

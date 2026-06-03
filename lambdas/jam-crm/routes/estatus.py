@@ -21,12 +21,12 @@ DIAS_SEPARACION = 30
 
 TRANSICIONES = {
     'captacion':       ['reserva', 'desvinculado'],
-    'reserva':         ['separacion', 'desvinculado'],
-    'separacion':      ['inicial', 'pagos_atrasados', 'desvinculado'],
-    'inicial':         ['pagos_atrasados', 'contra_entrega', 'desvinculado'],
-    'pagos_atrasados': ['inicial', 'contra_entrega', 'desvinculado'],
-    'contra_entrega':  ['vendida', 'desvinculado'],
-    'vendida':         [],
+    'reserva':         ['separacion', 'desvinculado', 'captacion'],
+    'separacion':      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva'],
+    'inicial':         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion'],
+    'pagos_atrasados': ['inicial', 'contra_entrega', 'desvinculado', 'separacion'],
+    'contra_entrega':  ['vendida', 'desvinculado', 'inicial'],
+    'vendida':         ['contra_entrega'],
 }
 
 
@@ -454,12 +454,18 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
         },
     )
 
-    # Actualizar unidad en inventario si aplica
+    # Actualizar unidad en inventario y manejar schedules según estado destino
     if nuevo_estatus == 'reserva':
-        sched_eliminar_bloqueo(unidad_id)  # cancela liberación automática del bloqueo
+        sched_eliminar_bloqueo(unidad_id)
+        _cancelar_alerta_separacion(cedula, unidad_id)  # por si retrocede desde separacion
+        _actualizar_unidad(proyecto_id, unidad_id, 'no_disponible')
+    elif nuevo_estatus == 'captacion':
+        # Retroceso: cancelar todo lo que pudo haberse creado
+        _cancelar_alerta_separacion(cedula, unidad_id)
         _actualizar_unidad(proyecto_id, unidad_id, 'no_disponible')
     elif nuevo_estatus == 'separacion':
-        # Guardar fecha_separacion y crear alerta a 30 días
+        # Cancelar alerta previa (si retrocede desde inicial) y crear nueva
+        _cancelar_alerta_separacion(cedula, unidad_id)
         procesos_table.update_item(
             Key={'pk': pk, 'sk': sk},
             UpdateExpression='SET fecha_separacion = :fs',
@@ -470,24 +476,18 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
             proceso.get('unidad_nombre', unidad_id)
         )
     elif nuevo_estatus == 'inicial':
-        # Contrato firmado — cancelar alerta de separación y marcar pago confirmado
         _cancelar_alerta_separacion(cedula, unidad_id)
         procesos_table.update_item(
             Key={'pk': pk, 'sk': sk},
             UpdateExpression='SET pago_confirmado = :v',
             ExpressionAttributeValues={':v': True},
         )
-        # La unidad sigue no_disponible hasta contra_entrega/vendida
     elif nuevo_estatus in ('pagos_atrasados', 'contra_entrega'):
-        # No cambia el estado de la unidad en inventario
         pass
     elif nuevo_estatus == 'vendida':
-        # Cierre definitivo de venta
         _actualizar_unidad(proyecto_id, unidad_id, 'vendida')
     elif nuevo_estatus == 'desvinculado':
-        # Si venía de separacion, cancelar la alerta también
-        if estatus_actual in ('separacion', 'pagos_atrasados', 'contra_entrega'):
-            _cancelar_alerta_separacion(cedula, unidad_id)
+        _cancelar_alerta_separacion(cedula, unidad_id)
         _actualizar_unidad(proyecto_id, unidad_id, 'disponible')
 
     # Publicar a SQS para TK-08

@@ -11,12 +11,12 @@ export type ModoNotificacion = false | 'admin' | 'todos';
 
 const TRANSICIONES: Record<string, string[]> = {
   captacion:       ['reserva', 'desvinculado'],
-  reserva:         ['separacion', 'desvinculado'],
-  separacion:      ['inicial', 'pagos_atrasados', 'desvinculado'],
-  inicial:         ['pagos_atrasados', 'contra_entrega', 'desvinculado'],
-  pagos_atrasados: ['inicial', 'contra_entrega', 'desvinculado'],
-  contra_entrega:  ['vendida', 'desvinculado'],
-  vendida:         [],
+  reserva:         ['separacion', 'desvinculado', 'captacion'],
+  separacion:      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva'],
+  inicial:         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion'],
+  pagos_atrasados: ['inicial', 'contra_entrega', 'desvinculado', 'separacion'],
+  contra_entrega:  ['vendida', 'desvinculado', 'inicial'],
+  vendida:         ['contra_entrega'],
 };
 
 interface Props {

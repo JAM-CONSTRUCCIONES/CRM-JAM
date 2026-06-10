@@ -9,6 +9,8 @@ Una vez aprobado este documento, cualquier solicitud adicional o cambio distinto
 
 ### Dashboard
 
+Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el proyecto "Vendedor x" (`B62DD967`). La validacion quedo documentada en `docs/informes/analisis-dashboard-dev-B62DD967.md`. El despliegue a produccion se realizara al final, cuando se completen y validen todos los pendientes de este documento.
+
 - [x] Corregir los calculos de los reportes del dashboard administrativo.
 
   Se corregiran los reportes donde el sistema actualmente no esta calculando bien cantidades, agrupaciones o filtros. Esto incluye:

@@ -19,6 +19,8 @@ const { useBreakpoint } = Grid;
 const BLUE   = '#2E75B6';
 const ORANGE = '#ED7D31';
 const GREEN  = '#375623';
+const PURPLE = '#7030A0';
+const RED    = '#C00000';
 
 // ── Tabla resumen estilo Excel ────────────────────────────────────────────────
 interface SummaryRow { label: string; value: number; bold?: boolean }
@@ -163,13 +165,17 @@ const DashboardContent = ({
     { name: 'BLOQUEADO',       value: unidad_stats.bloqueada,      color: BLUE   },
     { name: 'DISPONIBLE',      value: unidad_stats.disponible,     color: ORANGE },
     { name: 'NO DISPONIBLE',   value: unidad_stats.no_disponible,  color: GREEN  },
+    { name: 'VENDIDA',         value: unidad_stats.vendida,        color: PURPLE },
+    { name: 'DESVINCULADA',    value: unidad_stats.desvinculada,   color: RED    },
   ].filter(d => d.value > 0);
 
   const estatusRows: SummaryRow[] = [
     { label: 'BLOQUEADO',     value: unidad_stats.bloqueada     },
     { label: 'DISPONIBLE',    value: unidad_stats.disponible    },
     { label: 'NO DISPONIBLE', value: unidad_stats.no_disponible },
-    { label: 'Total general', value: unidad_stats.bloqueada + unidad_stats.disponible + unidad_stats.no_disponible, bold: true },
+    ...(unidad_stats.vendida > 0 ? [{ label: 'VENDIDA', value: unidad_stats.vendida }] : []),
+    ...(unidad_stats.desvinculada > 0 ? [{ label: 'DESVINCULADA', value: unidad_stats.desvinculada }] : []),
+    { label: 'Total general', value: unidad_stats.total, bold: true },
   ];
 
   // ── 2. Ventas por metraje (barras verticales) ─────────────────────────────

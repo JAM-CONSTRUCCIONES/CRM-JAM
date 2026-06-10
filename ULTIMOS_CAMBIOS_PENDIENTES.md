@@ -35,9 +35,9 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 ### Proyectos
 
-- [ ] Mantener el icono de comentario sin cambios funcionales.
+- [x] Mantener el icono de comentario sin cambios funcionales.
 
-  El icono indicado por el cliente es para visualizar el comentario. Esta funcion ya fue aclarada al cliente, por la confucion se cambiara a un icono mas claro, que de a entender que es del comentario 
+  El icono indicado por el cliente es para visualizar el comentario. Esta funcion ya fue aclarada al cliente. Se cambio a un icono de mensaje mas claro, con tooltip explicito para ver el comentario interno, sin modificar la funcionalidad.
 
 - [ ] Corregir filtros por bloque o tipo para que no dependan de mayusculas o minusculas.
 

@@ -1,5 +1,5 @@
 import { Table, Tag, Button, Space, Tooltip, Popconfirm, Typography, Grid, Popover } from 'antd';
-import { EditOutlined, DeleteOutlined, LockOutlined, ClockCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, LockOutlined, ClockCircleOutlined, InfoCircleOutlined, MessageOutlined } from '@ant-design/icons';
 import type { Unidad, Etapa } from '../../types';
 import { ESTADO_UNIDAD_CONFIG } from '../../constants/estados';
 
@@ -119,7 +119,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
         {/* Comentario */}
         {u.comentario && isAdmin && (
           <div style={{ background: '#fffbe6', borderRadius: 6, padding: '4px 8px', marginBottom: 8 }}>
-            <Text type="secondary" style={{ fontSize: 11 }}>💬 {u.comentario}</Text>
+            <Text type="secondary" style={{ fontSize: 11 }}><MessageOutlined style={{ marginRight: 4, color: '#faad14' }} />{u.comentario}</Text>
           </div>
         )}
 
@@ -241,10 +241,10 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
     ...(canEdit ? [
       { title: 'Bloqueado por', dataIndex: 'bloqueado_por', key: 'bloqueado_por', render: (v: string) => v ? <Tag>{inmoNombre(v)}</Tag> : <Text type="secondary">—</Text> },
       { title: 'Fecha bloqueo', dataIndex: 'fecha_bloqueo', key: 'fecha_bloqueo', render: (v: string) => v ? new Date(v).toLocaleDateString('es-VE') : <Text type="secondary">—</Text> },
-      { title: '', key: 'acciones', width: 90, render: (_: any, u: Unidad) => (
+      { title: '', key: 'acciones', width: 120, render: (_: any, u: Unidad) => (
         <Space>
           <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => onEditar(u)} /></Tooltip>
-          {u.comentario && <Tooltip title={u.comentario}><Button size="small" type="text" style={{ color: '#faad14' }}>💬</Button></Tooltip>}
+          <Tooltip title={u.comentario ? `Ver comentario interno: ${u.comentario}` : 'Sin comentario interno'}><Button size="small" icon={<MessageOutlined />} disabled={!u.comentario} style={u.comentario ? { color: '#faad14' } : undefined} /></Tooltip>
           <Popconfirm title="¿Eliminar unidad?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(u)}>
             <Tooltip title="Eliminar"><Button size="small" danger icon={<DeleteOutlined />} /></Tooltip>
           </Popconfirm>
@@ -282,3 +282,4 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
 };
 
 export default TablaUnidades;
+

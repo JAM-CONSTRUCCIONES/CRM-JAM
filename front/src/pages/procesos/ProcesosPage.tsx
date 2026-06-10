@@ -23,6 +23,7 @@ import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDraw
 import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloqueoAdmin';
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
 import { useAuthContext } from '../../context/AuthContext';
+import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -323,7 +324,7 @@ const ProcesosPage = () => {
           pais_residencia: clienteSeleccionado.pais_residencia,
         }
       : {
-          ...values,
+          ...normalizeClientePayload(values),
           fecha_nacimiento: values.fecha_nacimiento
             ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD')
             : undefined,
@@ -1109,10 +1110,10 @@ const ProcesosPage = () => {
           <Form form={formAsignar} layout="vertical" onFinish={handleAsignarCliente}>
             <Divider style={{ margin: '0 0 16px' }} />
             <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true }]}><Input placeholder="V-12345678" /></Form.Item>
-            <Form.Item name="nombres" label="Nombres" rules={[{ required: true }]}><Input /></Form.Item>
-            <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true }]}><Input /></Form.Item>
-            <Form.Item name="correo" label="Correo"><Input type="email" /></Form.Item>
-            <Form.Item name="telefono" label="Teléfono"><Input placeholder="+58 412 0000000" /></Form.Item>
+            <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+            <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+            <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
+            <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono} normalize={clienteFieldNormalizers.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
             <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento">
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>

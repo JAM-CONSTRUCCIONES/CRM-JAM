@@ -3,6 +3,7 @@ import { Form, Input, Select, DatePicker, Button, Typography, Spin, Alert, Avata
 import { UserOutlined, CheckCircleFilled, BankOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getInmobiliariasPublico, getProyectosPublico, registrarClientePublico } from '../../services/clientes.service';
+import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -65,7 +66,7 @@ const CapturaGlobalPage = () => {
     setErrorMsg('');
     try {
       await registrarClientePublico({
-        ...values,
+        ...normalizeClientePayload(values),
         inmobiliaria_id: inmobiliariaSeleccionada,
         fecha_nacimiento: values.fecha_nacimiento
           ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD')
@@ -201,10 +202,10 @@ const CapturaGlobalPage = () => {
 
             {/* Datos personales */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
-              <Form.Item name="nombres" label="Nombres" rules={[{ required: true, message: 'Ingresa tus nombres' }]}>
+              <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}>
                 <Input prefix={<UserOutlined style={{ color: '#bfbfbf' }} />} placeholder="Juan" />
               </Form.Item>
-              <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true, message: 'Ingresa tus apellidos' }]}>
+              <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}>
                 <Input placeholder="Pérez" />
               </Form.Item>
             </div>
@@ -214,11 +215,11 @@ const CapturaGlobalPage = () => {
             </Form.Item>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
-              <Form.Item name="correo" label="Correo electrónico">
+              <Form.Item name="correo" label="Correo electrónico" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}>
                 <Input type="email" placeholder="correo@ejemplo.com" />
               </Form.Item>
-              <Form.Item name="telefono" label="Teléfono / WhatsApp">
-                <Input placeholder="+58 412 0000000" />
+              <Form.Item name="telefono" label="Teléfono / WhatsApp" rules={clienteFormRules.telefono} normalize={clienteFieldNormalizers.telefono}>
+                <Input inputMode="numeric" placeholder="584120000000" />
               </Form.Item>
             </div>
 

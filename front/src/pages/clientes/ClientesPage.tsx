@@ -23,6 +23,7 @@ import type { Cliente, Proyecto, Proceso } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION } from '../../constants/estados';
+import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -282,7 +283,7 @@ const ClientesPage = () => {
     if (!editarRegistro) return;
     try {
       await actualizarClienteAdmin(editarRegistro.cedula, editarRegistro.proyecto_id, editarRegistro.inmobiliaria_id, {
-        ...values,
+        ...normalizeClientePayload(values),
         fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
       });
       message.success('Cliente actualizado');
@@ -316,7 +317,10 @@ const ClientesPage = () => {
 
   const handleRegistrar = async (values: any) => {
     try {
-      await registrarCliente({ ...values, fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined });
+      await registrarCliente({
+        ...normalizeClientePayload(values),
+        fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
+      });
       message.success('Cliente registrado');
       setModalOpen(false); form.resetFields();
       setNextToken(undefined);
@@ -1047,10 +1051,10 @@ const ClientesPage = () => {
             </Select>
           </Form.Item>
           <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true }]}><Input placeholder="V-12345678" /></Form.Item>
-          <Form.Item name="nombres" label="Nombres" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="correo" label="Correo"><Input type="email" /></Form.Item>
-          <Form.Item name="telefono" label="Teléfono"><Input placeholder="+58 412 0000000" /></Form.Item>
+          <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+          <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+          <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
+          <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono} normalize={clienteFieldNormalizers.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
           <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item>
           <Form.Item name="estado_civil" label="Estado civil">
             <Select allowClear>
@@ -1069,10 +1073,10 @@ const ClientesPage = () => {
         onCancel={() => setEditarModal(false)} onOk={() => formEditar.submit()}
         okText="Guardar" cancelText="Cancelar" width={520}>
         <Form form={formEditar} layout="vertical" onFinish={handleEditar}>
-          <Form.Item name="nombres" label="Nombres" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="correo" label="Correo"><Input type="email" /></Form.Item>
-          <Form.Item name="telefono" label="Teléfono"><Input /></Form.Item>
+          <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+          <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+          <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
+          <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono} normalize={clienteFieldNormalizers.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
           <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item>
           <Form.Item name="estado_civil" label="Estado civil">
             <Select allowClear>

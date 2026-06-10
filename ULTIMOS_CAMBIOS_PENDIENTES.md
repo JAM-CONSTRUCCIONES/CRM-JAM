@@ -47,7 +47,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 ### Clientes
 
-- [ ] Validar y normalizar datos al crear o editar clientes.
+- [x] Validar y normalizar datos al crear o editar clientes.
 
   Se agregaran requisitos en el formulario para evitar datos mal ubicados o mal escritos:
 
@@ -58,6 +58,8 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   - No debe aceptarse que el telefono se coloque en el campo correo ni que el correo se coloque en el campo telefono.
 
   Este cambio aplica a la validacion del formulario y al guardado de datos. No incluye limpieza masiva de clientes antiguos, salvo los casos necesarios para probar la correccion.
+
+  Hecho: se agrego validacion y normalizacion en formularios de clientes, captacion publica/global, asignacion desde bloqueos y procesos. El backend tambien valida antes de guardar: nombres y apellidos en mayuscula, telefono solo con digitos, correo con formato valido y dominio con punto.
 
 - [ ] Revisar el cliente de prueba dejado por el cliente.
 

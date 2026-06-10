@@ -1,6 +1,7 @@
 import json
 import boto3
 import os
+import re
 from datetime import datetime, timezone, date
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
@@ -13,6 +14,7 @@ clientes = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 usuarios = dynamodb.Table(os.environ['USUARIOS_TABLE'])
 procesos = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 MESES_EXCLUSIVIDAD = 3
+EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$')
 
 sqs_client = boto3.client('sqs')
 SQS_URL = os.environ.get('SQS_URL')
@@ -68,8 +70,56 @@ def _calcular_edad(fecha_nacimiento: str):
         return None
 
 
+def _clean_spaces(value):
+    return ' '.join(str(value or '').strip().split())
+
+
+def _normalizar_nombre(value):
+    return _clean_spaces(value).upper()
+
+
+def _normalizar_correo(value):
+    correo = _clean_spaces(value).lower()
+    if not correo:
+        return ''
+    if not EMAIL_RE.match(correo):
+        raise ValueError('El correo debe tener un formato valido y dominio con punto')
+    return correo
+
+
+def _normalizar_telefono(value):
+    raw = _clean_spaces(value)
+    if not raw:
+        return ''
+    if '@' in raw or re.search(r'[A-Za-z]', raw):
+        raise ValueError('El telefono solo debe contener numeros')
+    telefono = re.sub(r'\D', '', raw)
+    if not telefono:
+        raise ValueError('El telefono solo debe contener numeros')
+    return telefono
+
+
+def _normalizar_datos_cliente(body):
+    data = dict(body or {})
+    try:
+        if 'nombres' in data:
+            data['nombres'] = _normalizar_nombre(data.get('nombres'))
+        if 'apellidos' in data:
+            data['apellidos'] = _normalizar_nombre(data.get('apellidos'))
+        if 'correo' in data:
+            data['correo'] = _normalizar_correo(data.get('correo'))
+        if 'telefono' in data:
+            data['telefono'] = _normalizar_telefono(data.get('telefono'))
+    except ValueError as exc:
+        return None, str(exc)
+    return data, None
+
+
 def registrar(event):
     body = json.loads(event.get('body') or '{}')
+    body, error = _normalizar_datos_cliente(body)
+    if error:
+        return bad_request(error)
     cedula = body.get('cedula', '').strip()
     proyecto_id = body.get('proyecto_id', '').strip()
     nombres = body.get('nombres', '').strip()
@@ -422,6 +472,9 @@ def detalle_admin(event, cedula, proyecto_id):
 def actualizar_admin(event, cedula, proyecto_id):
     """PUT /admin/clientes/{cedula}/proyecto/{id} — admin puede editar todo."""
     body = json.loads(event.get('body') or '{}')
+    body, error = _normalizar_datos_cliente(body)
+    if error:
+        return bad_request(error)
     qs = event.get('queryStringParameters') or {}
     inmobiliaria_id = qs.get('inmobiliaria_id')
     if not inmobiliaria_id:
@@ -504,6 +557,9 @@ def listar_mis_procesos(event):
 def registrar_publico(event):
     """POST /publico/clientes — registro externo sin auth, inmobiliaria_id viene en el body."""
     body = json.loads(event.get('body') or '{}')
+    body, error = _normalizar_datos_cliente(body)
+    if error:
+        return bad_request(error)
     cedula = body.get('cedula', '').strip()
     proyecto_id = body.get('proyecto_id', '').strip()
     nombres = body.get('nombres', '').strip()

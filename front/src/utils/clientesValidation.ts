@@ -12,6 +12,25 @@ export const normalizeClientEmail = (value?: unknown) =>
 export const normalizeClientPhone = (value?: unknown) =>
   String(value ?? '').replace(/\D/g, '');
 
+const validateClientEmail = (value?: unknown) => {
+  const correo = normalizeClientEmail(value);
+  if (!correo) return;
+  if (!EMAIL_REGEX.test(correo)) {
+    throw new Error('Ingresa un correo valido con dominio, por ejemplo nombre@dominio.com');
+  }
+};
+
+const validateClientPhone = (value?: unknown) => {
+  const raw = cleanSpaces(value);
+  if (!raw) return;
+  if (/[A-Za-z@]/.test(raw)) {
+    throw new Error('El telefono solo debe contener numeros');
+  }
+  if (!normalizeClientPhone(raw)) {
+    throw new Error('El telefono solo debe contener numeros');
+  }
+};
+
 export const clienteFieldNormalizers = {
   nombre: normalizeClientName,
   correo: normalizeClientEmail,
@@ -23,10 +42,10 @@ export const clienteFormRules = {
   correo: [
     {
       validator: (_: unknown, value?: string) => {
-        const correo = normalizeClientEmail(value);
-        if (!correo) return Promise.resolve();
-        if (!EMAIL_REGEX.test(correo)) {
-          return Promise.reject(new Error('Ingresa un correo valido con dominio, por ejemplo nombre@dominio.com'));
+        try {
+          validateClientEmail(value);
+        } catch (err) {
+          return Promise.reject(err);
         }
         return Promise.resolve();
       },
@@ -35,14 +54,10 @@ export const clienteFormRules = {
   telefono: [
     {
       validator: (_: unknown, value?: string) => {
-        const raw = cleanSpaces(value);
-        if (!raw) return Promise.resolve();
-        if (/[A-Za-z@]/.test(raw)) {
-          return Promise.reject(new Error('El telefono solo debe contener numeros'));
-        }
-        const telefono = normalizeClientPhone(raw);
-        if (!telefono) {
-          return Promise.reject(new Error('El telefono solo debe contener numeros'));
+        try {
+          validateClientPhone(value);
+        } catch (err) {
+          return Promise.reject(err);
         }
         return Promise.resolve();
       },
@@ -50,10 +65,27 @@ export const clienteFormRules = {
   ],
 };
 
-export const normalizeClientePayload = <T extends Record<string, any>>(values: T): T => ({
-  ...values,
-  nombres: normalizeClientName(values.nombres),
-  apellidos: normalizeClientName(values.apellidos),
-  correo: normalizeClientEmail(values.correo),
-  telefono: normalizeClientPhone(values.telefono),
-});
+export const normalizeClientePayload = <T extends Record<string, any>>(values: T): T => {
+  validateClientEmail(values.correo);
+  validateClientPhone(values.telefono);
+
+  return {
+    ...values,
+    nombres: normalizeClientName(values.nombres),
+    apellidos: normalizeClientName(values.apellidos),
+    correo: normalizeClientEmail(values.correo),
+    telefono: normalizeClientPhone(values.telefono),
+  };
+};
+
+export const validateAndNormalizeClientePayload = <T extends Record<string, any>>(values: T): T => {
+  validateClientEmail(values.correo);
+  validateClientPhone(values.telefono);
+
+  const data: Record<string, any> = { ...values };
+  if ('nombres' in data) data.nombres = normalizeClientName(data.nombres);
+  if ('apellidos' in data) data.apellidos = normalizeClientName(data.apellidos);
+  if ('correo' in data) data.correo = normalizeClientEmail(data.correo);
+  if ('telefono' in data) data.telefono = normalizeClientPhone(data.telefono);
+  return data as T;
+};

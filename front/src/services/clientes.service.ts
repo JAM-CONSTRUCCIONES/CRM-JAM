@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiPut } from './api';
 import type { Cliente } from '../types';
+import { validateAndNormalizeClientePayload } from '../utils/clientesValidation';
 
 export interface RegistrarClientePayload {
   cedula: string;
@@ -21,7 +22,7 @@ export const buscarClientePorCedula = (cedula: string, proyectoId?: string): Pro
 };
 
 export const registrarCliente = (data: RegistrarClientePayload): Promise<Cliente> =>
-  apiPost<Cliente>('/clientes', data);
+  apiPost<Cliente>('/clientes', validateAndNormalizeClientePayload(data));
 
 export const getClientes = (proyectoId?: string): Promise<Cliente[]> => {
   const qs = proyectoId ? `?proyecto_id=${proyectoId}` : '';
@@ -66,7 +67,7 @@ export const actualizarClienteAdmin = (
   inmobiliariaId: string,
   data: Partial<RegistrarClientePayload & { estado: string }>
 ): Promise<{ message: string }> =>
-  apiPut(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`, data);
+  apiPut(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`, validateAndNormalizeClientePayload(data));
 
 export const transferirClienteInmobiliaria = (
   cedula: string,
@@ -104,10 +105,11 @@ export const getProyectosPublico = async (inmobiliariaId: string): Promise<{ pro
 
 export const registrarClientePublico = async (data: RegistrarClientePayload & { inmobiliaria_id: string }): Promise<Cliente> => {
   const cfg = await import('../config');
+  const payload = validateAndNormalizeClientePayload(data);
   const res = await fetch(`${cfg.default.apiUrl}/publico/clientes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   const json = await res.json();
   if (!res.ok) throw Object.assign(new Error(json?.message || 'Error'), { response: { status: res.status, data: json } });

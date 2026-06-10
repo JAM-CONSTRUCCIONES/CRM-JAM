@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './api';
 import type { Bloqueo, HistorialBloqueo } from '../types';
+import { validateAndNormalizeClientePayload } from '../utils/clientesValidation';
 
 export const bloquearUnidad = (data: {
   proyecto_id: string;
@@ -17,7 +18,7 @@ export const bloquearUnidad = (data: {
   nacionalidad?: string;
   pais_residencia?: string;
 }): Promise<{ unidad_id: string; fecha_liberacion: string; cliente_registrado: boolean; advertencia_cliente?: string }> =>
-  apiPost('/bloqueos', data);
+  apiPost('/bloqueos', validateAndNormalizeClientePayload(data));
 
 export interface BloquesActivosResponse {
   items: Bloqueo[];

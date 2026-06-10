@@ -7,7 +7,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from utils.response import ok, bad_request, conflict, too_many, not_found
 from utils.auth import get_inmobiliaria_id, require_admin
 from utils import scheduler as sched
-from utils.clientes import registrar_cliente_y_proceso
+from utils.clientes import registrar_cliente_y_proceso, _normalizar_datos_cliente
 
 dynamodb = boto3.resource('dynamodb')
 inventario = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
@@ -44,6 +44,23 @@ def bloquear(event):
     nombres = (body.get('nombres') or '').strip()
     apellidos = (body.get('apellidos') or '').strip()
     tiene_cliente = bool(cedula and nombres and apellidos)
+    datos_cliente_normalizados = None
+
+    if tiene_cliente:
+        datos_cliente_normalizados, error_cliente = _normalizar_datos_cliente({
+            'nombres': nombres,
+            'apellidos': apellidos,
+            'correo': body.get('correo', ''),
+            'telefono': body.get('telefono', ''),
+            'estado_civil': body.get('estado_civil', ''),
+            'nacionalidad': body.get('nacionalidad', ''),
+            'pais_residencia': body.get('pais_residencia', ''),
+            'fecha_nacimiento': body.get('fecha_nacimiento', ''),
+        })
+        if error_cliente:
+            return bad_request(error_cliente)
+        nombres = datos_cliente_normalizados.get('nombres', '')
+        apellidos = datos_cliente_normalizados.get('apellidos', '')
 
     if not all([proyecto_id, unidad_id]):
         return bad_request('proyecto_id y unidad_id son requeridos')
@@ -182,18 +199,8 @@ def bloquear(event):
     # Crear cliente y proceso si vienen datos del cliente
     cliente_advertencia = None
     if tiene_cliente:
-        datos_cliente = {
-            'nombres': nombres,
-            'apellidos': apellidos,
-            'correo': body.get('correo', ''),
-            'telefono': body.get('telefono', ''),
-            'estado_civil': body.get('estado_civil', ''),
-            'nacionalidad': body.get('nacionalidad', ''),
-            'pais_residencia': body.get('pais_residencia', ''),
-            'fecha_nacimiento': body.get('fecha_nacimiento', ''),
-        }
         ok_cliente, msg_cliente = registrar_cliente_y_proceso(
-            cedula, inmo_id, proyecto_id_clean, unidad_id, unidad_nombre, datos_cliente
+            cedula, inmo_id, proyecto_id_clean, unidad_id, unidad_nombre, datos_cliente_normalizados
         )
         if not ok_cliente:
             cliente_advertencia = msg_cliente

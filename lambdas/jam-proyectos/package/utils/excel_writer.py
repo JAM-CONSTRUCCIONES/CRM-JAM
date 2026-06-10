@@ -4,6 +4,7 @@ import boto3
 import os
 import json
 import logging
+import re
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone, timedelta
 from boto3.dynamodb.conditions import Key
@@ -16,6 +17,36 @@ clientes_t   = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 procesos_t   = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 historial_t  = dynamodb.Table(os.environ['HISTORIAL_TABLE'])
 logger       = logging.getLogger()
+EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+
+
+def _clean_spaces(value):
+    return ' '.join(str(value or '').strip().split())
+
+
+def _normalizar_nombre(value):
+    return _clean_spaces(value).upper()
+
+
+def _normalizar_correo(value):
+    correo = _clean_spaces(value).lower()
+    if not correo:
+        return ''
+    if not EMAIL_RE.match(correo):
+        raise ValueError('El correo debe tener un formato valido y dominio con punto')
+    return correo
+
+
+def _normalizar_telefono(value):
+    raw = _clean_spaces(value)
+    if not raw:
+        return ''
+    if '@' in raw or re.search(r'[A-Za-z]', raw):
+        raise ValueError('El telefono solo debe contener numeros')
+    telefono = re.sub(r'\D', '', raw)
+    if not telefono:
+        raise ValueError('El telefono solo debe contener numeros')
+    return telefono
 
 # Cliente para schedules y SQS
 scheduler = boto3.client('scheduler')
@@ -355,6 +386,11 @@ def _escribir_unidad(proyecto_id, id_unidad, fila, inmo_id, ahora):
 
 
 def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, apellidos, inmo_id, ahora):
+    nombres = _normalizar_nombre(nombres)
+    apellidos = _normalizar_nombre(apellidos)
+    correo = _normalizar_correo(fila.get('cliente_correo'))
+    telefono = _normalizar_telefono(fila.get('cliente_telefono'))
+
     clientes_t.put_item(Item={
         'pk':                f'CLIENTE#{cedula}#{inmo_id}',
         'sk':                f'PROYECTO#{proyecto_id}',
@@ -363,8 +399,8 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
         'proyecto_id':       proyecto_id,
         'nombres':           nombres,
         'apellidos':         apellidos,
-        'correo':            (fila.get('cliente_correo') or '').strip(),
-        'telefono':          (fila.get('cliente_telefono') or '').strip(),
+        'correo':            correo,
+        'telefono':          telefono,
         'estado_civil':      '',
         'nacionalidad':      '',
         'pais_residencia':   '',

@@ -15,6 +15,7 @@ import {
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
 import { getEtapas } from '../../services/proyectos.service';
 import type { Etapa } from '../../types';
+import { validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -120,6 +121,16 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       if (!f.nombres_sugerido) errores.push('nombres requeridos si hay cédula');
       if (!f.apellidos_sugerido) errores.push('apellidos requeridos si hay cédula');
       if (!f.inmobiliaria_nombre_sugerido) errores.push('inmobiliaria requerida si hay cédula');
+      try {
+        validateAndNormalizeClientePayload({
+          nombres: f.nombres_sugerido ?? '',
+          apellidos: f.apellidos_sugerido ?? '',
+          correo: f.cliente_correo ?? '',
+          telefono: f.cliente_telefono ?? '',
+        });
+      } catch (err: any) {
+        errores.push(err?.message || 'Datos de contacto del cliente invalidos');
+      }
     }
     if (f.cliente_nombre_excel && !f.cedula) {
       if (!f.nombres_sugerido || !f.apellidos_sugerido)

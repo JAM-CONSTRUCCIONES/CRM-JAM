@@ -10,7 +10,7 @@ dynamodb = boto3.resource('dynamodb')
 scheduler_client = boto3.client('scheduler')
 
 MESES_EXCLUSIVIDAD = 3
-EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$')
+EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 
 
 def _now():

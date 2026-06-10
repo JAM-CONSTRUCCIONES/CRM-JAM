@@ -1113,7 +1113,7 @@ const ProcesosPage = () => {
             <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
             <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
             <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
-            <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono} normalize={clienteFieldNormalizers.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
+            <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
             <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento">
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>

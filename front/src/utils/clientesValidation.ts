@@ -1,4 +1,4 @@
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const EMAIL_REGEX = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 
 const cleanSpaces = (value?: unknown) =>
   String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -15,7 +15,6 @@ export const normalizeClientPhone = (value?: unknown) =>
 export const clienteFieldNormalizers = {
   nombre: normalizeClientName,
   correo: normalizeClientEmail,
-  telefono: normalizeClientPhone,
 };
 
 export const clienteFormRules = {
@@ -36,9 +35,13 @@ export const clienteFormRules = {
   telefono: [
     {
       validator: (_: unknown, value?: string) => {
-        const telefono = normalizeClientPhone(value);
-        if (!telefono) return Promise.resolve();
-        if (!/^\d+$/.test(telefono)) {
+        const raw = cleanSpaces(value);
+        if (!raw) return Promise.resolve();
+        if (/[A-Za-z@]/.test(raw)) {
+          return Promise.reject(new Error('El telefono solo debe contener numeros'));
+        }
+        const telefono = normalizeClientPhone(raw);
+        if (!telefono) {
           return Promise.reject(new Error('El telefono solo debe contener numeros'));
         }
         return Promise.resolve();

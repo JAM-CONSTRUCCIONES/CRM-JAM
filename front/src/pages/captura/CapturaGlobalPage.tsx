@@ -218,7 +218,7 @@ const CapturaGlobalPage = () => {
               <Form.Item name="correo" label="Correo electrónico" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}>
                 <Input type="email" placeholder="correo@ejemplo.com" />
               </Form.Item>
-              <Form.Item name="telefono" label="Teléfono / WhatsApp" rules={clienteFormRules.telefono} normalize={clienteFieldNormalizers.telefono}>
+              <Form.Item name="telefono" label="Teléfono / WhatsApp" rules={clienteFormRules.telefono}>
                 <Input inputMode="numeric" placeholder="584120000000" />
               </Form.Item>
             </div>

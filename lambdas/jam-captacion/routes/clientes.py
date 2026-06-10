@@ -14,7 +14,7 @@ clientes = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 usuarios = dynamodb.Table(os.environ['USUARIOS_TABLE'])
 procesos = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 MESES_EXCLUSIVIDAD = 3
-EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$')
+EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 
 sqs_client = boto3.client('sqs')
 SQS_URL = os.environ.get('SQS_URL')

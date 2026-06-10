@@ -1,136 +1,252 @@
 # Ultimos cambios pendientes
 
-Documento editable para consolidar pendientes, correcciones y mejoras solicitadas.
+Documento para presentar al cliente los cambios pendientes de forma clara, agrupada y entendible.  
+La idea es que cada punto describa que se hara, como se validara y que no se debe interpretar como parte del cambio.
+
+Una vez aprobado este documento, cualquier solicitud adicional o cambio distinto a lo descrito aqui debera tratarse como un requerimiento nuevo.
 
 ## Sistema administrativo
 
 ### Dashboard
 
-- [ ] En el reporte "Total de venta por piso", revisar el total mostrado actualmente como 36. El total esperado de unidades no disponibles es 162, correspondientes a unidades reservadas.
-se solucionara es un problema de que es sistema no esta haciendo bien los calculos 
-- [ ] Completar los metrajes faltantes en el reporte "Total de ventas por metraje".
-se solucionara es un problema de que es sistema no esta haciendo bien los calculos 
-- [ ] Revisar el reporte "Estatus de contratos Promesa de Venta":
-  - "Cliente listo para contratos" debe alimentarse del estatus "Separacion".
-  - "Contrato firmado" debe alimentarse del estatus "Contrato firmado".
-- [ ] El reporte "Venta por Inmobiliaria" debe coincidir con el monto de unidades no disponibles.
-entonces en el dashboard contara como venta todas las unidades que esten dentro como no disponibles que son las que perenecen a los procesos separacion, contrato firmado pagos atrasados contra entrega y las unidades en vendidas
+- [x] Corregir los calculos de los reportes del dashboard administrativo.
 
-- [ ] Corregir el error en el rango de edad del reporte "Rango Edad de Compradores".
-se solucionara es un problema de que es sistema no esta haciendo bien los calculos 
+  Se corregiran los reportes donde el sistema actualmente no esta calculando bien cantidades, agrupaciones o filtros. Esto incluye:
 
-- [ ] Validar especificamente el rango menor de 25 anos: "<25".
-se solucionara es un problema de que es sistema no esta haciendo bien los calculos 
+  - "Total de venta por piso": actualmente muestra 36, pero debe reflejar el total correcto de unidades no disponibles. El caso reportado indica 162 unidades.
+  - "Total de ventas por metraje": deben aparecer los metrajes que actualmente faltan.
+  - "Venta por Inmobiliaria": debe coincidir con el monto o total de unidades no disponibles.
+  - "Rango Edad de Compradores": debe corregirse el calculo de edades, incluyendo el rango "<25".
+
+  Para estos reportes, el dashboard contara como venta las unidades que esten como no disponibles. Se consideran no disponibles las unidades en procesos de separacion, contrato firmado, pagos atrasados, contra entrega y vendidas.
+
+  No incluye crear reportes nuevos ni cambiar el diseno completo del dashboard.
+
+- [x] Ajustar el reporte "Estatus de contratos Promesa de Venta".
+
+  El reporte debe alimentarse de los estatus correctos:
+
+  - "Cliente listo para contratos" debe salir del estatus "Separacion".
+  - "Contrato firmado" debe salir del estatus "Contrato firmado".
+
+  La correccion consiste en ajustar la fuente del calculo, no en crear nuevos estatus.
 
 ### Proyectos
 
-- [ ] Identificar y documentar la funcion del icono indicado por el cliente.
-esto es para visualizar el comentario ya se dijo al cliente sin cambio 
+- [ ] Mantener el icono de comentario sin cambios funcionales.
 
-- [ ] Corregir filtros por bloque o tipo para que funcionen aunque la letra ingresada este en minuscula.
-se normalizara los caracteres en las busquedas 
+  El icono indicado por el cliente es para visualizar el comentario. Esta funcion ya fue aclarada al cliente, por la confucion se cambiara a un icono mas claro, que de a entender que es del comentario 
+
+- [ ] Corregir filtros por bloque o tipo para que no dependan de mayusculas o minusculas.
+
+  Se normalizaran los caracteres usados en la busqueda. Por ejemplo, buscar "a" debe funcionar igual que buscar "A".
+
+  Este mismo criterio aplicara tambien al modulo Proyecto del usuario inmobiliaria.
+
 ### Clientes
 
-- [ ] Al editar un cliente, validar correctamente los campos para evitar que telefono y correo puedan intercambiarse.
-se pondra requisitons en el front para llenar el formulario, numero solo permite numeros y gmail necesita .com
-- [ ] Guardar nombre y apellido en mayuscula. 
-lo mismo se pondra requisitos, pero no se como xD
-- [ ] Guardar telefono sin simbolos.
-- [ ] Revisar el cliente de prueba dejado por el cliente para comprobar las validaciones.
-se registro con la cedula de otro cliente, y las busquedas se hacen por cedula, aparece con el nombre del primer user creado 
-- [ ] Permitir exportar el apartado de clientes.
-- [ ] La exportacion debe incluir clientes de captacion y clientes con unidad.
-- [ ] Considerar el caso de uso de campanas de correo para clientes que aun no han comprado.
-veremos estas tres mas adelante como hacer 
+- [ ] Validar y normalizar datos al crear o editar clientes.
 
-### Inmobiliarias
+  Se agregaran requisitos en el formulario para evitar datos mal ubicados o mal escritos:
 
-- [ ] Revisar si hay pendientes especificos no detallados en esta seccion. nada
+  - El telefono solo debe aceptar numeros.
+  - El telefono debe guardarse sin simbolos.
+  - El correo debe tener formato de correo valido y dominio con punto, por ejemplo ".com".
+  - Nombre y apellido deben guardarse en mayuscula.
+  - No debe aceptarse que el telefono se coloque en el campo correo ni que el correo se coloque en el campo telefono.
+
+  Este cambio aplica a la validacion del formulario y al guardado de datos. No incluye limpieza masiva de clientes antiguos, salvo los casos necesarios para probar la correccion.
+
+- [ ] Revisar el cliente de prueba dejado por el cliente.
+
+  El caso reportado fue registrado con la cedula de otro cliente. Como las busquedas se hacen por cedula, aparece con el nombre del primer usuario creado con esa cedula. se informo de esto al cliente
+
+- [ ] Permitir exportar clientes desde el apartado Clientes.
+
+  La exportacion debe incluir clientes de captacion y clientes que tienen unidad. Esto es necesario para campanas de correo y seguimiento comercial de clientes que aun no han comprado.
+
+  Queda pendiente definir antes de implementar:
+
+  - Formato de exportacion: Excel, CSV o ambos.
+  - Columnas exactas a exportar.
+  - Roles que podran exportar.
+
+  no se aclaro si el cliente quiere un nuevo modulo de campanas de correo, por lo tanto no se estara realizando este modulo
+
 
 ### Procesos
 
-- [ ] Corregir envio de notificacion al bloquear una unidad. ya corregido el cliente debe ponerverificar el correo 
-- [ ] Al cambiar el estatus de un cliente, deben mostrarse todas las opciones de estatus.  el sistema permite ir hacia atras de manera lineal falta agregar un senalizador a que se esta volviendo a un paso anterior 
-- [ ] Permitir revertir cambios de estatus cuando se seleccione uno incorrecto, por ejemplo de "Contrato firmado" a "Separacion". lo mismo
-- [ ] Corregir envio de notificaciones en cambio de estatus cuando se elige "Solo administracion".ya corregido el cliente debe ponerverificar el correo 
+- [ ] Validar notificaciones al bloquear unidad y al cambiar estatus.
+
+  El envio de notificacion al bloquear unidad y el envio con la opcion "Solo administracion" ya fueron corregidos. El cliente debe verificar que los correos destinatarios esten correctamente configurados y verificados.
+
+  Si el correo no esta verificado o el proveedor lo bloquea, eso no se considera error del sistema.
+
+- [ ] Mejorar el cambio de estatus para permitir correcciones controladas.
+
+  El sistema actualmente permite moverse hacia atras de manera lineal. Se debe agregar una senal visual o indicador cuando el usuario este volviendo a un paso anterior.
+
+  Esto cubre el caso donde por error se selecciona "Contrato firmado" y luego se necesita volver a "Separacion".
+
+  No se cambiara el flujo a un sistema totalmente libre; se mantendra la logica del proceso, pero con una forma mas clara de corregir errores.
 
 ### Migracion Excel
 
-- [ ] Agregar columna de fecha de nacimiento.
-- [ ] Agregar columna de pais de residencia.
-- [ ] Agregar columna de pais de nacionalidad.
-- [ ] Al cargar el Excel, completar automaticamente esos datos si las columnas existen.
+- [ ] Agregar y reconocer nuevas columnas en la migracion de Excel.
+
+  La migracion debe soportar estas columnas:
+
+  - Fecha de nacimiento.
+  - Pais de residencia.
+  - Pais de nacionalidad.
+  - Fecha Bloqueo, cuando aplique.
+
+  Si las columnas existen y tienen datos validos, el sistema debe cargarlas automaticamente.
+
+  Si una fecha obligatoria falta, debe poder corregirse en la etapa de migracion o el sistema debe mostrar error antes de completar la carga.
 
 ### Usuarios
 
-- [ ] El usuario coordinador debe tener acceso a todo excepto:
+- [ ] Ajustar permisos del usuario coordinador.
+
+  El coordinador debe tener acceso a todo excepto:
+
   - Eliminar usuarios.
   - Cambiar rol de usuario.
 
+  Estas restricciones deben aplicarse tanto en pantalla como en la validacion interna del sistema.
+
 ### Configuracion
 
-- [ ] Las notificaciones recibidas por correo deben coincidir con el cuerpo de correo configurado en el sistema. osea que hacepte espacio o que si en aparece como salto de linea aparesca el salto de linea en la notificacion no en la misma 
-- [ ] Revisar diferencias entre el correo recibido y la plantilla configurada.
+- [ ] Corregir formato de las notificaciones recibidas por correo.
 
-### Notificacion
+  El cuerpo del correo recibido debe coincidir con el cuerpo configurado en el sistema.
 
-- [ ] Revisar pendientes relacionados con notificaciones no detallados en esta seccion.
+  Si en la configuracion hay saltos de linea, el correo debe mostrar esos saltos de linea. No debe enviarse todo pegado en una sola linea cuando la plantilla tiene espacios o parrafos.
+
 
 ## Usuario inmobiliarias
 
 ### Dashboard
 
-- [ ] Agregar grafico basado en el total de unidades bloqueadas no disponibles desvinculadas.
-- [ ] El total debe considerar unidades:
+- [ ] Agregar grafico basado en unidades bloqueadas, no disponibles y desvinculadas.
+
+  El grafico debe considerar las unidades de la inmobiliaria que esten:
+
   - Bloqueadas.
   - No disponibles.
   - Desvinculadas.
 
-  actualmente cuando en procesos ponemos desvinculadas el sistema la pone como disponible no tenemos un flujo que la ponfa como desvinculada en inventario, como hacemos eso? 
-yo diria que en procesos aunmentar una nueva celda que se llame descinculada de JAM para que esa desvincule de vrdd, la otra esta bien 
+  Actualmente, cuando en procesos se marca una unidad como desvinculada, el sistema la vuelve a poner como disponible. Por eso no existe todavia una forma real de contar unidades desvinculadas en inventario.
+
+  Se propone agregar una opcion o estado llamado "Desvinculada de JAM" para representar una desvinculacion real. La opcion actual de desvincular se mantiene como esta si solo libera la unidad.
+
+  Este punto requiere confirmacion antes de implementarse, porque cambia la forma en que el inventario identifica una unidad desvinculada.
 
 ### Proyecto
 
-- [ ] Corregir filtros por bloque o tipo para que funcionen aunque la letra ingresada este en minuscula.
-- [ ] Generar un link de visibilidad dentro de la inmobiliaria para ver solo el inventario.
-- [ ] El link debe poder compartirse con vendedores externos.
-entonces link publico de visualizacion solo visualizacion que permita ver solo las unidades disponibles de la inmobiliria 
+- [ ] Corregir filtros por bloque o tipo para que no dependan de mayusculas o minusculas.
+
+  Debe funcionar igual que en el sistema administrativo. Buscar con minuscula o mayuscula debe devolver los mismos resultados.
+
+- [ ] Crear link publico permanente de visualizacion de inventario para inmobiliarias.
+
+  Se generara un link permanente de solo lectura por inmobiliaria, para que la inmobiliaria pueda compartir inventario con vendedores externos.
+
+  El link debe mostrar solo las unidades disponibles de esa inmobiliaria. No debe permitir editar, bloquear, cambiar estatus, ver clientes, ver comentarios internos ni acceder a inventario de otras inmobiliarias.
+
+  El link permanecera activo mientras la inmobiliaria exista en el sistema. Si mas adelante se requiere que el link sea revocable, tenga expiracion o requiera clave de acceso, eso se considerara un requerimiento adicional.
 
 ### Clientes
 
-- [ ] Corregir el calculo de exclusividad.
-- [ ] La exclusividad debe durar tres meses.
-- [ ] Revisar caso de cliente captado el 28 de mayo que aparece como vencido.
-- [ ] Si el cliente se sube por importacion Excel, la exclusividad debe tomar la fecha de la fila "Fecha Bloqueo". si no existe fecha de bloqueo sera editable en la parte de migracion, en caso de estar incompleto mandara error, fecha necesaria 
-- [ ] Si el cliente se registra directamente en el sistema, la exclusividad debe tomar la fecha de registro.
-- [ ] Registrar la fecha indicada en la celda "Fecha Bloqueo" al importar Excel. se registrara la fecha del bloqueo, pero no lo tomara para crear el tiempo de bloqueo, lo creara con 48 como si se hubiera hecho el bloqueo ese rato 
-- [ ] Registrar la fecha cuando el cliente se crea por captacion o bloqueo. se registrara con la misma fecha de bloqueo, en migraciones, 
-- [ ] En "Ver detalle", revisar el significado o error de las siglas "NaNd". ya no aparece
+- [ ] Corregir calculo de exclusividad de clientes.
+
+  La exclusividad debe durar tres meses.
+
+  Reglas:
+
+  - Si el cliente se importa por Excel, se tomara la fecha de la fila "Fecha Bloqueo".
+  - Si no existe "Fecha Bloqueo", debe poder editarse en migracion o debe marcar error si es obligatoria.
+  - Si el cliente se registra directamente en el sistema, se tomara la fecha de registro.
+  - Si el cliente se registra por captacion o bloqueo, se guardara la fecha correspondiente del registro o bloqueo.
+
+  El caso de un cliente captado el 28 de mayo no debe aparecer vencido antes de cumplir tres meses.
+
+- [ ] Registrar fecha de bloqueo en migraciones sin alterar la regla del bloqueo activo.
+
+  Si en Excel viene "Fecha Bloqueo", esa fecha se guardara como dato historico del bloqueo.
+
+  Si al importar se crea un bloqueo operativo nuevo, el tiempo activo del bloqueo se creara con la regla actual de 48 horas desde el momento de la importacion, no desde la fecha historica del Excel.
+
+- [ ] No realizar cambio sobre "NaNd" si ya no aparece.
+
+  El valor "NaNd" reportado en "Ver detalle" ya no aparece. Si vuelve a presentarse, se revisara con un caso reproducible.
 
 ### Proceso de venta
 
-- [ ] Corregir icono de informacion que no se visualiza. desde ahora la inmobiliairia podra ver las unidades con las cuales tiene procesos nada mas 
-- [ ] Al seleccionar el icono de informacion, permitir ver los datos de la unidad.
-- [ ] No mostrar el comentario en esa vista de informacion. las inmobiliarias no veran el comentario
+- [ ] Corregir visibilidad y permisos del icono de informacion.
 
-### Captacion / Registro de interes
+  La inmobiliaria podra ver informacion solo de unidades con las cuales tiene procesos relacionados.
+
+  Al seleccionar el icono de informacion, se deben mostrar los datos de la unidad. No se debe mostrar el comentario interno.
+
+## Captacion / Registro de interes
 
 URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
 
-- [ ] Agregar listas desplegables para campos como estado civil y paises, evitando registros inconsistentes.
-- [ ] Estandarizar paises para evitar variantes como "USA" y "Estados Unidos".
-- [ ] Validar telefono para no aceptar simbolos.
-- [ ] Guardar nombre y apellido en mayuscula.
-- [ ] Validar cedula/pasaporte para no aceptar guiones.
-- [ ] Cedula/pasaporte debe aceptar solo letras y numeros.
-- [ ] Si cedula/pasaporte contiene letras, deben guardarse en mayuscula.
-- [ ] Revisar ejemplo de cliente registrado por inmobiliaria que no se visualiza en el usuario administrativo.
-- [ ] Corregir notificacion de captacion para que la inmobiliaria la reciba. falta que acepte la verificacion 
-- [ ] La notificacion "Cliente Captado" debe enviarse a la inmobiliaria al registrar el cliente. aceptar verificacion 
+- [ ] Agregar listas desplegables y validaciones para evitar datos inconsistentes.
 
-## Pendientes por completar despues de revision
+  Se agregaran listas desplegables para campos como estado civil, pais de residencia y pais de nacionalidad. Esto evita registros duplicados o inconsistentes como "USA" y "Estados Unidos".
 
-- [ ] Adjuntar o describir capturas faltantes donde el texto original menciona imagenes o mensajes de error.
-- [ ] Priorizar pendientes criticos antes de implementacion.
-- [ ] Confirmar nombres exactos de estatus usados en base de datos y UI.
-- [ ] Confirmar permisos esperados para cada rol.
+  Tambien se aplicaran estas validaciones:
+
+  - Telefono solo con numeros y sin simbolos.
+  - Nombre y apellido guardados en mayuscula.
+  - Cedula/pasaporte sin guiones.
+  - Cedula/pasaporte solo con letras y numeros.
+  - Letras de cedula/pasaporte guardadas en mayuscula.
+
+  Estas validaciones se aplicaran en todos los formularios donde se pueda crear un usuario o cliente, no solo en el formulario publico de captacion.
+
+  No incluye validar legalmente documentos por pais ni limpiar toda la data historica ya registrada.
+
+- [ ] Revisar cliente registrado por inmobiliaria que no aparece en administrativo.
+
+  Todo cliente registrado desde captacion por una inmobiliaria debe ser visible para el usuario administrativo segun los permisos actuales del sistema.
+
+  Si el problema ocurre por duplicidad de cedula/pasaporte, el sistema debe manejarlo de forma clara y no ocultar el registro sin explicacion.
+
+- [ ] Corregir notificacion "Cliente Captado".
+
+  La inmobiliaria debe recibir la notificacion "Cliente Captado" al registrar un cliente.
+
+  Este envio depende de que el correo de la inmobiliaria este correctamente configurado y verificado.
+
+## Pendientes por confirmar antes de implementar
+
+- [ ] Formato y columnas exactas para exportacion de clientes.
+- [ ] Roles que podran exportar clientes.
+- [ ] Confirmar si se implementa el nuevo estado "Desvinculada de JAM".
+- [ ] Definir si el link publico de inventario sera permanente, revocable o con expiracion.
+- [ ] Confirmar nombres exactos de estatus usados en base de datos y pantalla.
+
+## Nota de alcance
+
+Al aceptar este documento, el cliente aprueba el alcance descrito y no podra solicitar cambios adicionales sobre estos puntos como parte de la misma entrega.
+
+Despues de la aprobacion solo se atenderan correcciones relacionadas directamente con lo aprobado, por ejemplo:
+
+- Una notificacion incluida en este alcance no se envia.
+- Un reporte corregido sigue calculando mal segun la regla definida aqui.
+- Una validacion descrita en este documento no se aplica.
+- Una importacion de Excel no carga una columna incluida en este alcance.
+- El link de inventario aprobado no muestra las unidades disponibles correspondientes.
+
+No se consideraran correcciones y deberan aprobarse como requerimientos nuevos:
+
+- Cambiar una regla ya aprobada.
+- Agregar reportes, columnas, filtros, permisos o estados no descritos.
+- Cambiar diseno, estructura o flujo de pantallas fuera de lo indicado.
+- Pedir limpieza historica masiva de datos.
+- Agregar nuevas notificaciones o nuevos destinatarios no mencionados.
+- Cambiar el comportamiento del link publico mas alla de ser permanente, de solo lectura y por inmobiliaria.

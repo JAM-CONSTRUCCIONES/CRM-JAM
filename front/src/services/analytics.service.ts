@@ -11,7 +11,8 @@ export interface ClienteStats {
 
 export interface ProcesoStats {
   captacion: number; reserva: number; separacion: number;
-  inicial: number; desvinculado: number; total: number;
+  inicial: number; pagos_atrasados: number; contra_entrega: number;
+  vendida: number; desvinculado: number; total: number;
 }
 
 export interface Kpis {

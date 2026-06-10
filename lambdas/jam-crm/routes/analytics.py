@@ -13,6 +13,8 @@ procesos_table = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 clientes_table = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 inventario_table = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 
+ESTADOS_VENTA = {'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida'}
+
 
 def _parse_dt(ts: str):
     try:
@@ -25,6 +27,15 @@ def _diff_hours(t1, t2):
     if t1 and t2:
         return abs((t2 - t1).total_seconds()) / 3600
     return None
+
+
+def _calcular_edad(fecha_nacimiento: str):
+    try:
+        nacimiento = datetime.fromisoformat(fecha_nacimiento[:10]).date()
+        hoy = datetime.now(timezone.utc).date()
+        return hoy.year - nacimiento.year - ((hoy.month, hoy.day) < (nacimiento.month, nacimiento.day))
+    except Exception:
+        return None
 
 
 def get_analytics(event):
@@ -48,10 +59,10 @@ def get_analytics(event):
     )
 
     # ── 3. Cargar todas las unidades del proyecto ──────────────────────────
-    unidades_raw = inventario_table.query(
-        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#')
+    unidades = _query_all(
+        inventario_table,
+        key_cond=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
     )
-    unidades = unidades_raw.get('Items', [])
 
     # ── Métricas de unidades ───────────────────────────────────────────────
     unidad_stats = {'disponible': 0, 'bloqueada': 0, 'no_disponible': 0, 'vendida': 0, 'desvinculada': 0, 'total': 0}
@@ -79,8 +90,14 @@ def get_analytics(event):
         else:
             cliente_stats['exclusividad_vencida'] += 1
 
-        if c.get('edad'):
-            demograficos['edades'].append(int(c['edad']))
+        edad = _calcular_edad(c.get('fecha_nacimiento') or '')
+        if edad is None and c.get('edad') not in (None, ''):
+            try:
+                edad = int(c['edad'])
+            except (ValueError, TypeError):
+                edad = None
+        if edad is not None:
+            demograficos['edades'].append(edad)
         for campo in ('estado_civil', 'pais_residencia', 'nacionalidad'):
             val = (c.get(campo) or '').strip()
             if val:
@@ -103,7 +120,8 @@ def get_analytics(event):
     # ── Métricas de procesos ───────────────────────────────────────────────
     proceso_stats = {
         'captacion': 0, 'reserva': 0, 'separacion': 0,
-        'inicial': 0, 'desvinculado': 0, 'total': len(procesos),
+        'inicial': 0, 'pagos_atrasados': 0, 'contra_entrega': 0,
+        'vendida': 0, 'desvinculado': 0, 'total': len(procesos),
     }
     # Por inmobiliaria: captados, reservas, separaciones, desvinculados
     por_inmo: dict = {}
@@ -114,9 +132,11 @@ def get_analytics(event):
     tiempos_res_sep: list = []
     # Unidades más demandadas (cuántos procesos tiene cada unidad)
     demanda_unidades: dict = {}
-    # Ventas (separacion/inicial) por piso y por metraje
+    # Ventas por piso, metraje e inmobiliaria.
     ventas_por_piso: dict = {}
     ventas_por_metraje: dict = {}
+    ventas_por_inmo: dict = {}
+    unidades_vendidas: set = set()
 
     for p in procesos:
         estado = p.get('estado', 'captacion')
@@ -127,9 +147,9 @@ def get_analytics(event):
         if inmo_id not in por_inmo:
             por_inmo[inmo_id] = {'captados': 0, 'reservas': 0, 'separaciones': 0, 'desvinculados': 0}
         por_inmo[inmo_id]['captados'] += 1
-        if estado in ('reserva', 'separacion', 'inicial'):
+        if estado in ('reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida'):
             por_inmo[inmo_id]['reservas'] += 1
-        if estado in ('separacion', 'inicial'):
+        if estado in ESTADOS_VENTA:
             por_inmo[inmo_id]['separaciones'] += 1
         if estado == 'desvinculado':
             por_inmo[inmo_id]['desvinculados'] += 1
@@ -141,11 +161,12 @@ def get_analytics(event):
             if uid not in demanda_unidades:
                 demanda_unidades[uid] = {'unidad_id': uid, 'nombre': unidad_nombre, 'procesos': 0, 'vendida': False}
             demanda_unidades[uid]['procesos'] += 1
-            if estado in ('separacion', 'inicial'):
+            if estado in ESTADOS_VENTA:
                 demanda_unidades[uid]['vendida'] = True
 
-        # Ventas por piso y metraje (solo procesos vendidos: separacion o inicial)
-        if estado in ('separacion', 'inicial') and uid and uid in unidad_map:
+        # Contar una sola vez cada unidad en estados comerciales no disponibles.
+        if estado in ESTADOS_VENTA and uid and uid not in unidades_vendidas and uid in unidad_map:
+            unidades_vendidas.add(uid)
             info = unidad_map[uid]
             piso = info['piso']
             if piso:
@@ -157,6 +178,7 @@ def get_analytics(event):
                     ventas_por_metraje[m_key] = ventas_por_metraje.get(m_key, 0) + 1
                 except (ValueError, TypeError):
                     pass
+            ventas_por_inmo[inmo_id] = ventas_por_inmo.get(inmo_id, 0) + 1
 
         # Cierres mensuales y velocidad desde historial
         historial = p.get('historial', [])
@@ -225,7 +247,7 @@ def get_analytics(event):
             'inmobiliaria_id': inmo_id,
             'captados': d['captados'],
             'reservas': d['reservas'],
-            'separaciones': d['separaciones'],
+            'separaciones': ventas_por_inmo.get(inmo_id, 0),
             'desvinculados': d['desvinculados'],
             'pct_conversion': round(d['reservas'] / d['captados'] * 100, 1) if d['captados'] > 0 else 0,
         }
@@ -256,6 +278,20 @@ def _scan_all(table, index: str, key_cond) -> list:
     """Pagina automáticamente un query por GSI."""
     items = []
     kwargs = {'IndexName': index, 'KeyConditionExpression': key_cond}
+    while True:
+        resp = table.query(**kwargs)
+        items.extend(resp.get('Items', []))
+        lek = resp.get('LastEvaluatedKey')
+        if not lek:
+            break
+        kwargs['ExclusiveStartKey'] = lek
+    return items
+
+
+def _query_all(table, key_cond) -> list:
+    """Pagina automaticamente un query por clave primaria."""
+    items = []
+    kwargs = {'KeyConditionExpression': key_cond}
     while True:
         resp = table.query(**kwargs)
         items.extend(resp.get('Items', []))

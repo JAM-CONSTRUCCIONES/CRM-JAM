@@ -217,10 +217,10 @@ const DashboardContent = ({
 
   // ── 5. Ventas por inmobiliaria (barras horizontales) ──────────────────────
   const ventasInmo = [...conversion_por_inmobiliaria]
-    .sort((a, b) => (a.reservas + a.separaciones) - (b.reservas + b.separaciones))
+    .sort((a, b) => a.separaciones - b.separaciones)
     .map(i => ({
       nombre: inmoNombre(i.inmobiliaria_id),
-      Total: i.reservas + i.separaciones,
+      Total: i.separaciones,
     }));
   const totalVentasInmo = ventasInmo.reduce((s, r) => s + r.Total, 0);
   const ventasInmoRows: SummaryRow[] = [
@@ -231,13 +231,13 @@ const DashboardContent = ({
 
   // ── 6. Estatus contratos (torta) ──────────────────────────────────────────
   const contratoData = [
-    { name: 'CLIENTE LISTO PARA CONTRATO', value: proceso_stats.reserva,    color: BLUE   },
-    { name: 'CONTRATO FIRMADO',            value: proceso_stats.separacion,  color: ORANGE },
+    { name: 'CLIENTE LISTO PARA CONTRATO', value: proceso_stats.separacion, color: BLUE   },
+    { name: 'CONTRATO FIRMADO',            value: proceso_stats.inicial,    color: ORANGE },
   ].filter(d => d.value > 0);
-  const totalContratos = proceso_stats.reserva + proceso_stats.separacion;
+  const totalContratos = proceso_stats.separacion + proceso_stats.inicial;
   const contratoRows: SummaryRow[] = [
-    { label: 'CLIENTE LISTO PARA CONTRATO', value: proceso_stats.reserva    },
-    { label: 'CONTRATO FIRMADO',            value: proceso_stats.separacion  },
+    { label: 'CLIENTE LISTO PARA CONTRATO', value: proceso_stats.separacion },
+    { label: 'CONTRATO FIRMADO',            value: proceso_stats.inicial    },
     { label: 'Total',                       value: totalContratos, bold: true },
   ];
 
@@ -413,7 +413,7 @@ const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<Analy
   };
 
   // Rangos de edad — barras verticales, ordenados naturalmente
-  const ORDEN_EDAD = ['<18','18-24','25-34','35-44','45-54','55-64','65+'];
+  const ORDEN_EDAD = ['<25','25-34','35-44','45-54','55+'];
   const edadData = ORDEN_EDAD
     .filter(k => (rangos_edad?.[k] ?? 0) > 0)
     .map(k => ({ rango: k, Total: rangos_edad[k] }));

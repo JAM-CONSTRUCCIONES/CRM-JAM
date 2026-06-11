@@ -113,9 +113,10 @@ const ModalBloqueo = ({ open, unidad, clienteEncontrado, buscandoCliente, guarda
       )}
 
       <Form form={form} layout="vertical">
-        <Form.Item name="cedula" label="Cédula del cliente" rules={[{ required: true }]}>
+        <Form.Item name="cedula" label="Cédula del cliente" rules={clienteFormRules.cedula}>
           <Input.Search
-            placeholder="V-12345678"
+            placeholder="12345678"
+            inputMode="numeric"
             loading={buscandoCliente}
             onSearch={onBuscar}
             enterButton="Buscar"

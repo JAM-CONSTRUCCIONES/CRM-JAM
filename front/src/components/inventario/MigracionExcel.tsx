@@ -123,6 +123,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       if (!f.inmobiliaria_nombre_sugerido) errores.push('inmobiliaria requerida si hay cédula');
       try {
         validateAndNormalizeClientePayload({
+          cedula: f.cedula ?? '',
           nombres: f.nombres_sugerido ?? '',
           apellidos: f.apellidos_sugerido ?? '',
           correo: f.cliente_correo ?? '',

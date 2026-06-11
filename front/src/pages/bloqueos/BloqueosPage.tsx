@@ -555,8 +555,8 @@ const BloqueosPage = () => {
         ) : (
           <Form form={formCliente} layout="vertical" onFinish={handleAsignarCliente}>
             <Divider style={{ margin: '0 0 16px' }} />
-            <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true }]}>
-              <Input placeholder="V-12345678" />
+            <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}>
+              <Input inputMode="numeric" placeholder="12345678" />
             </Form.Item>
             <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
             <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>

@@ -125,8 +125,13 @@ export const eliminarClienteAdmin = (
 export const cambiarCedula = (
   cedulaAntigua: string,
   cedulaNueva: string
-): Promise<{ message: string; execution_arn: string }> =>
-  apiPost(`/admin/clientes/${encodeURIComponent(cedulaAntigua)}/cambiar-cedula`, {
+): Promise<{ message: string; execution_arn: string }> => {
+  const nueva = cedulaNueva.trim();
+  if (!/^\d+$/.test(nueva)) {
+    throw new Error('La cedula solo debe contener numeros');
+  }
+  return apiPost(`/admin/clientes/${encodeURIComponent(cedulaAntigua)}/cambiar-cedula`, {
     cedula_antigua: cedulaAntigua,
-    cedula_nueva: cedulaNueva,
+    cedula_nueva: nueva,
   });
+};

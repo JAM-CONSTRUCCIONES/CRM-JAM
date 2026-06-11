@@ -113,6 +113,7 @@ const ClientesPage = () => {
   const [clienteCedula, setClienteCedula] = useState<Cliente | null>(null);
   const [nuevaCedula, setNuevaCedula] = useState('');
   const [cambiandoCedula, setCambiandoCedula] = useState(false);
+  const nuevaCedulaInvalida = !!nuevaCedula.trim() && !/^\d+$/.test(nuevaCedula.trim());
 
   // Modal eliminar cliente
   const [eliminarModal, setEliminarModal] = useState(false);
@@ -357,6 +358,10 @@ const ClientesPage = () => {
 
   const handleCambiarCedula = async () => {
     if (!clienteCedula || !nuevaCedula.trim()) return;
+    if (nuevaCedulaInvalida) {
+      message.warning('La cedula solo debe contener numeros');
+      return;
+    }
     setCambiandoCedula(true);
     try {
       await cambiarCedula(clienteCedula.cedula, nuevaCedula.trim());
@@ -1050,7 +1055,7 @@ const ClientesPage = () => {
               })}
             </Select>
           </Form.Item>
-          <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true }]}><Input placeholder="V-12345678" /></Form.Item>
+          <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}><Input inputMode="numeric" placeholder="12345678" /></Form.Item>
           <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
           <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
           <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
@@ -1266,7 +1271,7 @@ const ClientesPage = () => {
         okText="Cambiar cédula"
         cancelText="Cancelar"
         confirmLoading={cambiandoCedula}
-        okButtonProps={{ disabled: !nuevaCedula.trim() || nuevaCedula.trim() === clienteCedula?.cedula }}
+        okButtonProps={{ disabled: !nuevaCedula.trim() || nuevaCedulaInvalida || nuevaCedula.trim() === clienteCedula?.cedula }}
         width={460}
       >
         {clienteCedula && (
@@ -1289,11 +1294,16 @@ const ClientesPage = () => {
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Nueva cédula / pasaporte:</Text>
               <Input
                 autoFocus
-                placeholder="Ej: V-12345678"
+                placeholder="Ej: 12345678"
                 value={nuevaCedula}
                 onChange={e => setNuevaCedula(e.target.value)}
                 onPressEnter={handleCambiarCedula}
+                status={nuevaCedulaInvalida ? 'error' : undefined}
+                inputMode="numeric"
               />
+              {nuevaCedulaInvalida && (
+                <Text type="danger" style={{ fontSize: 12 }}>La cedula solo debe contener numeros</Text>
+              )}
               {nuevaCedula.trim() === clienteCedula.cedula && (
                 <Text type="danger" style={{ fontSize: 12 }}>La nueva cédula debe ser diferente a la actual</Text>
               )}

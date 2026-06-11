@@ -162,8 +162,8 @@ const CapturaPage = () => {
               </Form.Item>
             </div>
 
-            <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true, message: 'Ingresa tu cédula o pasaporte' }]}>
-              <Input placeholder="V-12345678" />
+            <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}>
+              <Input inputMode="numeric" placeholder="12345678" />
             </Form.Item>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>

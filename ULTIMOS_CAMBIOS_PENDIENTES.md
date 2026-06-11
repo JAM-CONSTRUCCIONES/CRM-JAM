@@ -57,11 +57,12 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   - El telefono debe guardarse sin simbolos.
   - El correo debe tener formato de correo valido y dominio con punto, por ejemplo ".com".
   - Nombre y apellido deben guardarse en mayuscula.
+  - La cedula solo debe aceptar numeros.
   - No debe aceptarse que el telefono se coloque en el campo correo ni que el correo se coloque en el campo telefono.
 
   Este cambio aplica a la validacion del formulario y al guardado de datos. No incluye limpieza masiva de clientes antiguos, salvo los casos necesarios para probar la correccion.
 
-  Hecho: se agrego validacion y normalizacion en formularios de clientes, captacion publica/global, asignacion desde bloqueos y procesos. El frontend bloquea el guardado si nombres/apellidos tienen numeros o simbolos, si el telefono tiene simbolos/letras, o si el correo no tiene formato valido con dominio con punto. El backend mantiene la validacion defensiva para rechazar datos invalidos y guarda nombres/apellidos en mayuscula.
+  Hecho: se agrego validacion y normalizacion en formularios de clientes, captacion publica/global, asignacion desde bloqueos y procesos. El frontend muestra el mensaje debajo de cada campo invalido y bloquea el guardado si nombres/apellidos tienen numeros o simbolos, si cedula o telefono tienen simbolos/letras, o si el correo no tiene formato valido con dominio con punto. El backend mantiene la validacion defensiva para rechazar datos invalidos y guarda nombres/apellidos en mayuscula.
 
 - [ ] Revisar el cliente de prueba dejado por el cliente.
 

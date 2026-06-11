@@ -48,6 +48,7 @@ def bloquear(event):
 
     if tiene_cliente:
         datos_cliente_normalizados, error_cliente = _normalizar_datos_cliente({
+            'cedula': cedula,
             'nombres': nombres,
             'apellidos': apellidos,
             'correo': body.get('correo', ''),
@@ -59,6 +60,7 @@ def bloquear(event):
         })
         if error_cliente:
             return bad_request(error_cliente)
+        cedula = datos_cliente_normalizados.get('cedula', '')
         nombres = datos_cliente_normalizados.get('nombres', '')
         apellidos = datos_cliente_normalizados.get('apellidos', '')
 

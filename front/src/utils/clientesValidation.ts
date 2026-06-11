@@ -1,6 +1,7 @@
 const EMAIL_REGEX = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 const NAME_REGEX = /^[\p{L}\s]+$/u;
 const PHONE_REGEX = /^\d+$/;
+const CEDULA_REGEX = /^\d+$/;
 
 const cleanSpaces = (value?: unknown) =>
   String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -13,6 +14,17 @@ export const normalizeClientEmail = (value?: unknown) =>
 
 export const normalizeClientPhone = (value?: unknown) =>
   cleanSpaces(value);
+
+export const normalizeClientCedula = (value?: unknown) =>
+  cleanSpaces(value);
+
+const validateClientCedula = (value?: unknown) => {
+  const cedula = normalizeClientCedula(value);
+  if (!cedula) return;
+  if (!CEDULA_REGEX.test(cedula)) {
+    throw new Error('La cedula solo debe contener numeros');
+  }
+};
 
 const validateClientName = (value?: unknown, fieldName = 'El campo') => {
   const nombre = cleanSpaces(value);
@@ -44,6 +56,19 @@ export const clienteFieldNormalizers = {
 };
 
 export const clienteFormRules = {
+  cedula: [
+    { required: true, message: 'Ingresa la cedula' },
+    {
+      validator: (_: unknown, value?: string) => {
+        try {
+          validateClientCedula(value);
+        } catch (err) {
+          return Promise.reject(err);
+        }
+        return Promise.resolve();
+      },
+    },
+  ],
   nombres: [
     { required: true, message: 'Ingresa los nombres' },
     {
@@ -97,6 +122,7 @@ export const clienteFormRules = {
 };
 
 export const normalizeClientePayload = <T extends Record<string, any>>(values: T): T => {
+  validateClientCedula(values.cedula);
   validateClientName(values.nombres, 'Nombres');
   validateClientName(values.apellidos, 'Apellidos');
   validateClientEmail(values.correo);
@@ -104,6 +130,7 @@ export const normalizeClientePayload = <T extends Record<string, any>>(values: T
 
   return {
     ...values,
+    cedula: normalizeClientCedula(values.cedula),
     nombres: normalizeClientName(values.nombres),
     apellidos: normalizeClientName(values.apellidos),
     correo: normalizeClientEmail(values.correo),
@@ -112,12 +139,14 @@ export const normalizeClientePayload = <T extends Record<string, any>>(values: T
 };
 
 export const validateAndNormalizeClientePayload = <T extends Record<string, any>>(values: T): T => {
+  validateClientCedula(values.cedula);
   validateClientName(values.nombres, 'Nombres');
   validateClientName(values.apellidos, 'Apellidos');
   validateClientEmail(values.correo);
   validateClientPhone(values.telefono);
 
   const data: Record<string, any> = { ...values };
+  if ('cedula' in data) data.cedula = normalizeClientCedula(data.cedula);
   if ('nombres' in data) data.nombres = normalizeClientName(data.nombres);
   if ('apellidos' in data) data.apellidos = normalizeClientName(data.apellidos);
   if ('correo' in data) data.correo = normalizeClientEmail(data.correo);

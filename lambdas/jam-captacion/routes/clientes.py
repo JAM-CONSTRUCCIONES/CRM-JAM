@@ -78,6 +78,15 @@ def _normalizar_nombre(value):
     return _clean_spaces(value).upper()
 
 
+def _normalizar_cedula(value):
+    cedula = _clean_spaces(value)
+    if not cedula:
+        return ''
+    if not cedula.isdigit():
+        raise ValueError('La cedula solo debe contener numeros')
+    return cedula
+
+
 def _normalizar_correo(value):
     correo = _clean_spaces(value).lower()
     if not correo:
@@ -103,6 +112,8 @@ def _normalizar_datos_cliente(body):
             data['nombres'] = _normalizar_nombre(data.get('nombres'))
         if 'apellidos' in data:
             data['apellidos'] = _normalizar_nombre(data.get('apellidos'))
+        if 'cedula' in data:
+            data['cedula'] = _normalizar_cedula(data.get('cedula'))
         if 'correo' in data:
             data['correo'] = _normalizar_correo(data.get('correo'))
         if 'telefono' in data:

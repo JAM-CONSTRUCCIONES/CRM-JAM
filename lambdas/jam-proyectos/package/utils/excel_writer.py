@@ -28,6 +28,15 @@ def _normalizar_nombre(value):
     return _clean_spaces(value).upper()
 
 
+def _normalizar_cedula(value):
+    cedula = _clean_spaces(value)
+    if not cedula:
+        return ''
+    if not cedula.isdigit():
+        raise ValueError('La cedula solo debe contener numeros')
+    return cedula
+
+
 def _normalizar_correo(value):
     correo = _clean_spaces(value).lower()
     if not correo:
@@ -383,6 +392,7 @@ def _escribir_unidad(proyecto_id, id_unidad, fila, inmo_id, ahora):
 
 
 def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, apellidos, inmo_id, ahora):
+    cedula = _normalizar_cedula(cedula)
     nombres = _normalizar_nombre(nombres)
     apellidos = _normalizar_nombre(apellidos)
     correo = _normalizar_correo(fila.get('cliente_correo'))

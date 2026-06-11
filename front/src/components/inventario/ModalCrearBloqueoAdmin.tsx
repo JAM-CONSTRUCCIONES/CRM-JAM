@@ -358,8 +358,8 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                   style={{ marginBottom: 16 }}
                 />
                 
-                <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true, message: 'Requerido' }]}>
-                  <Input placeholder="V-12345678" />
+                <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}>
+                  <Input inputMode="numeric" placeholder="12345678" />
                 </Form.Item>
                 
                 <Row gutter={12}>

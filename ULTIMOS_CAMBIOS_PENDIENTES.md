@@ -39,11 +39,13 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   El icono indicado por el cliente es para visualizar el comentario. Esta funcion ya fue aclarada al cliente. Se cambio a un icono de mensaje mas claro, con tooltip explicito para ver el comentario interno, sin modificar la funcionalidad.
 
-- [ ] Corregir filtros por bloque o tipo para que no dependan de mayusculas o minusculas.
+- [x] Corregir filtros por bloque o tipo para que no dependan de mayusculas o minusculas.
 
   Se normalizaran los caracteres usados en la busqueda. Por ejemplo, buscar "a" debe funcionar igual que buscar "A".
 
   Este mismo criterio aplicara tambien al modulo Proyecto del usuario inmobiliaria.
+
+  Hecho: los filtros de unidad, tipo y manzana/bloque ahora se comparan sin depender de mayusculas/minusculas, y el frontend envia los filtros sin espacios sobrantes.
 
 ### Clientes
 
@@ -149,9 +151,11 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 ### Proyecto
 
-- [ ] Corregir filtros por bloque o tipo para que no dependan de mayusculas o minusculas.
+- [x] Corregir filtros por bloque o tipo para que no dependan de mayusculas o minusculas.
 
   Debe funcionar igual que en el sistema administrativo. Buscar con minuscula o mayuscula debe devolver los mismos resultados.
+
+  Hecho: usa el mismo listado de unidades corregido que el modulo administrativo, por lo que las busquedas por unidad, tipo y manzana/bloque ya no dependen de mayusculas/minusculas.
 
 - [ ] Crear link publico permanente de visualizacion de inventario para inmobiliarias.
 

@@ -14,6 +14,21 @@ inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 _procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
 
 
+def _case_variants(value):
+    text = str(value or '').strip()
+    if not text:
+        return []
+    return list(dict.fromkeys([text, text.lower(), text.upper(), text.title(), text.capitalize()]))
+
+
+def _contains_case_insensitive(attr_name, value):
+    expr = None
+    for variant in _case_variants(value):
+        current = Attr(attr_name).contains(variant)
+        expr = expr | current if expr else current
+    return expr
+
+
 def _enrich_bloqueo(item):
     if item.get('estado') == 'bloqueada' and item.get('fecha_liberacion'):
         try:
@@ -52,19 +67,22 @@ def listar(proyecto_id, event, rol):
         filter_expr = filter_expr & new_filter if filter_expr else new_filter
     
     if qs.get('id_unidad'):
-        # Búsqueda parcial (contains) para id_unidad
-        new_filter = Attr('id_unidad').contains(qs['id_unidad'])
-        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+        # Búsqueda parcial case-insensitive para id_unidad
+        new_filter = _contains_case_insensitive('id_unidad', qs['id_unidad'])
+        if new_filter:
+            filter_expr = filter_expr & new_filter if filter_expr else new_filter
     
     if qs.get('tipo'):
-        # Búsqueda parcial (contains) para tipo
-        new_filter = Attr('tipo').contains(qs['tipo'])
-        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+        # Búsqueda parcial case-insensitive para tipo
+        new_filter = _contains_case_insensitive('tipo', qs['tipo'])
+        if new_filter:
+            filter_expr = filter_expr & new_filter if filter_expr else new_filter
     
     if qs.get('manzana'):
-        # Búsqueda parcial (contains) para manzana
-        new_filter = Attr('manzana').contains(qs['manzana'])
-        filter_expr = filter_expr & new_filter if filter_expr else new_filter
+        # Búsqueda parcial case-insensitive para manzana/bloque
+        new_filter = _contains_case_insensitive('manzana', qs['manzana'])
+        if new_filter:
+            filter_expr = filter_expr & new_filter if filter_expr else new_filter
     
     if qs.get('piso'):
         # Búsqueda parcial (contains) para piso

@@ -64,9 +64,11 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: se agrego validacion y normalizacion en formularios de clientes, captacion publica/global, asignacion desde bloqueos y procesos. El frontend muestra el mensaje debajo de cada campo invalido y bloquea el guardado si nombres/apellidos tienen numeros o simbolos, si cedula o telefono tienen simbolos/letras, o si el correo no tiene formato valido con dominio con punto. El backend mantiene la validacion defensiva para rechazar datos invalidos y guarda nombres/apellidos en mayuscula.
 
-- [ ] Revisar el cliente de prueba dejado por el cliente.
+- [x] Revisar el cliente de prueba dejado por el cliente.
 
   El caso reportado fue registrado con la cedula de otro cliente. Como las busquedas se hacen por cedula, aparece con el nombre del primer usuario creado con esa cedula. se informo de esto al cliente
+
+  Revisado: no requiere cambio de sistema. Las busquedas usan el GSI de cedula; si se registra una prueba con la misma cedula de otro cliente, el sistema agrupa por esa cedula y puede mostrar el nombre del primer registro encontrado.
 
 - [ ] Permitir exportar clientes desde el apartado Clientes.
 

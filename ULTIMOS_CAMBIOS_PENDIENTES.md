@@ -61,7 +61,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Este cambio aplica a la validacion del formulario y al guardado de datos. No incluye limpieza masiva de clientes antiguos, salvo los casos necesarios para probar la correccion.
 
-  Hecho: se agrego validacion y normalizacion en formularios de clientes, captacion publica/global, asignacion desde bloqueos y procesos. El backend tambien valida antes de guardar: nombres y apellidos en mayuscula, telefono solo con digitos, correo con formato valido y dominio con punto.
+  Hecho: se agrego validacion y normalizacion en formularios de clientes, captacion publica/global, asignacion desde bloqueos y procesos. El frontend bloquea el guardado si nombres/apellidos tienen numeros o simbolos, si el telefono tiene simbolos/letras, o si el correo no tiene formato valido con dominio con punto. El backend mantiene la validacion defensiva para rechazar datos invalidos y guarda nombres/apellidos en mayuscula.
 
 - [ ] Revisar el cliente de prueba dejado por el cliente.
 

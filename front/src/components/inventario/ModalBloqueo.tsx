@@ -4,6 +4,7 @@ import { DatePicker } from 'antd';
 import { LockOutlined, UserOutlined, CheckCircleFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { Cliente, Unidad } from '../../types';
+import { clienteFieldNormalizers, clienteFormRules } from '../../utils/clientesValidation';
 
 const { Text } = Typography;
 
@@ -146,18 +147,18 @@ const ModalBloqueo = ({ open, unidad, clienteEncontrado, buscandoCliente, guarda
 
         <Row gutter={12}>
           <Col span={12}>
-            <Form.Item name="nombres" label="Nombres" rules={[{ required: true }]}><Input /></Form.Item>
+            <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true }]}><Input /></Form.Item>
+            <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
           </Col>
         </Row>
         <Row gutter={12}>
           <Col span={12}>
-            <Form.Item name="correo" label="Correo"><Input type="email" /></Form.Item>
+            <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="telefono" label="Teléfono"><Input placeholder="+58 412 0000000" /></Form.Item>
+            <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
           </Col>
         </Row>
         <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento">

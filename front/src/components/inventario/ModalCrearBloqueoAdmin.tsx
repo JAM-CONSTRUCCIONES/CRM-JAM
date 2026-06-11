@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import type { Unidad, Cliente } from '../../types';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import { buscarClientesAdmin } from '../../services/clientes.service';
+import { clienteFieldNormalizers, clienteFormRules } from '../../utils/clientesValidation';
 
 const { Text } = Typography;
 
@@ -363,12 +364,12 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 
                 <Row gutter={12}>
                   <Col span={12}>
-                    <Form.Item name="nombres" label="Nombres" rules={[{ required: true, message: 'Requerido' }]}>
+                    <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}>
                       <Input />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true, message: 'Requerido' }]}>
+                    <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}>
                       <Input />
                     </Form.Item>
                   </Col>
@@ -376,13 +377,13 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 
                 <Row gutter={12}>
                   <Col span={12}>
-                    <Form.Item name="correo" label="Correo">
-                      <Input type="email" />
+                    <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}>
+                      <Input type="email" placeholder="correo@ejemplo.com" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item name="telefono" label="Teléfono">
-                      <Input placeholder="+58 412 0000000" />
+                    <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}>
+                      <Input inputMode="numeric" placeholder="584120000000" />
                     </Form.Item>
                   </Col>
                 </Row>

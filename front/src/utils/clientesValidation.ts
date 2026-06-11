@@ -1,4 +1,6 @@
 const EMAIL_REGEX = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+const NAME_REGEX = /^[\p{L}\s]+$/u;
+const PHONE_REGEX = /^\d+$/;
 
 const cleanSpaces = (value?: unknown) =>
   String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -10,7 +12,15 @@ export const normalizeClientEmail = (value?: unknown) =>
   cleanSpaces(value).toLowerCase();
 
 export const normalizeClientPhone = (value?: unknown) =>
-  String(value ?? '').replace(/\D/g, '');
+  cleanSpaces(value);
+
+const validateClientName = (value?: unknown, fieldName = 'El campo') => {
+  const nombre = cleanSpaces(value);
+  if (!nombre) return;
+  if (!NAME_REGEX.test(nombre)) {
+    throw new Error(`${fieldName} solo debe contener letras y espacios`);
+  }
+};
 
 const validateClientEmail = (value?: unknown) => {
   const correo = normalizeClientEmail(value);
@@ -23,10 +33,7 @@ const validateClientEmail = (value?: unknown) => {
 const validateClientPhone = (value?: unknown) => {
   const raw = cleanSpaces(value);
   if (!raw) return;
-  if (/[A-Za-z@]/.test(raw)) {
-    throw new Error('El telefono solo debe contener numeros');
-  }
-  if (!normalizeClientPhone(raw)) {
+  if (!PHONE_REGEX.test(raw)) {
     throw new Error('El telefono solo debe contener numeros');
   }
 };
@@ -37,8 +44,32 @@ export const clienteFieldNormalizers = {
 };
 
 export const clienteFormRules = {
-  nombres: [{ required: true, message: 'Ingresa los nombres' }],
-  apellidos: [{ required: true, message: 'Ingresa los apellidos' }],
+  nombres: [
+    { required: true, message: 'Ingresa los nombres' },
+    {
+      validator: (_: unknown, value?: string) => {
+        try {
+          validateClientName(value, 'Nombres');
+        } catch (err) {
+          return Promise.reject(err);
+        }
+        return Promise.resolve();
+      },
+    },
+  ],
+  apellidos: [
+    { required: true, message: 'Ingresa los apellidos' },
+    {
+      validator: (_: unknown, value?: string) => {
+        try {
+          validateClientName(value, 'Apellidos');
+        } catch (err) {
+          return Promise.reject(err);
+        }
+        return Promise.resolve();
+      },
+    },
+  ],
   correo: [
     {
       validator: (_: unknown, value?: string) => {
@@ -66,6 +97,8 @@ export const clienteFormRules = {
 };
 
 export const normalizeClientePayload = <T extends Record<string, any>>(values: T): T => {
+  validateClientName(values.nombres, 'Nombres');
+  validateClientName(values.apellidos, 'Apellidos');
   validateClientEmail(values.correo);
   validateClientPhone(values.telefono);
 
@@ -79,6 +112,8 @@ export const normalizeClientePayload = <T extends Record<string, any>>(values: T
 };
 
 export const validateAndNormalizeClientePayload = <T extends Record<string, any>>(values: T): T => {
+  validateClientName(values.nombres, 'Nombres');
+  validateClientName(values.apellidos, 'Apellidos');
   validateClientEmail(values.correo);
   validateClientPhone(values.telefono);
 

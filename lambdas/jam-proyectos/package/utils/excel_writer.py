@@ -41,12 +41,9 @@ def _normalizar_telefono(value):
     raw = _clean_spaces(value)
     if not raw:
         return ''
-    if '@' in raw or re.search(r'[A-Za-z]', raw):
+    if not raw.isdigit():
         raise ValueError('El telefono solo debe contener numeros')
-    telefono = re.sub(r'\D', '', raw)
-    if not telefono:
-        raise ValueError('El telefono solo debe contener numeros')
-    return telefono
+    return raw
 
 # Cliente para schedules y SQS
 scheduler = boto3.client('scheduler')

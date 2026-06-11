@@ -88,6 +88,13 @@ def confirmar(job_id, event):
             ', '.join(errores_duplicados[:10])
         )
 
+    errores_clientes = _validar_clientes_confirmacion(filas)
+    if errores_clientes:
+        return bad_request(
+            f'{len(errores_clientes)} fila(s) tienen datos de cliente invalidos: ' +
+            ', '.join(errores_clientes[:10])
+        )
+
     filas_con_error = [f for f in filas if f.get('errores')]
     if filas_con_error:
         return bad_request(f'{len(filas_con_error)} filas tienen errores. Corrigelas antes de confirmar.')
@@ -145,6 +152,20 @@ def _validar_duplicados_confirmacion(proyecto_id, filas):
         if id_norm in existentes:
             errores.append(f'{id_unidad} ya existe en el proyecto')
 
+    return errores
+
+
+def _validar_clientes_confirmacion(filas):
+    errores = []
+    for fila in filas:
+        cedula = str(fila.get('cedula') or '').strip()
+        cliente = str(fila.get('cliente_nombre_excel') or '').strip()
+        fila_excel = fila.get('fila_excel', '?')
+        id_unidad = fila.get('id_unidad', '')
+        if cliente and not cedula:
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: cedula obligatoria')
+        if cedula and not cedula.isdigit():
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: cedula solo debe contener numeros')
     return errores
 
 

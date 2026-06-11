@@ -333,6 +333,8 @@ def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
     # Si hay nombre de cliente y NO viene cédula del Excel → error (debe ingresarla)
     if nombre_cliente and not cedula:
         errores.append('cédula obligatoria cuando hay cliente')
+    if cedula and not str(cedula).strip().isdigit():
+        errores.append('cédula solo debe contener números')
     if nombre_cliente and not inmo_excel:
         advertencias.append('Sin inmobiliaria, el cliente no se registrará')
     # Si hay nombre de cliente pero faltan nombres/apellidos separados → advertencia

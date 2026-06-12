@@ -1,114 +1,46 @@
-# Propuesta: organizar Clientes por proyecto
+# Propuesta para organizar Clientes y exportacion
 
-## Idea principal
+## Propuesta
 
-El apartado Clientes deberia organizarse primero por proyecto.
+Se propone organizar el apartado Clientes por proyecto.
 
-En lugar de mostrar todos los clientes juntos desde el inicio, el usuario primero seleccionara el proyecto que quiere revisar. Despues de elegir el proyecto, vera los clientes relacionados con ese proyecto.
+Al entrar a Clientes, el usuario primero seleccionara el proyecto que quiere revisar. Luego vera los clientes relacionados con ese proyecto.
 
-Esto haria que la vista sea mas clara, mas ordenada y mas facil de usar.
-
-## Como se veria el flujo
-
-1. El usuario entra al apartado Clientes.
-2. El sistema muestra los proyectos disponibles.
-3. El usuario selecciona un proyecto.
-4. El sistema muestra los clientes de ese proyecto.
-5. Dentro del proyecto, el usuario puede filtrar los clientes.
-
-## Filtros dentro del proyecto
-
-Una vez seleccionado el proyecto, se podran usar filtros como:
+Dentro del proyecto podra filtrar por:
 
 - Inmobiliaria.
 - Clientes con unidad.
 - Clientes sin unidad.
 - Estatus del proceso.
-- Busqueda por nombre.
-- Busqueda por cedula.
+- Nombre o cedula.
 
-## Clientes con unidad y sin unidad
+## Clientes sin unidad
 
-Es importante separar estos casos:
+Se incluira una forma de identificar clientes registrados que todavia no tienen unidad asignada.
 
-- Clientes con unidad: clientes que ya tienen una unidad o proceso asociado.
-- Clientes sin unidad: clientes registrados o captados que todavia no tienen unidad asignada.
-
-Esto ayudara a saber que clientes necesitan seguimiento comercial, porque ya estan registrados pero aun no avanzaron hacia una unidad.
-
-## Por que se recomienda hacerlo por proyecto
-
-Ventajas:
-
-- Evita mostrar una lista gigante de clientes mezclados.
-- Hace mas facil revisar clientes de un proyecto especifico.
-- Reduce confusion cuando una inmobiliaria trabaja en varios proyectos.
-- Permite ver mejor cuantos clientes tiene cada proyecto.
-- Facilita encontrar clientes sin unidad.
-- Prepara mejor el sistema para exportaciones y campanias de correo.
-
-## Por que no empezar por inmobiliaria
-
-No se recomienda que la primera seleccion sea por inmobiliaria, porque una inmobiliaria puede trabajar en varios proyectos.
-
-Si se empieza por inmobiliaria, igual despues habria que separar los datos por proyecto.
-
-Por eso se recomienda:
-
-- Primero seleccionar proyecto.
-- Luego filtrar por inmobiliaria si hace falta.
-
-## Como aplicara para usuarios administrativos
-
-El usuario administrativo vera los proyectos disponibles y podra entrar a cada uno para revisar sus clientes.
-
-Dentro de un proyecto podra filtrar por inmobiliaria, por clientes con unidad, clientes sin unidad y estatus.
-
-## Como aplicara para usuarios inmobiliaria
-
-El usuario inmobiliaria vera solo los proyectos que tenga asignados.
-
-Si tiene un solo proyecto, se podria entrar directamente a ese proyecto.
-
-Si tiene varios proyectos, primero seleccionara el proyecto y luego vera sus clientes correspondientes.
+Esto ayudara al seguimiento comercial, porque permite ver que clientes ya fueron captados pero aun no avanzaron hacia una unidad.
 
 ## Exportacion de clientes
 
-La exportacion de clientes tambien deberia seguir esta misma logica.
+La exportacion seguira la misma logica:
 
-Antes de exportar, el usuario deberia estar dentro de un proyecto.
-
-La exportacion saldra del proyecto seleccionado y podra respetar los filtros aplicados.
+1. El usuario selecciona un proyecto.
+2. Aplica los filtros que necesite.
+3. Exporta los clientes resultantes.
 
 Ejemplos:
 
-- Exportar todos los clientes del proyecto.
-- Exportar solo clientes de una inmobiliaria dentro del proyecto.
-- Exportar solo clientes sin unidad.
-- Exportar solo clientes con unidad.
-- Exportar clientes por estatus del proceso.
+- Exportar todos los clientes de un proyecto.
+- Exportar clientes sin unidad de un proyecto.
+- Exportar clientes de una inmobiliaria dentro de un proyecto.
+- Exportar clientes por estatus.
 
-## Beneficio para exportacion
+## Ventaja principal
 
-Esto evita crear un archivo demasiado grande con clientes de todos los proyectos mezclados.
+Esta forma evita generar un archivo grande con clientes mezclados de todos los proyectos.
 
-Tambien hace que el archivo exportado sea mas util, porque cada exportacion tendra un contexto claro.
+Cada exportacion tendra un contexto claro y sera mas facil de usar para seguimiento comercial o futuras campanias de correo.
 
-Ejemplo:
+## Pendiente de aprobacion
 
-- Proyecto: Torre Norte.
-- Filtro: clientes sin unidad.
-- Resultado: archivo con clientes captados en Torre Norte que todavia no tienen unidad asignada.
-
-## Recomendacion final
-
-Se recomienda reorganizar el apartado Clientes para que funcione por proyecto, similar a como se revisan proyectos, inventario o procesos.
-
-La estructura recomendada seria:
-
-1. Seleccionar proyecto.
-2. Ver clientes del proyecto.
-3. Filtrar por inmobiliaria, unidad, estatus o busqueda.
-4. Exportar clientes usando el proyecto y filtros seleccionados.
-
-Esta forma mantiene el sistema mas ordenado y prepara mejor las funciones futuras de exportacion y campanias de correo.
+Confirmar si el cliente aprueba que el apartado Clientes y la exportacion funcionen por proyecto, con filtros internos.

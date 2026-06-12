@@ -74,13 +74,13 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   La exportacion debe incluir clientes de captacion y clientes que tienen unidad. Esto es necesario para seguimiento comercial y para preparar bases de contacto que luego podran usarse en campanas de correo.
 
-  Propuesta de implementacion:
+  Antes de implementar se debe definir si la exportacion sera por proyecto, por inmobiliaria, por proyecto + inmobiliaria, o si existira una opcion especial para exportar todo.
 
-  - Agregar un boton "Exportar clientes" en el apartado Clientes.
-  - La exportacion usara los filtros actuales de la pantalla cuando existan: proyecto, inmobiliaria, busqueda por nombre o busqueda por cedula.
-  - El formato inicial recomendado sera Excel (`.xlsx`), porque permite filtrar, ordenar y revisar datos facilmente.
-  - El backend generara el archivo y lo subira a S3, devolviendo un enlace temporal de descarga.
-  - No se enviaran correos desde esta funcion. Solo se descargara la base de clientes.
+  La recomendacion tecnica es no generar un Excel gigante por defecto. Se recomienda exportar por proyecto con filtro opcional por inmobiliaria.
+
+  La decision esta documentada con ejemplos, ventajas y desventajas en:
+
+  - `docs/informes/decision-exportacion-clientes.md`
 
   Clientes incluidos:
 

@@ -1,29 +1,34 @@
-# Propuesta para exportacion de clientes
+# Propuesta para Clientes
+
+## Necesidad
+
+Debido a que se quiere conocer que clientes no cuentan con una unidad asignada, se propone ajustar el apartado Clientes para que esta informacion sea visible y facil de consultar.
 
 ## Propuesta
 
-Se propone que la exportacion de clientes sea por proyecto.
+El apartado Clientes se organizara por proyecto.
 
-El usuario seleccionara un proyecto y el sistema generara un archivo Excel con los clientes de ese proyecto.
+Al entrar, el usuario seleccionara un proyecto y luego vera los clientes relacionados con ese proyecto.
 
-La exportacion sera simple. No se agregara una exportacion general de todos los proyectos juntos.
+En esa vista se mostraran tanto los clientes que tienen unidad asignada como los clientes que aun no tienen unidad.
 
-## Estatus
+## Cambio visual en Clientes
 
-El archivo usara los estatus que ya existen actualmente en el sistema.
+La pantalla de Clientes mostrara una columna de estatus.
 
-Ademas, se agregara el estatus "Sin unidad" para identificar a los clientes registrados que todavia no tienen una unidad asignada.
+El estatus usara los valores que ya existen actualmente en el sistema. Ademas, cuando un cliente no tenga unidad asignada, se mostrara como:
 
-No se separara en dos grupos diferentes. Los clientes con unidad y sin unidad saldran en el mismo Excel, pero se podran reconocer por el estatus.
+- Sin unidad.
 
-Ejemplo:
+Esto permitira identificar rapidamente que clientes necesitan seguimiento comercial.
 
-- Cliente con proceso: mantiene su estatus actual.
-- Cliente sin unidad asignada: saldra con estatus "Sin unidad".
+## Exportacion
 
-## Datos del archivo
+La exportacion tambien se hara por proyecto.
 
-El Excel incluira los datos necesarios del cliente y solo una referencia sencilla de la unidad.
+El usuario seleccionara un proyecto y descargara un archivo Excel con los clientes de ese proyecto.
+
+El archivo incluira los datos principales del cliente y una referencia sencilla de la unidad, cuando exista.
 
 Columnas propuestas:
 
@@ -37,16 +42,17 @@ Columnas propuestas:
 - Estatus.
 - Unidad.
 
-La columna Unidad solo mostrara la unidad relacionada al cliente. No se incluiran muchos datos de la unidad para mantener el archivo simple.
-
-Si el cliente no tiene unidad, la columna Unidad quedara vacia y el estatus sera "Sin unidad".
+Si el cliente no tiene unidad asignada, se mostrara con estatus "Sin unidad" y la unidad quedara vacia.
 
 ## Beneficio
 
-Esta forma permite obtener una lista clara de clientes por proyecto, incluyendo tanto clientes con unidad como clientes sin unidad.
+Con este cambio, el cliente podra:
 
-Tambien evita generar un Excel demasiado grande o con informacion innecesaria.
+- Ver los clientes de cada proyecto.
+- Identificar cuales clientes no tienen unidad asignada.
+- Dar seguimiento comercial a esos clientes.
+- Exportar una lista clara sin mezclar clientes de todos los proyectos.
 
 ## Pendiente de aprobacion
 
-Confirmar si el cliente aprueba que la exportacion sea por proyecto y que el archivo incluya el estatus "Sin unidad" para los clientes que aun no tienen unidad asignada.
+Confirmar si se aprueba organizar Clientes por proyecto, mostrar el estatus "Sin unidad" y exportar clientes por proyecto en Excel.

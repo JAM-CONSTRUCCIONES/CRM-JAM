@@ -74,11 +74,17 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   La exportacion debe incluir clientes de captacion y clientes que tienen unidad. Esto es necesario para seguimiento comercial y para preparar bases de contacto que luego podran usarse en campanas de correo.
 
-  Antes de implementar se debe definir si la exportacion sera por proyecto, por inmobiliaria, por proyecto + inmobiliaria, o si existira una opcion especial para exportar todo.
+  La propuesta recomendada es organizar primero el apartado Clientes por proyecto. Al entrar, el usuario seleccionara un proyecto y luego vera los clientes relacionados con ese proyecto.
 
-  La recomendacion tecnica es no generar un Excel gigante por defecto. Se recomienda exportar por proyecto con filtro opcional por inmobiliaria.
+  Dentro del proyecto se podra filtrar por inmobiliaria, clientes con unidad, clientes sin unidad, estatus del proceso, nombre o cedula.
 
-  La decision esta documentada con ejemplos, ventajas y desventajas en:
+  La exportacion seguira esa misma forma de trabajo: se exportaran los clientes del proyecto seleccionado y, si el usuario aplico filtros, la exportacion respetara esos filtros. Esto evita crear un archivo gigante con clientes de todos los proyectos mezclados.
+
+  La propuesta clara para cliente esta documentada en:
+
+  - `docs/informes/propuesta-clientes-por-proyecto.md`
+
+  La decision inicial con opciones, ventajas y desventajas queda documentada en:
 
   - `docs/informes/decision-exportacion-clientes.md`
 

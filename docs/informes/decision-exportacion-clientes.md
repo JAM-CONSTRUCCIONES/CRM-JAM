@@ -4,7 +4,7 @@
 
 Definir como debe funcionar la exportacion de clientes desde el apartado Clientes, evitando generar un archivo demasiado grande o dificil de usar.
 
-La exportacion servira para seguimiento comercial y para preparar bases de contacto. No envia correos por si sola.
+La exportacion servira para seguimiento comercial y para preparar bases de contacto. No enviara correos por si sola; eso pertenece a otro modulo.
 
 ## Opciones de exportacion
 

@@ -49,6 +49,8 @@ Columnas propuestas:
 - Apellido.
 - Correo.
 - Telefono.
+- Nacionalidad.
+- Pais de residencia.
 - Proyecto.
 - Inmobiliaria.
 - Estatus.

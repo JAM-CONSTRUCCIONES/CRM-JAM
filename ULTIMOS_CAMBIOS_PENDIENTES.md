@@ -72,15 +72,70 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 - [ ] Permitir exportar clientes desde el apartado Clientes.
 
-  La exportacion debe incluir clientes de captacion y clientes que tienen unidad. Esto es necesario para campanas de correo y seguimiento comercial de clientes que aun no han comprado.
+  La exportacion debe incluir clientes de captacion y clientes que tienen unidad. Esto es necesario para seguimiento comercial y para preparar bases de contacto que luego podran usarse en campanas de correo.
 
-  Queda pendiente definir antes de implementar:
+  Propuesta de implementacion:
 
-  - Formato de exportacion: Excel, CSV o ambos.
-  - Columnas exactas a exportar.
-  - Roles que podran exportar.
+  - Agregar un boton "Exportar clientes" en el apartado Clientes.
+  - La exportacion usara los filtros actuales de la pantalla cuando existan: proyecto, inmobiliaria, busqueda por nombre o busqueda por cedula.
+  - El formato inicial recomendado sera Excel (`.xlsx`), porque permite filtrar, ordenar y revisar datos facilmente.
+  - El backend generara el archivo y lo subira a S3, devolviendo un enlace temporal de descarga.
+  - No se enviaran correos desde esta funcion. Solo se descargara la base de clientes.
 
-  no se aclaro si el cliente quiere un nuevo modulo de campanas de correo, por lo tanto no se estara realizando este modulo
+  Clientes incluidos:
+
+  - Clientes captados, aunque no tengan unidad asignada.
+  - Clientes con procesos de venta.
+  - Clientes con unidad vinculada.
+  - Clientes que aparezcan en mas de un proyecto o tengan mas de una unidad podran salir en mas de una fila para no perder la relacion cliente-proyecto-unidad.
+
+  Columnas propuestas:
+
+  - Cedula.
+  - Nombres.
+  - Apellidos.
+  - Correo.
+  - Telefono.
+  - Proyecto.
+  - Inmobiliaria.
+  - Unidad.
+  - Estado del proceso.
+  - Estado de exclusividad.
+  - Fecha de captacion.
+  - Fecha de vencimiento de exclusividad.
+  - Fecha de nacimiento.
+  - Edad.
+  - Estado civil.
+  - Nacionalidad.
+  - Pais de residencia.
+
+  Roles propuestos:
+
+  - Administrador: puede exportar todos los clientes.
+  - Coordinador: puede exportar clientes si se confirma que entra dentro de sus permisos.
+  - Inmobiliaria: no se incluye en esta primera version, salvo que se defina una exportacion limitada solo a sus clientes.
+
+  Validaciones antes de implementar:
+
+  - Confirmar si el formato sera solo Excel o tambien CSV.
+  - Confirmar columnas finales.
+  - Confirmar roles autorizados.
+  - Confirmar si se exportan todos los registros o solo los resultados filtrados en pantalla.
+
+- [ ] Crear modulo de campanias de correo.
+
+  Este sera un modulo nuevo, separado de la exportacion de clientes.
+
+  Alcance pendiente de definir:
+
+  - Seleccionar destinatarios desde clientes exportables o filtros de clientes.
+  - Crear y guardar plantillas de correo.
+  - Enviar campanias a grupos de clientes.
+  - Registrar historial de envios.
+  - Validar correos disponibles, rebotados o no verificados.
+  - Definir limites de envio y permisos por rol.
+
+  Este punto no se implementara como parte de la exportacion de clientes. Se deja como tarea nueva para analizar y estimar por separado.
 
 
 ### Procesos

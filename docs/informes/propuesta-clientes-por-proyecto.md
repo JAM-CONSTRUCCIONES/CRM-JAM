@@ -12,6 +12,8 @@ Al entrar, el usuario seleccionara un proyecto y luego vera los clientes relacio
 
 En esa vista se mostraran tanto los clientes que tienen unidad asignada como los clientes que aun no tienen unidad.
 
+En la misma pantalla del proyecto se mostrara el boton para exportar clientes en Excel.
+
 ## Cambio visual en Clientes
 
 La pantalla de Clientes mostrara una columna de estatus.
@@ -22,11 +24,21 @@ El estatus usara los valores que ya existen actualmente en el sistema. Ademas, c
 
 Esto permitira identificar rapidamente que clientes necesitan seguimiento comercial.
 
-## Exportacion
+## Clientes con una o mas unidades
 
-La exportacion tambien se hara por proyecto.
+La lista se mostrara tomando en cuenta la relacion del cliente con sus unidades o procesos dentro del proyecto.
 
-El usuario seleccionara un proyecto y descargara un archivo Excel con los clientes de ese proyecto.
+Reglas:
+
+- Cliente sin unidad: se mostrara una vez con estatus "Sin unidad".
+- Cliente con una unidad: se mostrara una vez con su unidad y estatus correspondiente.
+- Cliente con varias unidades o procesos: se mostrara una fila por cada unidad o proceso.
+
+Esto evita mezclar estatus distintos en una sola fila.
+
+## Archivo Excel
+
+Al usar el boton de exportar, se descargara un archivo Excel con los clientes del proyecto seleccionado.
 
 El archivo incluira los datos principales del cliente y una referencia sencilla de la unidad, cuando exista.
 
@@ -55,4 +67,4 @@ Con este cambio, el cliente podra:
 
 ## Pendiente de aprobacion
 
-Confirmar si se aprueba organizar Clientes por proyecto, mostrar el estatus "Sin unidad" y exportar clientes por proyecto en Excel.
+Pendiente de aprobacion para realizar el cambio con el alcance descrito en este documento.

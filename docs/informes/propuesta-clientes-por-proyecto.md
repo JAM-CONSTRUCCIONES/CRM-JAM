@@ -1,46 +1,52 @@
-# Propuesta para organizar Clientes y exportacion
+# Propuesta para exportacion de clientes
 
 ## Propuesta
 
-Se propone organizar el apartado Clientes por proyecto.
+Se propone que la exportacion de clientes sea por proyecto.
 
-Al entrar a Clientes, el usuario primero seleccionara el proyecto que quiere revisar. Luego vera los clientes relacionados con ese proyecto.
+El usuario seleccionara un proyecto y el sistema generara un archivo Excel con los clientes de ese proyecto.
 
-Dentro del proyecto podra filtrar por:
+La exportacion sera simple. No se agregara una exportacion general de todos los proyectos juntos.
 
+## Estatus
+
+El archivo usara los estatus que ya existen actualmente en el sistema.
+
+Ademas, se agregara el estatus "Sin unidad" para identificar a los clientes registrados que todavia no tienen una unidad asignada.
+
+No se separara en dos grupos diferentes. Los clientes con unidad y sin unidad saldran en el mismo Excel, pero se podran reconocer por el estatus.
+
+Ejemplo:
+
+- Cliente con proceso: mantiene su estatus actual.
+- Cliente sin unidad asignada: saldra con estatus "Sin unidad".
+
+## Datos del archivo
+
+El Excel incluira los datos necesarios del cliente y solo una referencia sencilla de la unidad.
+
+Columnas propuestas:
+
+- Cedula.
+- Nombre.
+- Apellido.
+- Correo.
+- Telefono.
+- Proyecto.
 - Inmobiliaria.
-- Clientes con unidad.
-- Clientes sin unidad.
-- Estatus del proceso.
-- Nombre o cedula.
+- Estatus.
+- Unidad.
 
-## Clientes sin unidad
+La columna Unidad solo mostrara la unidad relacionada al cliente. No se incluiran muchos datos de la unidad para mantener el archivo simple.
 
-Se incluira una forma de identificar clientes registrados que todavia no tienen unidad asignada.
+Si el cliente no tiene unidad, la columna Unidad quedara vacia y el estatus sera "Sin unidad".
 
-Esto ayudara al seguimiento comercial, porque permite ver que clientes ya fueron captados pero aun no avanzaron hacia una unidad.
+## Beneficio
 
-## Exportacion de clientes
+Esta forma permite obtener una lista clara de clientes por proyecto, incluyendo tanto clientes con unidad como clientes sin unidad.
 
-La exportacion seguira la misma logica:
-
-1. El usuario selecciona un proyecto.
-2. Aplica los filtros que necesite.
-3. Exporta los clientes resultantes.
-
-Ejemplos:
-
-- Exportar todos los clientes de un proyecto.
-- Exportar clientes sin unidad de un proyecto.
-- Exportar clientes de una inmobiliaria dentro de un proyecto.
-- Exportar clientes por estatus.
-
-## Ventaja principal
-
-Esta forma evita generar un archivo grande con clientes mezclados de todos los proyectos.
-
-Cada exportacion tendra un contexto claro y sera mas facil de usar para seguimiento comercial o futuras campanias de correo.
+Tambien evita generar un Excel demasiado grande o con informacion innecesaria.
 
 ## Pendiente de aprobacion
 
-Confirmar si el cliente aprueba que el apartado Clientes y la exportacion funcionen por proyecto, con filtros internos.
+Confirmar si el cliente aprueba que la exportacion sea por proyecto y que el archivo incluya el estatus "Sin unidad" para los clientes que aun no tienen unidad asignada.

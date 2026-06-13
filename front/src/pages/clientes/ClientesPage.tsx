@@ -2,27 +2,29 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Typography, Table, Tag, Button, Modal, Form, Input, Select,
   DatePicker, message, Space, Tooltip, Spin, Grid, Alert, Progress,
+  Row, Col,
 } from 'antd';
 import {
   PlusOutlined, ReloadOutlined, UserOutlined, HistoryOutlined,
-  SwapOutlined, SearchOutlined, EditOutlined, EyeOutlined, BankOutlined,
-  ClockCircleOutlined, DeleteOutlined,
+  SwapOutlined, SearchOutlined, EditOutlined, BankOutlined,
+  ClockCircleOutlined, DeleteOutlined, ArrowLeftOutlined, AppstoreOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   getClientes, getClientesAdmin, buscarClienteAdmin, buscarClientesAdmin,
   registrarCliente, actualizarClienteAdmin, transferirClienteInmobiliaria,
-  eliminarClienteAdmin, cambiarCedula,
+  eliminarClienteAdmin, cambiarCedula, exportarClientesProyecto,
 } from '../../services/clientes.service';
 import { getProcesosCliente, getMisProcesos, cambiarEstatus } from '../../services/crm.service';
 import { getProyectos } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import { useAuthContext } from '../../context/AuthContext';
-import type { Cliente, Proyecto, Proceso } from '../../types';
+import type { Cliente, Proyecto, Proceso, ClienteProyecto } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
-import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION } from '../../constants/estados';
+import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Title, Text } = Typography;
@@ -45,38 +47,23 @@ const getColorExclusividad = (dias: number): string => {
   return '#52c41a'; // Verde - más de 1 mes
 };
 
-interface ClienteAgrupado {
-  cedula: string;
-  nombres: string;
-  apellidos: string;
-  registros: Cliente[];  // uno por proyecto/inmobiliaria
-}
-
-function agruparPorCedula(lista: Cliente[]): ClienteAgrupado[] {
-  const map = new Map<string, ClienteAgrupado>();
-  for (const c of lista) {
-    if (!map.has(c.cedula)) {
-      map.set(c.cedula, { cedula: c.cedula, nombres: c.nombres, apellidos: c.apellidos, registros: [] });
-    }
-    map.get(c.cedula)!.registros.push(c);
-  }
-  return Array.from(map.values());
-}
-
 const ClientesPage = () => {
   const { usuario } = useAuthContext();
   const isAdmin = usuario?.rol !== 'inmobiliaria';
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  // Lista plana de clientes (para inmobiliaria) o agrupada (para admin)
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  // Lista plana de clientes del proyecto seleccionado
+  const [clientes, setClientes] = useState<ClienteProyecto[]>([]);
   const [nextToken, setNextToken] = useState<string | undefined>();
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [proyectoFiltro, setProyectoFiltro] = useState<string | undefined>();
+  const [proyectoSeleccionado, setProyectoSeleccionado] = useState<Proyecto | null>(null);
+  const [vista, setVista] = useState<'proyectos' | 'clientes'>('proyectos');
   const [inmoFiltro, setInmoFiltro] = useState<string | undefined>();
   const [modoVista, setModoVista] = useState<'lista' | 'busqueda'>('lista');
   const [tipoBusqueda, setTipoBusqueda] = useState<'nombre' | 'cedula'>('nombre');
@@ -124,18 +111,22 @@ const ClientesPage = () => {
   const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const cargar = useCallback(async (proyId?: string, inmoId?: string, token?: string) => {
+    if (!proyId) {
+      setClientes([]);
+      setNextToken(undefined);
+      return;
+    }
     setLoading(true);
     try {
       if (isAdmin) {
         const data = await getClientesAdmin(
-          proyId || inmoId ? { proyecto_id: proyId, inmobiliaria_id: inmoId, next_token: token }
-            : { next_token: token }
+          { proyecto_id: proyId, inmobiliaria_id: inmoId, next_token: token, vista: 'proyecto' }
         );
         setClientes(prev => token ? [...prev, ...data.items] : data.items);
         setNextToken(data.next_token);
       } else {
-        const data = await getClientes(proyId);
-        setClientes(data);
+        const data = await getClientes(proyId, true);
+        setClientes(data as ClienteProyecto[]);
       }
     } catch { message.error('Error al cargar clientes'); }
     finally { setLoading(false); }
@@ -144,8 +135,7 @@ const ClientesPage = () => {
   useEffect(() => {
     getProyectos().then(setProyectos).catch(() => {});
     if (isAdmin) getInmobiliarias().then(setInmobiliarias).catch(() => {});
-    cargar();
-  }, [cargar, isAdmin]);
+  }, [isAdmin]);
 
   const proyectoNombre = (id: string) => proyectos.find(p => p.proyecto_id === id)?.nombre ?? id;
   const inmoNombre = (id: string) => {
@@ -157,6 +147,46 @@ const ClientesPage = () => {
     )?.nombre ?? id;
   };
 
+  const seleccionarProyecto = (proyecto: Proyecto) => {
+    setProyectoSeleccionado(proyecto);
+    setProyectoFiltro(proyecto.proyecto_id);
+    setVista('clientes');
+    setBusqueda('');
+    setModoVista('lista');
+    setNextToken(undefined);
+    cargar(proyecto.proyecto_id, inmoFiltro);
+  };
+
+  const volverAProyectos = () => {
+    setVista('proyectos');
+    setProyectoSeleccionado(null);
+    setProyectoFiltro(undefined);
+    setClientes([]);
+    setBusqueda('');
+    setModoVista('lista');
+    setNextToken(undefined);
+  };
+
+  const handleExportarClientes = async () => {
+    if (!proyectoFiltro) return;
+    setExportando(true);
+    try {
+      const result = await exportarClientesProyecto(proyectoFiltro, isAdmin, inmoFiltro);
+      message.success(`Descargando ${result.total_clientes} clientes...`);
+      const link = document.createElement('a');
+      link.href = result.download_url;
+      link.download = result.filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      message.error(err?.message || 'Error al exportar clientes');
+    } finally {
+      setExportando(false);
+    }
+  };
+
   // Manejar búsqueda con lógica híbrida
   const handleBusqueda = (valor: string) => {
     setBusqueda(valor);
@@ -164,6 +194,11 @@ const ClientesPage = () => {
     // Limpiar timer anterior
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+    }
+
+    if (proyectoFiltro) {
+      setModoVista('lista');
+      return;
     }
     
     // Sin búsqueda: volver a modo lista
@@ -192,7 +227,7 @@ const ClientesPage = () => {
           proyectoFiltro,
           inmoFiltro
         );
-        setClientes(resultados);
+        setClientes(resultados as ClienteProyecto[]);
         setNextToken(undefined); // No hay paginación en búsqueda
       } catch {
         message.error('Error en la búsqueda');
@@ -227,15 +262,14 @@ const ClientesPage = () => {
   // }, [modoVista, busqueda, tipoBusqueda, proyectoFiltro, inmoFiltro, cargar]);
 
   // Filtro local por búsqueda (solo para búsquedas de 1 carácter)
-  const clientesFiltrados = (busqueda.trim().length === 1 && modoVista === 'lista')
+  const clientesFiltrados = (busqueda.trim().length >= 1 && modoVista === 'lista')
     ? clientes.filter(c =>
         c.cedula.toLowerCase().includes(busqueda.toLowerCase()) ||
-        `${c.nombres} ${c.apellidos}`.toLowerCase().includes(busqueda.toLowerCase())
+        `${c.nombres} ${c.apellidos}`.toLowerCase().includes(busqueda.toLowerCase()) ||
+        (c.unidad_nombre || c.unidad_id || '').toLowerCase().includes(busqueda.toLowerCase()) ||
+        (c.estatus_label || c.estatus || '').toLowerCase().includes(busqueda.toLowerCase())
       )
     : clientes;
-
-  // Agrupados por cédula para admin
-  const agrupados = isAdmin ? agruparPorCedula(clientesFiltrados) : [];
 
   // Abrir drawer de detalle por cédula (admin)
   const abrirDetalleCedula = async (cedula: string) => {
@@ -325,7 +359,7 @@ const ClientesPage = () => {
       message.success('Cliente registrado');
       setModalOpen(false); form.resetFields();
       setNextToken(undefined);
-      cargar(proyectoFiltro);
+      cargar(proyectoFiltro, inmoFiltro);
     } catch (err: any) {
       console.error('Error al registrar cliente:', err);
       // El mensaje ya viene procesado por handleApiError en api.ts
@@ -473,77 +507,54 @@ const ClientesPage = () => {
     }
   };
 
-  // ── Columnas tabla admin (agrupada por cédula) ──
-  const columnasAdmin = [
-    {
-      title: 'Cliente', key: 'cliente',
-      render: (_: unknown, r: ClienteAgrupado) => (
-        <div>
-          <Text strong>{r.nombres} {r.apellidos}</Text>
-          <br /><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text>
-        </div>
-      ),
-    },
-    ...(!isMobile ? [
-      {
-        title: 'Proyectos', key: 'proyectos',
-        render: (_: unknown, r: ClienteAgrupado) => (
-          <Space wrap>
-            {r.registros.map(reg => (
-              <Tag key={`${reg.pk}#${reg.sk}`} color={reg.exclusividad_activa ? 'blue' : 'default'}>
-                {proyectoNombre(reg.proyecto_id)}
-              </Tag>
-            ))}
-          </Space>
-        ),
-      },
-      {
-        title: 'Inmobiliarias', key: 'inmos',
-        render: (_: unknown, r: ClienteAgrupado) => {
-          const unicas = [...new Set(r.registros.map(reg => reg.inmobiliaria_id))];
-          return <Space wrap>{unicas.map(id => <Tag key={id}>{inmoNombre(id)}</Tag>)}</Space>;
-        },
-      },
-    ] : []),
-    {
-      title: '', key: 'acciones', width: 48,
-      render: (_: unknown, r: ClienteAgrupado) => (
-        <EyeOutlined style={{ color: '#1677ff', fontSize: 16 }} onClick={() => abrirDetalleCedula(r.cedula)} />
-      ),
-    },
-  ];
 
-  // ── Columnas tabla inmobiliaria ──
-  const columnasInmo = [
+
+  const renderEstatusCliente = (r: ClienteProyecto) => {
+    if (r.estatus === 'sin_unidad') return <Tag color="orange">Sin unidad</Tag>;
+    return (
+      <Tooltip title={ESTADO_PROCESO_DESCRIPCION[r.estatus] || r.estatus}>
+        <Tag color={ESTADO_PROCESO_COLOR[r.estatus] ?? 'default'}>
+          {ESTADO_PROCESO_LABEL[r.estatus] ?? r.estatus_label ?? r.estatus}
+        </Tag>
+      </Tooltip>
+    );
+  };
+
+  const columnasProyecto = [
     {
       title: 'Cliente', key: 'cliente',
-      render: (_: unknown, r: Cliente) => (
+      render: (_: unknown, r: ClienteProyecto) => (
         <div>
           <Text strong>{r.nombres} {r.apellidos}</Text>
           <br /><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text>
         </div>
       ),
     },
-    { title: 'Proyecto', key: 'proyecto', render: (_: unknown, r: Cliente) => proyectoNombre(r.proyecto_id) },
     {
-      title: 'Exclusividad', key: 'excl',
-      render: (_: unknown, r: Cliente) => {
-        if (!r.exclusividad_activa) {
-          return <Tag color="default">Vencida</Tag>;
-        }
-        const diasRestantes = calcularDiasRestantes(r.fecha_vencimiento);
-        const color = getColorExclusividad(diasRestantes);
-        return (
-          <Tooltip title={`Vence: ${dayjs(r.fecha_vencimiento).format('DD/MM/YYYY HH:mm')}`}>
-            <Tag color={color} icon={<ClockCircleOutlined />}>
-              {diasRestantes > 0 ? `${diasRestantes} día${diasRestantes !== 1 ? 's' : ''}` : 'Vencida'}
-            </Tag>
-          </Tooltip>
-        );
-      },
+      title: 'Unidad', key: 'unidad',
+      render: (_: unknown, r: ClienteProyecto) => (
+        r.unidad_nombre || r.unidad_id
+          ? <Tag color="geekblue">{r.unidad_nombre || r.unidad_id}</Tag>
+          : <Text type="secondary">Sin unidad</Text>
+      ),
     },
-    { title: 'Captado', dataIndex: 'fecha_captacion', key: 'fc', render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
-    { title: '', key: 'acc', render: (_: unknown, r: Cliente) => <Button size="small" type="link" onClick={() => abrirDrawerInmo(r)}>Ver detalle</Button> },
+    { title: 'Estatus', key: 'estatus', render: (_: unknown, r: ClienteProyecto) => renderEstatusCliente(r) },
+    ...(isAdmin && !isMobile ? [{
+      title: 'Inmobiliaria', key: 'inmo',
+      render: (_: unknown, r: ClienteProyecto) => inmoNombre(r.inmobiliaria_id),
+    }] : []),
+    { title: 'Captado', dataIndex: 'fecha_captacion', key: 'fc', render: (v: string) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
+    {
+      title: '', key: 'acciones', width: 92,
+      render: (_: unknown, r: ClienteProyecto) => (
+        <Button size="small" type="link" onClick={(e) => {
+          e.stopPropagation();
+          isAdmin ? abrirDetalleCedula(r.cedula) : abrirDrawerInmo(r);
+        }}>
+          Ver detalle
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -551,18 +562,37 @@ const ClientesPage = () => {
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 10 : 0 }}>
-          <Title level={4} style={{ margin: 0 }}>Clientes</Title>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {vista === 'clientes' && (
+              <Tooltip title="Volver a proyectos">
+                <Button icon={<ArrowLeftOutlined />} onClick={volverAProyectos} />
+              </Tooltip>
+            )}
+            <Title level={4} style={{ margin: 0 }}>
+              {vista === 'proyectos' ? 'Clientes' : proyectoSeleccionado?.nombre ?? 'Clientes'}
+            </Title>
+          </div>
           <Space>
-            <Tooltip title="Actualizar">
-              <Button icon={<ReloadOutlined />} onClick={() => { setNextToken(undefined); cargar(proyectoFiltro, inmoFiltro); }} loading={loading} />
-            </Tooltip>
-            {!isAdmin && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+            {vista === 'clientes' && (
+              <>
+                <Tooltip title="Exportar clientes en Excel">
+                  <Button icon={<DownloadOutlined />} onClick={handleExportarClientes} loading={exportando}>
+                    {isMobile ? '' : 'Exportar clientes'}
+                  </Button>
+                </Tooltip>
+                <Tooltip title="Actualizar">
+                  <Button icon={<ReloadOutlined />} onClick={() => { setNextToken(undefined); cargar(proyectoFiltro, inmoFiltro); }} loading={loading} />
+                </Tooltip>
+              </>
+            )}
+            {!isAdmin && vista === 'clientes' && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.setFieldsValue({ proyecto_id: proyectoFiltro }); setModalOpen(true); }}>
                 {isMobile ? '' : 'Registrar cliente'}
               </Button>
             )}
           </Space>
         </div>
+        {vista === 'clientes' && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
           <Select 
             value={tipoBusqueda} 
@@ -584,7 +614,12 @@ const ClientesPage = () => {
           <Select allowClear placeholder="Proyecto" style={{ width: isMobile ? '100%' : 180 }}
             value={proyectoFiltro}
             onChange={(v) => { 
+              if (!v) {
+                volverAProyectos();
+                return;
+              }
               setProyectoFiltro(v); 
+              setProyectoSeleccionado(proyectos.find(p => p.proyecto_id === v) ?? null);
               setNextToken(undefined); 
               
               // Si estamos en modo búsqueda, re-ejecutar con el nuevo filtro
@@ -596,7 +631,7 @@ const ClientesPage = () => {
                   v,  // Usar el nuevo valor directamente
                   inmoFiltro
                 ).then(resultados => {
-                  setClientes(resultados);
+                  setClientes(resultados as ClienteProyecto[]);
                   setNextToken(undefined);
                 }).catch(() => {
                   message.error('Error en la búsqueda');
@@ -625,7 +660,7 @@ const ClientesPage = () => {
                     proyectoFiltro,
                     v  // Usar el nuevo valor directamente
                   ).then(resultados => {
-                    setClientes(resultados);
+                    setClientes(resultados as ClienteProyecto[]);
                     setNextToken(undefined);
                   }).catch(() => {
                     message.error('Error en la búsqueda');
@@ -640,10 +675,62 @@ const ClientesPage = () => {
             </Select>
           )}
         </div>
+        )}
       </div>
 
+      {vista === 'proyectos' && (
+        <Row gutter={[20, 20]}>
+          {proyectos.map(p => (
+            <Col key={p.proyecto_id} xs={24} sm={12} md={8} lg={6}>
+              <div
+                style={{
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  background: '#fff',
+                  border: '1px solid #f0f0f0',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  transition: 'box-shadow 0.2s, transform 0.2s',
+                }}
+                onClick={() => seleccionarProyecto(p)}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
+                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+                }}
+              >
+                <div style={{
+                  height: 160,
+                  background: p.imagen_url ? undefined : projectGradient(p.nombre),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}>
+                  {p.imagen_url ? (
+                    <img src={p.imagen_url} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <AppstoreOutlined style={{ fontSize: 48, color: 'rgba(255,255,255,0.5)' }} />
+                  )}
+                </div>
+                <div style={{ padding: '14px 16px 16px' }}>
+                  <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>{p.nombre}</Text>
+                  {p.descripcion && (
+                    <Text type="secondary" style={{ fontSize: 13 }} ellipsis={{ tooltip: p.descripcion }}>{p.descripcion}</Text>
+                  )}
+                </div>
+              </div>
+            </Col>
+          ))}
+        </Row>
+      )}
+
       {/* Banner de modo búsqueda */}
-      {modoVista === 'busqueda' && (
+      {vista === 'clientes' && modoVista === 'busqueda' && (
         <Alert
           message={
             <span>
@@ -665,53 +752,34 @@ const ClientesPage = () => {
         />
       )}
 
-      {/* Tabla/Cards admin — agrupada por cédula */}
-      {isAdmin && (
+            {/* Tabla/Cards admin */}
+      {vista === 'clientes' && isAdmin && (
         <>
           {isMobile ? (
             <div>
               {loading && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>}
-              {!loading && agrupados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin clientes</div>}
-              {agrupados.map(r => (
-                <div key={r.cedula} onClick={() => abrirDetalleCedula(r.cedula)}
+              {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin clientes</div>}
+              {clientesFiltrados.map(r => (
+                <div key={`${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} onClick={() => abrirDetalleCedula(r.cedula)}
                   style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <Text strong style={{ fontSize: 15 }}>{r.nombres} {r.apellidos}</Text>
                       <div><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text></div>
                     </div>
-                    <EyeOutlined style={{ color: '#1677ff', fontSize: 18, marginTop: 2 }} />
+                    {renderEstatusCliente(r)}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                    {r.registros.map(reg => {
-                      const diasRestantes = reg.exclusividad_activa ? calcularDiasRestantes(reg.fecha_vencimiento) : 0;
-                      const color = reg.exclusividad_activa ? getColorExclusividad(diasRestantes) : 'default';
-                      return (
-                        <Tooltip 
-                          key={`${reg.pk}#${reg.sk}`}
-                          title={
-                            reg.exclusividad_activa 
-                              ? `${proyectoNombre(reg.proyecto_id)} - ${diasRestantes} días restantes`
-                              : `${proyectoNombre(reg.proyecto_id)} - Exclusividad vencida`
-                          }
-                        >
-                          <Tag color={color} style={{ margin: 0 }}>
-                            {proyectoNombre(reg.proyecto_id)}
-                            {reg.exclusividad_activa && diasRestantes > 0 && (
-                              <span style={{ marginLeft: 4, fontSize: 10 }}>({diasRestantes}d)</span>
-                            )}
-                          </Tag>
-                        </Tooltip>
-                      );
-                    })}
+                    {r.unidad_nombre || r.unidad_id ? <Tag color="geekblue">{r.unidad_nombre || r.unidad_id}</Tag> : <Tag>Sin unidad</Tag>}
+                    <Text type="secondary" style={{ fontSize: 12 }}>{inmoNombre(r.inmobiliaria_id)}</Text>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <Table
-              dataSource={agrupados} columns={columnasAdmin}
-              rowKey="cedula" loading={loading}
+              dataSource={clientesFiltrados} columns={columnasProyecto}
+              rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
               pagination={false} locale={{ emptyText: 'Sin clientes' }}
               onRow={r => ({ onClick: () => abrirDetalleCedula(r.cedula), style: { cursor: 'pointer' } })}
               scroll={{ x: true }}
@@ -726,34 +794,23 @@ const ClientesPage = () => {
       )}
 
       {/* Tabla/Cards inmobiliaria */}
-      {!isAdmin && (
+      {vista === 'clientes' && !isAdmin && (
         isMobile ? (
           <div>
             {loading && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>}
             {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin clientes</div>}
             {clientesFiltrados.map(r => (
-              <div key={`${r.pk}#${r.sk}`} onClick={() => abrirDrawerInmo(r)}
+              <div key={`${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} onClick={() => abrirDrawerInmo(r)}
                 style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <Text strong style={{ fontSize: 15 }}>{r.nombres} {r.apellidos}</Text>
                     <div><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text></div>
                   </div>
-                  {r.exclusividad_activa ? (
-                    (() => {
-                      const diasRestantes = calcularDiasRestantes(r.fecha_vencimiento);
-                      const color = getColorExclusividad(diasRestantes);
-                      return (
-                        <Tag color={color} icon={<ClockCircleOutlined />} style={{ margin: 0 }}>
-                          {diasRestantes > 0 ? `${diasRestantes}d` : 'Vencida'}
-                        </Tag>
-                      );
-                    })()
-                  ) : (
-                    <Tag style={{ margin: 0 }}>Vencida</Tag>
-                  )}
+                  {renderEstatusCliente(r)}
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {r.unidad_nombre || r.unidad_id ? <Tag color="geekblue">{r.unidad_nombre || r.unidad_id}</Tag> : <Tag>Sin unidad</Tag>}
                   <Text type="secondary" style={{ fontSize: 12 }}>{proyectoNombre(r.proyecto_id)}</Text>
                   <Text type="secondary" style={{ fontSize: 12 }}>· Captado {dayjs(r.fecha_captacion).format('DD/MM/YYYY')}</Text>
                 </div>
@@ -762,8 +819,8 @@ const ClientesPage = () => {
           </div>
         ) : (
           <Table
-            dataSource={clientesFiltrados} columns={columnasInmo}
-            rowKey={r => `${r.pk}#${r.sk}`} loading={loading}
+            dataSource={clientesFiltrados} columns={columnasProyecto}
+            rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
             pagination={{ pageSize: 20 }} locale={{ emptyText: 'Sin clientes' }}
             onRow={r => ({ onClick: () => abrirDrawerInmo(r), style: { cursor: 'pointer' } })}
             scroll={{ x: true }}

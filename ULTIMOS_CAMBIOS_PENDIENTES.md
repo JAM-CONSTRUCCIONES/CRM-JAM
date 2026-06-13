@@ -70,15 +70,15 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Revisado: no requiere cambio de sistema. Las busquedas usan el GSI de cedula; si se registra una prueba con la misma cedula de otro cliente, el sistema agrupa por esa cedula y puede mostrar el nombre del primer registro encontrado.
 
-- [ ] Permitir exportar clientes desde el apartado Clientes.
+- [x] Permitir exportar clientes desde el apartado Clientes.
 
   La exportacion debe incluir clientes de captacion y clientes que tienen unidad. Esto es necesario para seguimiento comercial y para preparar bases de contacto que luego podran usarse en campanas de correo.
 
   La propuesta recomendada es organizar primero el apartado Clientes por proyecto. Al entrar, el usuario seleccionara un proyecto y luego vera los clientes relacionados con ese proyecto.
 
-  Dentro del proyecto se podra filtrar por inmobiliaria, clientes con unidad, clientes sin unidad, estatus del proceso, nombre o cedula.
+  Dentro del proyecto se mostrara el estatus del cliente. Si el cliente no tiene unidad asignada, se mostrara como "Sin unidad".
 
-  La exportacion seguira esa misma forma de trabajo: se exportaran los clientes del proyecto seleccionado y, si el usuario aplico filtros, la exportacion respetara esos filtros. Esto evita crear un archivo gigante con clientes de todos los proyectos mezclados.
+  En la pantalla del proyecto se mostrara el boton para exportar clientes en Excel. La exportacion generara un archivo con los clientes del proyecto seleccionado.
 
   La propuesta clara para cliente esta documentada en:
 
@@ -93,7 +93,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   - Clientes captados, aunque no tengan unidad asignada.
   - Clientes con procesos de venta.
   - Clientes con unidad vinculada.
-  - Clientes que aparezcan en mas de un proyecto o tengan mas de una unidad podran salir en mas de una fila para no perder la relacion cliente-proyecto-unidad.
+  - Clientes que tengan mas de una unidad o proceso dentro del mismo proyecto saldran en una fila por cada unidad o proceso.
 
   Columnas propuestas:
 
@@ -105,28 +105,11 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   - Proyecto.
   - Inmobiliaria.
   - Unidad.
-  - Estado del proceso.
-  - Estado de exclusividad.
-  - Fecha de captacion.
-  - Fecha de vencimiento de exclusividad.
-  - Fecha de nacimiento.
-  - Edad.
-  - Estado civil.
+  - Estatus.
   - Nacionalidad.
   - Pais de residencia.
 
-  Roles propuestos:
-
-  - Administrador: puede exportar todos los clientes.
-  - Coordinador: puede exportar clientes si se confirma que entra dentro de sus permisos.
-  - Inmobiliaria: no se incluye en esta primera version, salvo que se defina una exportacion limitada solo a sus clientes.
-
-  Validaciones antes de implementar:
-
-  - Confirmar si el formato sera solo Excel o tambien CSV.
-  - Confirmar columnas finales.
-  - Confirmar roles autorizados.
-  - Confirmar si se exportan todos los registros o solo los resultados filtrados en pantalla.
+  Hecho: Clientes ahora inicia con seleccion de proyecto. Al entrar a un proyecto se muestran los clientes de ese proyecto con unidad y estatus; los clientes sin unidad aparecen con estatus "Sin unidad". El boton "Exportar clientes" descarga un Excel del proyecto con las columnas definidas.
 
 - [ ] Crear modulo de campanias de correo.
 

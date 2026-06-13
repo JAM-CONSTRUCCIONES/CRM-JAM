@@ -1295,8 +1295,11 @@ def handler(event, context):
       description: 'openpyxl para parseo de archivos Excel',
     });
 
-    // Agregar layer de openpyxl a jam-proyectos para exportación de inventario
+    // Agregar layer de openpyxl a lambdas que generan exportaciones Excel
     proyectosLambda.addLayers(openpyxlLayer);
+    captacionLambda.addLayers(openpyxlLayer);
+    archivosBucket.grantReadWrite(captacionLambda);
+    captacionLambda.addEnvironment('ARCHIVOS_BUCKET', archivosBucket.bucketName);
 
     // ─── LAMBDA jam-excel-parser ─────────────────────────────────────────────
     // Lambda separada para parsear Excel — timeout largo, disparada por evento S3

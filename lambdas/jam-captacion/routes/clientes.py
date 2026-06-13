@@ -2,6 +2,7 @@ import json
 import boto3
 import os
 import re
+from io import BytesIO
 from datetime import datetime, timezone, date
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
@@ -15,8 +16,10 @@ usuarios = dynamodb.Table(os.environ['USUARIOS_TABLE'])
 procesos = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 MESES_EXCLUSIVIDAD = 3
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
 
 sqs_client = boto3.client('sqs')
+s3_client = boto3.client('s3')
 SQS_URL = os.environ.get('SQS_URL')
 
 
@@ -68,6 +71,140 @@ def _calcular_edad(fecha_nacimiento: str):
         return hoy.year - nacimiento.year - ((hoy.month, hoy.day) < (nacimiento.month, nacimiento.day))
     except (ValueError, TypeError):
         return None
+
+
+def _query_all(table, **kwargs):
+    items = []
+    while True:
+        result = table.query(**kwargs)
+        items.extend(result.get('Items', []))
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            break
+        kwargs['ExclusiveStartKey'] = last_key
+    return items
+
+
+def _scan_all(table, **kwargs):
+    items = []
+    while True:
+        result = table.scan(**kwargs)
+        items.extend(result.get('Items', []))
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            break
+        kwargs['ExclusiveStartKey'] = last_key
+    return items
+
+
+def _normalizar_inmo_id(value):
+    return str(value or '').replace('INMOBILIARIA#', '').strip()
+
+
+def _get_proyecto(proyecto_id):
+    inv = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
+    return inv.get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    ).get('Item')
+
+
+def _get_inmobiliarias_map():
+    result = {}
+    try:
+        items = _query_all(
+            usuarios,
+            IndexName='gsi-tipo',
+            KeyConditionExpression=Key('tipo').eq('INMOBILIARIA'),
+        )
+        for item in items:
+            inmo_id = _normalizar_inmo_id(item.get('pk'))
+            result[inmo_id] = item.get('nombre', inmo_id)
+    except Exception as e:
+        print(f'Error cargando inmobiliarias: {e}')
+    return result
+
+
+def _listar_clientes_base(proyecto_id, inmobiliaria_id=None):
+    items = _query_all(
+        clientes,
+        IndexName='gsi-proyecto-clientes',
+        KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
+        ScanIndexForward=False,
+    )
+    if inmobiliaria_id:
+        inmo_norm = _normalizar_inmo_id(inmobiliaria_id)
+        items = [
+            item for item in items
+            if _normalizar_inmo_id(item.get('inmobiliaria_id')) == inmo_norm
+        ]
+    return items
+
+
+def _listar_procesos_proyecto(proyecto_id, inmobiliaria_id=None):
+    try:
+        items = _query_all(
+            procesos,
+            IndexName='gsi-proyecto-procesos',
+            KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
+        )
+    except Exception as e:
+        print(f'Error cargando procesos por proyecto: {e}')
+        items = _scan_all(procesos, FilterExpression=Attr('proyecto_id').eq(proyecto_id))
+
+    if inmobiliaria_id:
+        inmo_norm = _normalizar_inmo_id(inmobiliaria_id)
+        items = [
+            item for item in items
+            if _normalizar_inmo_id(item.get('inmobiliaria_id')) == inmo_norm
+        ]
+    return items
+
+
+def _filas_clientes_proyecto(proyecto_id, inmobiliaria_id=None):
+    clientes_items = _listar_clientes_base(proyecto_id, inmobiliaria_id)
+    procesos_items = _listar_procesos_proyecto(proyecto_id, inmobiliaria_id)
+
+    procesos_por_cliente = {}
+    for proceso in procesos_items:
+        key = f"{proceso.get('cedula', '')}#{_normalizar_inmo_id(proceso.get('inmobiliaria_id'))}"
+        procesos_por_cliente.setdefault(key, []).append(proceso)
+
+    filas = []
+    for cliente in clientes_items:
+        inmo_id = _normalizar_inmo_id(cliente.get('inmobiliaria_id'))
+        key = f"{cliente.get('cedula', '')}#{inmo_id}"
+        relacionados = procesos_por_cliente.get(key, [])
+
+        if not relacionados:
+            fila = dict(cliente)
+            fila['inmobiliaria_id'] = inmo_id
+            fila['estatus'] = 'sin_unidad'
+            fila['estatus_label'] = 'Sin unidad'
+            fila['unidad_id'] = ''
+            fila['unidad_nombre'] = ''
+            fila['proceso_pk'] = ''
+            fila['proceso_sk'] = ''
+            filas.append(fila)
+            continue
+
+        for proceso in relacionados:
+            fila = dict(cliente)
+            fila['inmobiliaria_id'] = inmo_id
+            fila['estatus'] = proceso.get('estado', '')
+            fila['estatus_label'] = proceso.get('estado', '')
+            fila['unidad_id'] = proceso.get('unidad_id', '')
+            fila['unidad_nombre'] = proceso.get('unidad_nombre') or proceso.get('unidad_id', '')
+            fila['proceso_pk'] = proceso.get('pk', '')
+            fila['proceso_sk'] = proceso.get('sk', '')
+            filas.append(fila)
+
+    filas.sort(key=lambda x: (str(x.get('nombres', '')).upper(), str(x.get('apellidos', '')).upper(), str(x.get('unidad_nombre', ''))))
+    return filas
+
+
+def _nombre_archivo_seguro(value):
+    limpio = re.sub(r'[^A-Za-z0-9_-]+', '_', str(value or '').strip())
+    return limpio.strip('_') or 'proyecto'
 
 
 def _clean_spaces(value):
@@ -378,6 +515,12 @@ def listar(event):
     qs = event.get('queryStringParameters') or {}
     proyecto_id = qs.get('proyecto_id')
 
+    if qs.get('accion') == 'exportar':
+        return exportar_clientes(event)
+
+    if proyecto_id and qs.get('vista') == 'proyecto':
+        return ok(_filas_clientes_proyecto(proyecto_id, inmobiliaria_id))
+
     kwargs = {
         'IndexName': 'gsi-inmobiliaria-clientes',
         'KeyConditionExpression': Key('inmobiliaria_id').eq(inmobiliaria_id),
@@ -397,6 +540,15 @@ def listar_admin(event):
     inmobiliaria_id = qs.get('inmobiliaria_id')
     next_token = qs.get('next_token')
     limit = min(int(qs.get('limit', 100)), 200)
+
+    if qs.get('accion') == 'exportar':
+        return exportar_clientes(event)
+
+    if proyecto_id and qs.get('vista') == 'proyecto':
+        return ok({
+            'items': _filas_clientes_proyecto(proyecto_id, inmobiliaria_id),
+            'next_token': None,
+        })
 
     kwargs = {'Limit': limit}
     if next_token:
@@ -439,6 +591,132 @@ def listar_admin(event):
             _json.dumps(result['LastEvaluatedKey']).encode()
         ).decode()
     return ok(resp)
+
+
+def exportar_clientes(event):
+    """Exporta clientes de un proyecto a Excel, incluyendo estatus Sin unidad."""
+    qs = event.get('queryStringParameters') or {}
+    proyecto_id = qs.get('proyecto_id', '').strip()
+    inmobiliaria_id = qs.get('inmobiliaria_id')
+
+    if not proyecto_id:
+        return bad_request('proyecto_id requerido')
+    if not ARCHIVOS_BUCKET:
+        return bad_request('Bucket de archivos no configurado')
+
+    try:
+        if get_rol(event) == 'inmobiliaria':
+            inmobiliaria_id = _get_inmobiliaria_id(get_sub(event))
+        elif inmobiliaria_id:
+            inmobiliaria_id = _normalizar_inmo_id(inmobiliaria_id)
+
+        proyecto = _get_proyecto(proyecto_id)
+        if not proyecto:
+            return not_found('Proyecto no encontrado')
+
+        proyecto_nombre = proyecto.get('nombre', proyecto_id)
+        filas = _filas_clientes_proyecto(proyecto_id, inmobiliaria_id)
+        inmobiliarias_map = _get_inmobiliarias_map()
+
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Clientes'
+
+        headers = [
+            'Cedula',
+            'Nombre',
+            'Apellido',
+            'Correo',
+            'Telefono',
+            'Nacionalidad',
+            'Pais de residencia',
+            'Proyecto',
+            'Inmobiliaria',
+            'Estatus',
+            'Unidad',
+        ]
+
+        header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
+        header_font = Font(color='FFFFFF', bold=True, size=11)
+        border = Border(
+            left=Side(style='thin', color='D0D0D0'),
+            right=Side(style='thin', color='D0D0D0'),
+            top=Side(style='thin', color='D0D0D0'),
+            bottom=Side(style='thin', color='D0D0D0'),
+        )
+
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+        widths = [16, 22, 22, 28, 18, 18, 22, 24, 24, 18, 20]
+        for idx, width in enumerate(widths, 1):
+            ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = width
+
+        def estatus_label(fila):
+            if fila.get('estatus') == 'sin_unidad':
+                return 'Sin unidad'
+            return fila.get('estatus_label') or fila.get('estatus') or ''
+
+        for row_num, fila in enumerate(filas, 2):
+            inmo_id = _normalizar_inmo_id(fila.get('inmobiliaria_id'))
+            row_data = [
+                fila.get('cedula', ''),
+                fila.get('nombres', ''),
+                fila.get('apellidos', ''),
+                fila.get('correo', ''),
+                fila.get('telefono', ''),
+                fila.get('nacionalidad', ''),
+                fila.get('pais_residencia', ''),
+                proyecto_nombre,
+                inmobiliarias_map.get(inmo_id, inmo_id),
+                estatus_label(fila),
+                fila.get('unidad_nombre') or fila.get('unidad_id') or '',
+            ]
+            for col_num, value in enumerate(row_data, 1):
+                cell = ws.cell(row=row_num, column=col_num, value=value)
+                cell.border = border
+                cell.alignment = Alignment(vertical='center')
+
+        excel_buffer = BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+
+        timestamp = _now().replace(':', '-').replace('.', '-')
+        filename = f"clientes_{_nombre_archivo_seguro(proyecto_nombre)}_{timestamp}.xlsx"
+        s3_key = f'clientes/exportaciones/{filename}'
+
+        s3_client.put_object(
+            Bucket=ARCHIVOS_BUCKET,
+            Key=s3_key,
+            Body=excel_buffer.getvalue(),
+            ContentType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ContentDisposition=f'attachment; filename="{filename}"',
+        )
+
+        download_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': ARCHIVOS_BUCKET, 'Key': s3_key},
+            ExpiresIn=300,
+        )
+
+        return ok({
+            'download_url': download_url,
+            'filename': filename,
+            'total_clientes': len(filas),
+            'proyecto_nombre': proyecto_nombre,
+        })
+    except Exception as e:
+        print(f'ERROR exportar_clientes: {type(e).__name__}: {e}')
+        import traceback
+        traceback.print_exc()
+        return bad_request(f'Error al generar exportacion: {str(e)}')
 
 
 def buscar_por_cedula_admin(event, cedula):

@@ -1,5 +1,5 @@
 import { apiGet, apiPost, apiPut } from './api';
-import type { Cliente } from '../types';
+import type { Cliente, ClienteProyecto } from '../types';
 import { validateAndNormalizeClientePayload } from '../utils/clientesValidation';
 
 export interface RegistrarClientePayload {
@@ -24,12 +24,15 @@ export const buscarClientePorCedula = (cedula: string, proyectoId?: string): Pro
 export const registrarCliente = (data: RegistrarClientePayload): Promise<Cliente> =>
   apiPost<Cliente>('/clientes', validateAndNormalizeClientePayload(data));
 
-export const getClientes = (proyectoId?: string): Promise<Cliente[]> => {
-  const qs = proyectoId ? `?proyecto_id=${proyectoId}` : '';
-  return apiGet<Cliente[]>(`/clientes${qs}`);
+export const getClientes = (proyectoId?: string, vistaProyecto = false): Promise<Cliente[] | ClienteProyecto[]> => {
+  const params = new URLSearchParams();
+  if (proyectoId) params.append('proyecto_id', proyectoId);
+  if (vistaProyecto) params.append('vista', 'proyecto');
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return apiGet<Cliente[] | ClienteProyecto[]>(`/clientes${qs}`);
 };
 
-export const getClientesAdmin = (params?: { proyecto_id?: string; inmobiliaria_id?: string; next_token?: string; limit?: number }): Promise<{ items: Cliente[]; next_token?: string }> => {
+export const getClientesAdmin = (params?: { proyecto_id?: string; inmobiliaria_id?: string; next_token?: string; limit?: number; vista?: 'proyecto' }): Promise<{ items: ClienteProyecto[]; next_token?: string }> => {
   // El campo inmobiliaria_id en DynamoDB se guarda sin el prefijo INMOBILIARIA#
   const normalizedParams = params ? {
     ...params,
@@ -39,7 +42,18 @@ export const getClientesAdmin = (params?: { proyecto_id?: string; inmobiliaria_i
     Object.entries({ ...normalizedParams, limit: normalizedParams.limit?.toString() ?? '50' })
       .filter(([, v]) => v) as [string, string][]
   ).toString() : '';
-  return apiGet<{ items: Cliente[]; next_token?: string }>(`/admin/clientes${qs}`);
+  return apiGet<{ items: ClienteProyecto[]; next_token?: string }>(`/admin/clientes${qs}`);
+};
+
+export const exportarClientesProyecto = (
+  proyectoId: string,
+  isAdmin: boolean,
+  inmobiliariaId?: string
+): Promise<{ download_url: string; filename: string; total_clientes: number; proyecto_nombre: string }> => {
+  const params = new URLSearchParams({ accion: 'exportar', proyecto_id: proyectoId });
+  if (inmobiliariaId) params.append('inmobiliaria_id', inmobiliariaId.replace('INMOBILIARIA#', ''));
+  const base = isAdmin ? '/admin/clientes' : '/clientes';
+  return apiGet(`${base}?${params.toString()}`);
 };
 
 export const buscarClienteAdmin = (cedula: string): Promise<(Cliente & { procesos: any[] })[]> =>

@@ -156,3 +156,12 @@ export interface Cliente {
   fecha_captacion: string;
   fecha_vencimiento: string;
 }
+
+export interface ClienteProyecto extends Cliente {
+  estatus: EstadoCliente | 'sin_unidad' | string;
+  estatus_label?: string;
+  unidad_id?: string;
+  unidad_nombre?: string;
+  proceso_pk?: string;
+  proceso_sk?: string;
+}

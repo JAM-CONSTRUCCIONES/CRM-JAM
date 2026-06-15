@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal, Select, Space, Typography, Alert, Tag, Divider, Button, Tooltip } from 'antd';
-import { ArrowRightOutlined, TeamOutlined, UserOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ArrowRightOutlined, TeamOutlined, UserOutlined, InfoCircleOutlined, WarningOutlined } from '@ant-design/icons';
 import type { Proceso } from '../../types';
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION } from '../../constants/estados';
 
@@ -19,6 +19,16 @@ const TRANSICIONES: Record<string, string[]> = {
   vendida:         ['contra_entrega'],
 };
 
+const ORDEN_FLUJO: Record<string, number> = {
+  captacion: 0,
+  reserva: 1,
+  separacion: 2,
+  inicial: 3,
+  pagos_atrasados: 4,
+  contra_entrega: 5,
+  vendida: 6,
+};
+
 interface Props {
   open: boolean;
   proceso: Proceso;
@@ -32,6 +42,10 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
   const [loading, setLoading] = useState(false);
 
   const opciones = TRANSICIONES[proceso.estado] ?? [];
+  const esRetroceso = !!nuevoEstatus
+    && ORDEN_FLUJO[nuevoEstatus] !== undefined
+    && ORDEN_FLUJO[proceso.estado] !== undefined
+    && ORDEN_FLUJO[nuevoEstatus] < ORDEN_FLUJO[proceso.estado];
 
   const handleConfirm = async (notificar: ModoNotificacion) => {
     if (!nuevoEstatus) return;
@@ -77,9 +91,17 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
             <Tag color={ESTADO_PROCESO_COLOR[proceso.estado]} style={{ margin: 0, fontSize: 13, padding: '2px 10px' }}>
               {ESTADO_PROCESO_LABEL[proceso.estado] ?? proceso.estado}
             </Tag>
-            <ArrowRightOutlined style={{ color: '#bfbfbf' }} />
+            {esRetroceso ? (
+              <ArrowLeftOutlined style={{ color: '#faad14' }} />
+            ) : (
+              <ArrowRightOutlined style={{ color: '#bfbfbf' }} />
+            )}
             {nuevoEstatus ? (
-              <Tag color={ESTADO_PROCESO_COLOR[nuevoEstatus]} style={{ margin: 0, fontSize: 13, padding: '2px 10px' }}>
+              <Tag
+                icon={esRetroceso ? <WarningOutlined /> : undefined}
+                color={esRetroceso ? 'warning' : ESTADO_PROCESO_COLOR[nuevoEstatus]}
+                style={{ margin: 0, fontSize: 13, padding: '2px 10px' }}
+              >
                 {ESTADO_PROCESO_LABEL[nuevoEstatus] ?? nuevoEstatus}
               </Tag>
             ) : (
@@ -105,6 +127,7 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
                 <Tooltip title={ESTADO_PROCESO_DESCRIPCION[op]} placement="right">
                   <Tag color={ESTADO_PROCESO_COLOR[op]} style={{ margin: 0 }}>
                     {ESTADO_PROCESO_LABEL[op] ?? op}
+                    {ORDEN_FLUJO[op] !== undefined && ORDEN_FLUJO[proceso.estado] !== undefined && ORDEN_FLUJO[op] < ORDEN_FLUJO[proceso.estado] ? ' - correccion' : ''}
                   </Tag>
                 </Tooltip>
               </Option>
@@ -133,6 +156,14 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
         )}
         {nuevoEstatus === 'pagos_atrasados' && (
           <Alert type="error" showIcon message="El cliente tiene pagos pendientes que requieren seguimiento." />
+        )}
+        {esRetroceso && (
+          <Alert
+            type="warning"
+            showIcon
+            message="Correccion de estatus"
+            description={`Estas volviendo de "${ESTADO_PROCESO_LABEL[proceso.estado] ?? proceso.estado}" a "${ESTADO_PROCESO_LABEL[nuevoEstatus] ?? nuevoEstatus}". El flujo se mantiene controlado y se registrara en el historial.`}
+          />
         )}
 
         {nuevoEstatus && (

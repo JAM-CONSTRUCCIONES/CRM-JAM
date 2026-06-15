@@ -129,19 +129,23 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 ### Procesos
 
-- [ ] Validar notificaciones al bloquear unidad y al cambiar estatus.
+- [x] Validar notificaciones al bloquear unidad y al cambiar estatus.
 
   El envio de notificacion al bloquear unidad y el envio con la opcion "Solo administracion" ya fueron corregidos. El cliente debe verificar que los correos destinatarios esten correctamente configurados y verificados.
 
   Si el correo no esta verificado o el proveedor lo bloquea, eso no se considera error del sistema.
 
-- [ ] Mejorar el cambio de estatus para permitir correcciones controladas.
+  Hecho: el envio de notificacion al bloquear unidad y el envio al cambiar estatus con la opcion "Solo administracion" quedan cerrados como corregidos. La validacion final depende de que los correos destinatarios esten correctamente configurados y verificados.
+
+- [x] Mejorar el cambio de estatus para permitir correcciones controladas.
 
   El sistema actualmente permite moverse hacia atras de manera lineal. Se debe agregar una senal visual o indicador cuando el usuario este volviendo a un paso anterior.
 
   Esto cubre el caso donde por error se selecciona "Contrato firmado" y luego se necesita volver a "Separacion".
 
   No se cambiara el flujo a un sistema totalmente libre; se mantendra la logica del proceso, pero con una forma mas clara de corregir errores.
+
+  Hecho: el modal de cambio de estatus ahora detecta cuando el usuario selecciona un estatus anterior dentro del flujo permitido y muestra una advertencia visual de "Correccion de estatus". La correccion sigue usando las transiciones permitidas y queda registrada en el historial del proceso.
 
 ### Migracion Excel
 

@@ -26,6 +26,7 @@ import CambiarEstatusModal, { type ModoNotificacion } from '../../components/com
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -1119,14 +1120,10 @@ const ClientesPage = () => {
           <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
           <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item>
           <Form.Item name="estado_civil" label="Estado civil">
-            <Select allowClear>
-              <Option value="soltero">Soltero/a</Option><Option value="casado">Casado/a</Option>
-              <Option value="divorciado">Divorciado/a</Option><Option value="viudo">Viudo/a</Option>
-              <Option value="union_libre">Unión libre</Option>
-            </Select>
+            <EstadoCivilSelect />
           </Form.Item>
-          <Form.Item name="nacionalidad" label="Nacionalidad"><Input /></Form.Item>
-          <Form.Item name="pais_residencia" label="País de residencia"><Input /></Form.Item>
+          <Form.Item name="nacionalidad" label="Nacionalidad"><NacionalidadSelect /></Form.Item>
+          <Form.Item name="pais_residencia" label="País de residencia"><PaisResidenciaSelect /></Form.Item>
         </Form>
       </Modal>
 
@@ -1141,14 +1138,10 @@ const ClientesPage = () => {
           <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
           <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item>
           <Form.Item name="estado_civil" label="Estado civil">
-            <Select allowClear>
-              <Option value="soltero">Soltero/a</Option><Option value="casado">Casado/a</Option>
-              <Option value="divorciado">Divorciado/a</Option><Option value="viudo">Viudo/a</Option>
-              <Option value="union_libre">Unión libre</Option>
-            </Select>
+            <EstadoCivilSelect />
           </Form.Item>
-          <Form.Item name="nacionalidad" label="Nacionalidad"><Input /></Form.Item>
-          <Form.Item name="pais_residencia" label="País de residencia"><Input /></Form.Item>
+          <Form.Item name="nacionalidad" label="Nacionalidad"><NacionalidadSelect /></Form.Item>
+          <Form.Item name="pais_residencia" label="País de residencia"><PaisResidenciaSelect /></Form.Item>
         </Form>
       </Modal>
 

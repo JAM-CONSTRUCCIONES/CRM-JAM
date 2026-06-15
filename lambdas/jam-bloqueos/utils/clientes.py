@@ -11,6 +11,25 @@ scheduler_client = boto3.client('scheduler')
 
 MESES_EXCLUSIVIDAD = 3
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+PAISES_VALIDOS = {
+    'Alemania', 'Argentina', 'Australia', 'Belgica', 'Bolivia', 'Brasil', 'Canada',
+    'Chile', 'China', 'Colombia', 'Corea del Sur', 'Costa Rica', 'Cuba', 'Ecuador',
+    'El Salvador', 'Espana', 'Estados Unidos', 'Francia', 'Guatemala', 'Haiti',
+    'Honduras', 'India', 'Italia', 'Japon', 'Marruecos', 'Mexico', 'Nicaragua',
+    'Nigeria', 'Paises Bajos', 'Panama', 'Paraguay', 'Peru', 'Portugal',
+    'Puerto Rico', 'Reino Unido', 'Republica Dominicana', 'Rusia', 'Sudafrica',
+    'Suiza', 'Uruguay', 'Venezuela',
+}
+NACIONALIDADES_VALIDAS = {
+    'Alemana', 'Argentina', 'Australiana', 'Belga', 'Boliviana', 'Brasilena',
+    'Britanica', 'Canadiense', 'Chilena', 'China', 'Colombiana', 'Costarricense',
+    'Cubana', 'Dominicana', 'Ecuatoriana', 'Espanola', 'Estadounidense',
+    'Francesa', 'Guatemalteca', 'Haitiana', 'Hondurena', 'India', 'Italiana',
+    'Japonesa', 'Marroqui', 'Mexicana', 'Neerlandesa', 'Nicaraguense',
+    'Nigeriana', 'Panamena', 'Paraguaya', 'Peruana', 'Portuguesa',
+    'Puertorriquena', 'Rusa', 'Salvadorena', 'Sudafricana', 'Surcoreana',
+    'Suiza', 'Uruguaya', 'Venezolana',
+}
 
 
 def _now():
@@ -61,6 +80,19 @@ def _normalizar_telefono(value):
     return raw
 
 
+def _validar_catalogos_cliente(data):
+    nacionalidad = _clean_spaces(data.get('nacionalidad'))
+    pais_residencia = _clean_spaces(data.get('pais_residencia'))
+    if nacionalidad and nacionalidad not in NACIONALIDADES_VALIDAS:
+        raise ValueError('Selecciona una nacionalidad valida')
+    if pais_residencia and pais_residencia not in PAISES_VALIDOS:
+        raise ValueError('Selecciona un pais de residencia valido')
+    if 'nacionalidad' in data:
+        data['nacionalidad'] = nacionalidad
+    if 'pais_residencia' in data:
+        data['pais_residencia'] = pais_residencia
+
+
 def _normalizar_datos_cliente(datos_cliente):
     data = dict(datos_cliente or {})
     try:
@@ -74,6 +106,7 @@ def _normalizar_datos_cliente(datos_cliente):
             data['correo'] = _normalizar_correo(data.get('correo'))
         if 'telefono' in data:
             data['telefono'] = _normalizar_telefono(data.get('telefono'))
+        _validar_catalogos_cliente(data)
     except ValueError as exc:
         return None, str(exc)
     return data, None

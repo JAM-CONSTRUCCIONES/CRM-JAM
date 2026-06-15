@@ -16,6 +16,7 @@ import { getClientesAdmin } from '../../services/clientes.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import type { Bloqueo, Proyecto, HistorialBloqueo, Cliente } from '../../types';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -566,16 +567,10 @@ const BloqueosPage = () => {
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>
             <Form.Item name="estado_civil" label="Estado civil">
-              <Select allowClear placeholder="Selecciona">
-                <Select.Option value="soltero">Soltero/a</Select.Option>
-                <Select.Option value="casado">Casado/a</Select.Option>
-                <Select.Option value="divorciado">Divorciado/a</Select.Option>
-                <Select.Option value="viudo">Viudo/a</Select.Option>
-                <Select.Option value="union_libre">Unión libre</Select.Option>
-              </Select>
+              <EstadoCivilSelect />
             </Form.Item>
-            <Form.Item name="nacionalidad" label="Nacionalidad"><Input /></Form.Item>
-            <Form.Item name="pais_residencia" label="País de residencia"><Input /></Form.Item>
+            <Form.Item name="nacionalidad" label="Nacionalidad"><NacionalidadSelect /></Form.Item>
+            <Form.Item name="pais_residencia" label="País de residencia"><PaisResidenciaSelect /></Form.Item>
           </Form>
         )}
       </Modal>

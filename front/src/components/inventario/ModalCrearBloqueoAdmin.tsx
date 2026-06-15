@@ -6,6 +6,7 @@ import type { Unidad, Cliente } from '../../types';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import { buscarClientesAdmin } from '../../services/clientes.service';
 import { clienteFieldNormalizers, clienteFormRules } from '../../utils/clientesValidation';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../common/CatalogoClienteFields';
 
 const { Text } = Typography;
 
@@ -393,24 +394,18 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 </Form.Item>
                 
                 <Form.Item name="estado_civil" label="Estado civil">
-                  <Select allowClear placeholder="Selecciona">
-                    <Select.Option value="soltero">Soltero/a</Select.Option>
-                    <Select.Option value="casado">Casado/a</Select.Option>
-                    <Select.Option value="divorciado">Divorciado/a</Select.Option>
-                    <Select.Option value="viudo">Viudo/a</Select.Option>
-                    <Select.Option value="union_libre">Unión libre</Select.Option>
-                  </Select>
+                  <EstadoCivilSelect />
                 </Form.Item>
                 
                 <Row gutter={12}>
                   <Col span={12}>
                     <Form.Item name="nacionalidad" label="Nacionalidad">
-                      <Input />
+                      <NacionalidadSelect />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
                     <Form.Item name="pais_residencia" label="País de residencia">
-                      <Input />
+                      <PaisResidenciaSelect />
                     </Form.Item>
                   </Col>
                 </Row>

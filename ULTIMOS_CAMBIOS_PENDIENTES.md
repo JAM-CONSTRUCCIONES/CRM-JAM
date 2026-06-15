@@ -228,18 +228,13 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Reglas:
 
-  - Si el cliente se importa por Excel, se tomara la fecha de la fila "Fecha Bloqueo".
+  - Si el cliente se importa por Excel, se tomara la fecha de la fila "Fecha Bloqueo" como fecha historica para calcular la exclusividad.
   - Si no existe "Fecha Bloqueo", debe poder editarse en migracion o debe marcar error si es obligatoria.
   - Si el cliente se registra directamente en el sistema, se tomara la fecha de registro.
   - Si el cliente se registra por captacion o bloqueo, se guardara la fecha correspondiente del registro o bloqueo.
+  - Si al importar se crea un bloqueo operativo nuevo, el tiempo activo del bloqueo se creara con la regla actual de 48 horas desde el momento de la importacion, no desde la fecha historica del Excel.
 
   El caso de un cliente captado el 28 de mayo no debe aparecer vencido antes de cumplir tres meses.
-
-- [ ] Registrar fecha de bloqueo en migraciones sin alterar la regla del bloqueo activo.
-
-  Si en Excel viene "Fecha Bloqueo", esa fecha se guardara como dato historico del bloqueo.
-
-  Si al importar se crea un bloqueo operativo nuevo, el tiempo activo del bloqueo se creara con la regla actual de 48 horas desde el momento de la importacion, no desde la fecha historica del Excel.
 
 - [ ] No realizar cambio sobre "NaNd" si ya no aparece.
 

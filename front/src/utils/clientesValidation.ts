@@ -1,3 +1,5 @@
+import { isNacionalidadValida, isPaisValido } from '../constants/catalogosCliente';
+
 const EMAIL_REGEX = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 const NAME_REGEX = /^[\p{L}\s]+$/u;
 const PHONE_REGEX = /^\d+$/;
@@ -47,6 +49,15 @@ const validateClientPhone = (value?: unknown) => {
   if (!raw) return;
   if (!PHONE_REGEX.test(raw)) {
     throw new Error('El telefono solo debe contener numeros');
+  }
+};
+
+const validateCatalogosCliente = (values: Record<string, any>) => {
+  if (!isNacionalidadValida(values.nacionalidad)) {
+    throw new Error('Selecciona una nacionalidad valida');
+  }
+  if (!isPaisValido(values.pais_residencia)) {
+    throw new Error('Selecciona un pais de residencia valido');
   }
 };
 
@@ -127,6 +138,7 @@ export const normalizeClientePayload = <T extends Record<string, any>>(values: T
   validateClientName(values.apellidos, 'Apellidos');
   validateClientEmail(values.correo);
   validateClientPhone(values.telefono);
+  validateCatalogosCliente(values);
 
   return {
     ...values,
@@ -144,6 +156,7 @@ export const validateAndNormalizeClientePayload = <T extends Record<string, any>
   validateClientName(values.apellidos, 'Apellidos');
   validateClientEmail(values.correo);
   validateClientPhone(values.telefono);
+  validateCatalogosCliente(values);
 
   const data: Record<string, any> = { ...values };
   if ('cedula' in data) data.cedula = normalizeClientCedula(data.cedula);

@@ -24,6 +24,7 @@ import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloque
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
 import { useAuthContext } from '../../context/AuthContext';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -1118,16 +1119,10 @@ const ProcesosPage = () => {
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>
             <Form.Item name="estado_civil" label="Estado civil">
-              <Select allowClear placeholder="Selecciona">
-                <Select.Option value="soltero">Soltero/a</Select.Option>
-                <Select.Option value="casado">Casado/a</Select.Option>
-                <Select.Option value="divorciado">Divorciado/a</Select.Option>
-                <Select.Option value="viudo">Viudo/a</Select.Option>
-                <Select.Option value="union_libre">Unión libre</Select.Option>
-              </Select>
+              <EstadoCivilSelect />
             </Form.Item>
-            <Form.Item name="nacionalidad" label="Nacionalidad"><Input /></Form.Item>
-            <Form.Item name="pais_residencia" label="País de residencia"><Input /></Form.Item>
+            <Form.Item name="nacionalidad" label="Nacionalidad"><NacionalidadSelect /></Form.Item>
+            <Form.Item name="pais_residencia" label="País de residencia"><PaisResidenciaSelect /></Form.Item>
           </Form>
         )}
       </Modal>

@@ -5,6 +5,7 @@ import { UserOutlined, CheckCircleFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getProyectosPublico, registrarClientePublico } from '../../services/clientes.service';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -180,22 +181,16 @@ const CapturaPage = () => {
                 <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="DD/MM/AAAA" />
               </Form.Item>
               <Form.Item name="estado_civil" label="Estado civil">
-                <Select allowClear placeholder="Selecciona">
-                  <Option value="soltero">Soltero/a</Option>
-                  <Option value="casado">Casado/a</Option>
-                  <Option value="divorciado">Divorciado/a</Option>
-                  <Option value="viudo">Viudo/a</Option>
-                  <Option value="union_libre">Unión libre</Option>
-                </Select>
+                <EstadoCivilSelect />
               </Form.Item>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
               <Form.Item name="nacionalidad" label="Nacionalidad">
-                <Input placeholder="Venezolano/a" />
+                <NacionalidadSelect />
               </Form.Item>
               <Form.Item name="pais_residencia" label="País de residencia">
-                <Input placeholder="Venezuela" />
+                <PaisResidenciaSelect />
               </Form.Item>
             </div>
 

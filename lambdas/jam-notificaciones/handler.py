@@ -3,6 +3,7 @@ import json
 import boto3
 import os
 import logging
+from html import escape
 from boto3.dynamodb.conditions import Key
 
 logger = logging.getLogger()
@@ -153,6 +154,11 @@ def _tabla_datos(filas):
     return f'<table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px">{rows_html}</table>'
 
 
+def _texto_multilinea_html(texto):
+    """Escapes configured text and keeps line breaks visible in HTML emails."""
+    return '<br>'.join(escape(str(texto or '')).splitlines())
+
+
 def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensaje):
     """
     Reads template from DynamoDB (or uses defaults), substitutes variables,
@@ -172,10 +178,12 @@ def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensa
     except (KeyError, ValueError):
         pass
 
+    titulo_html = escape(str(titulo or ''))
+    mensaje_html = _texto_multilinea_html(mensaje)
     pie = '<br><p style="color:#aaa;font-size:12px;margin:0">(Mensaje automático)</p>'
     cuerpo = f'''
-        <h3 style="color:#1a3c5e;margin-top:0;font-size:16px">{titulo}</h3>
-        <p style="margin:0 0 10px">{mensaje}</p>
+        <h3 style="color:#1a3c5e;margin-top:0;font-size:16px">{titulo_html}</h3>
+        <div style="margin:0 0 10px;line-height:1.5">{mensaje_html}</div>
         {_tabla_datos(filas_datos)}
         {pie}
     '''

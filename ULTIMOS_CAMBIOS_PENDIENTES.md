@@ -177,11 +177,13 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 ### Configuracion
 
-- [ ] Corregir formato de las notificaciones recibidas por correo.
+- [x] Corregir formato de las notificaciones recibidas por correo.
 
   El cuerpo del correo recibido debe coincidir con el cuerpo configurado en el sistema.
 
   Si en la configuracion hay saltos de linea, el correo debe mostrar esos saltos de linea. No debe enviarse todo pegado en una sola linea cuando la plantilla tiene espacios o parrafos.
+
+  Hecho: el envio de notificaciones ahora convierte los saltos de linea configurados en saltos visibles dentro del correo, manteniendo el formato de parrafos del mensaje.
 
 
 ## Usuario inmobiliarias

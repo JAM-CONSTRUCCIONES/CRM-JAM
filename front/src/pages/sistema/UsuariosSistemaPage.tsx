@@ -40,6 +40,7 @@ const UsuariosSistemaPage = () => {
   const [form] = Form.useForm();
   const { md } = useBreakpoint();
   const isMobile = !md;
+  const isAdmin = usuarioActual?.rol === 'admin';
 
   // Modal QR para MFA setup del nuevo usuario
   const [mfaModal, setMfaModal] = useState(false);
@@ -88,7 +89,7 @@ const UsuariosSistemaPage = () => {
           message.success('Usuario creado');
         }
       } else if (editando) {
-        await actualizarUsuarioSistema(editando.pk, { nombre: values.nombre, rol: values.rol });
+        await actualizarUsuarioSistema(editando.pk, isAdmin ? { nombre: values.nombre, rol: values.rol } : { nombre: values.nombre });
         message.success('Usuario actualizado');
         setModal(false);
         await cargar();
@@ -152,7 +153,7 @@ const UsuariosSistemaPage = () => {
               disabled: self,
               onClick: () => !self && handleToggle(u),
             },
-            {
+            ...(isAdmin ? [{
               key: 'eliminar', icon: <DeleteOutlined />, label: 'Eliminar', danger: true,
               disabled: self,
               onClick: () => {
@@ -163,7 +164,7 @@ const UsuariosSistemaPage = () => {
                   onOk: () => handleEliminar(u),
                 });
               },
-            },
+            }] : []),
           ];
           return <Dropdown menu={{ items }} trigger={['click']} placement="bottomRight"><Button size="small" icon={<MoreOutlined />} /></Dropdown>;
         }
@@ -182,17 +183,19 @@ const UsuariosSistemaPage = () => {
                 <Button size="small" danger={u.activo} disabled={self} icon={u.activo ? <StopOutlined /> : <CheckOutlined />} />
               </Popconfirm>
             </Tooltip>
-            <Tooltip title={self ? 'No puedes eliminarte a ti mismo' : 'Eliminar'}>
-              <Popconfirm
-                title="Eliminar usuario permanentemente?"
-                okText="Si" cancelText="No"
-                okButtonProps={{ danger: true }}
-                onConfirm={() => handleEliminar(u)}
-                disabled={self}
-              >
-                <Button size="small" danger disabled={self} icon={<DeleteOutlined />} />
-              </Popconfirm>
-            </Tooltip>
+            {isAdmin && (
+              <Tooltip title={self ? 'No puedes eliminarte a ti mismo' : 'Eliminar'}>
+                <Popconfirm
+                  title="Eliminar usuario permanentemente?"
+                  okText="Si" cancelText="No"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => handleEliminar(u)}
+                  disabled={self}
+                >
+                  <Button size="small" danger disabled={self} icon={<DeleteOutlined />} />
+                </Popconfirm>
+              </Tooltip>
+            )}
           </Space>
         );
       },
@@ -252,7 +255,7 @@ const UsuariosSistemaPage = () => {
             </>
           )}
           <Form.Item name="rol" label="Rol" rules={[{ required: true, message: 'Requerido' }]}>
-            <Select placeholder="Selecciona un rol" disabled={modo === 'editar' && editando?.pk === `USUARIO#${usuarioActual?.sub}`}>
+            <Select placeholder="Selecciona un rol" disabled={modo === 'editar' && (!isAdmin || editando?.pk === `USUARIO#${usuarioActual?.sub}`)}>
               <Select.Option value="admin">Admin</Select.Option>
               <Select.Option value="coordinador">Coordinador</Select.Option>
               <Select.Option value="supervisor">Supervisor</Select.Option>

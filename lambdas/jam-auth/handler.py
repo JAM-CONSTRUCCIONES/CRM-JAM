@@ -6,9 +6,16 @@ def _get_claims(event):
     return event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
 
 
-def _is_admin(event):
+def _get_rol(event):
     groups = _get_claims(event).get('cognito:groups', '')
-    return 'admin' in groups
+    for rol in ('admin', 'coordinador', 'supervisor'):
+        if rol in groups:
+            return rol
+    return 'inmobiliaria'
+
+
+def _is_internal(event):
+    return _get_rol(event) in ('admin', 'coordinador')
 
 
 def handler(event, context):
@@ -36,7 +43,7 @@ def handler(event, context):
         return auth.mfa_verify(event)
 
     # ── Admin: guard ──────────────────────────────────────────
-    if not _is_admin(event):
+    if not _is_internal(event):
         return forbidden('Sin permisos')
 
     # ── Config: email templates (via query param or body marker) ─────────────
@@ -82,7 +89,7 @@ def handler(event, context):
         return sistema.habilitar(sistema_usuario_id)
 
     if method == 'DELETE' and sistema_usuario_id and '/sistema/usuarios/' in path:
-        return sistema.eliminar(sistema_usuario_id)
+        return sistema.eliminar(sistema_usuario_id, event)
 
     # ── Inmobiliarias ─────────────────────────────────────────
     if method == 'GET' and path.endswith('/inmobiliarias'):

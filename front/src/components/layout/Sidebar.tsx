@@ -41,7 +41,7 @@ const Sidebar = ({ onSelect }: Props) => {
   const rol = usuario?.rol;
   const [chatOpen, setChatOpen] = useState(false);
 
-  const isAdmin = rol === 'admin';
+  const isAdminOrCoordinador = rol === 'admin' || rol === 'coordinador';
   const isInterno = rol === 'admin' || rol === 'coordinador' || rol === 'supervisor';
 
   const sections: NavSection[] = [
@@ -53,7 +53,7 @@ const Sidebar = ({ onSelect }: Props) => {
         // { key: '/reportes', icon: <LinkOutlined />, label: 'Reportes' },
       ],
     },
-    ...(isAdmin ? [{
+    ...(isAdminOrCoordinador ? [{
       title: 'Administración',
       items: [
         { key: '/inmobiliarias',    icon: <BankOutlined />,      label: 'Inmobiliarias' },
@@ -61,12 +61,6 @@ const Sidebar = ({ onSelect }: Props) => {
         { key: '/migracion',        icon: <ImportOutlined />,    label: 'Migración Excel' },
         { key: '/sistema/usuarios', icon: <UserOutlined />,      label: 'Usuarios' },
         { key: '/config',           icon: <SettingOutlined />,   label: 'Configuración' },
-      ],
-    }] : []),
-    ...(rol === 'coordinador' ? [{
-      title: 'Herramientas',
-      items: [
-        { key: '/migracion', icon: <ImportOutlined />, label: 'Migración Excel' },
       ],
     }] : []),
     ...(rol === 'inmobiliaria' ? [{

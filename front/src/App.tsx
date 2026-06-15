@@ -56,7 +56,7 @@ const App = () => (
           <Route
             path="inmobiliarias"
             element={
-              <ProtectedRoute roles={['admin']}>
+              <ProtectedRoute roles={['admin', 'coordinador']}>
                 <InmobiliariasPage />
               </ProtectedRoute>
             }
@@ -72,7 +72,7 @@ const App = () => (
           <Route
             path="sistema/usuarios"
             element={
-              <ProtectedRoute roles={['admin']}>
+              <ProtectedRoute roles={['admin', 'coordinador']}>
                 <UsuariosSistemaPage />
               </ProtectedRoute>
             }
@@ -88,7 +88,7 @@ const App = () => (
           <Route
             path="config"
             element={
-              <ProtectedRoute roles={['admin']}>
+              <ProtectedRoute roles={['admin', 'coordinador']}>
                 <ConfigPage />
               </ProtectedRoute>
             }

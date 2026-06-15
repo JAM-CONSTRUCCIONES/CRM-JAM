@@ -3,7 +3,7 @@ import os
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
-from utils.response import ok, created, bad_request, not_found, _build
+from utils.response import ok, created, bad_request, forbidden, not_found, _build
 from utils.helpers import now
 
 cognito = boto3.client('cognito-idp')
@@ -13,6 +13,15 @@ USER_POOL_ID = os.environ['USER_POOL_ID']
 USUARIOS_TABLE = os.environ['USUARIOS_TABLE']
 
 ROLES_VALIDOS = ('admin', 'coordinador', 'supervisor')
+
+
+def _get_rol(event):
+    claims = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
+    groups = claims.get('cognito:groups', '')
+    for rol in ROLES_VALIDOS:
+        if rol in groups:
+            return rol
+    return 'inmobiliaria'
 
 
 def listar():
@@ -119,6 +128,8 @@ def actualizar(usuario_id, event):
         values[':nombre'] = body['nombre']
         names['#nombre'] = 'nombre'
     if 'rol' in body:
+        if _get_rol(event) != 'admin':
+            return forbidden('Solo un administrador puede cambiar el rol de un usuario')
         if body['rol'] not in ROLES_VALIDOS:
             return bad_request(f'rol debe ser uno de: {", ".join(ROLES_VALIDOS)}')
         updates.append('#rol = :rol')
@@ -166,7 +177,10 @@ def habilitar(usuario_id):
     return _set_activo(usuario_id, True)
 
 
-def eliminar(usuario_id):
+def eliminar(usuario_id, event):
+    if _get_rol(event) != 'admin':
+        return forbidden('Solo un administrador puede eliminar usuarios')
+
     table = dynamodb.Table(USUARIOS_TABLE)
     item = table.get_item(Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'}).get('Item')
     if not item:

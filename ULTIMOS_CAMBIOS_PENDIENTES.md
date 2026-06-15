@@ -160,7 +160,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 ### Usuarios
 
-- [ ] Ajustar permisos del usuario coordinador.
+- [x] Ajustar permisos del usuario coordinador.
 
   El coordinador debe tener acceso a todo excepto:
 
@@ -168,6 +168,8 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   - Cambiar rol de usuario.
 
   Estas restricciones deben aplicarse tanto en pantalla como en la validacion interna del sistema.
+
+  Hecho: el coordinador puede acceder a las secciones administrativas habilitadas, pero no puede eliminar usuarios ni cambiar roles. La pantalla oculta/bloquea esas acciones y el backend tambien las rechaza si se intentan ejecutar directamente.
 
 ### Configuracion
 

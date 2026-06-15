@@ -1,112 +1,91 @@
 # Propuesta para modulo de campanias de correo
 
-## Necesidad
+## Objetivo
 
-Se requiere un modulo nuevo para poder enviar correos masivos a clientes desde el sistema, sin depender de exportar archivos y hacer el envio por fuera.
+Crear un modulo nuevo para enviar correos masivos a clientes desde el sistema, siempre seleccionando un proyecto.
 
-Este modulo ayudara al equipo comercial a comunicarse con grupos de clientes de forma ordenada, por ejemplo para seguimiento, promociones, novedades de proyectos o recordatorios.
+Este modulo permitira realizar campanias comerciales o comunicados a grupos de clientes de un proyecto especifico, sin depender de exportar archivos y enviar correos por fuera.
 
-## Propuesta
+No se plantea como un envio global a todos los clientes del sistema.
 
-Crear un nuevo apartado llamado Campanias de correo.
+## Funcionamiento propuesto
 
-Este apartado sera independiente del modulo Clientes y de la exportacion en Excel.
+El usuario podra:
 
-El usuario podra crear una campania, seleccionar a que clientes quiere enviarla, escribir el contenido del correo y registrar el envio dentro del sistema.
+- Seleccionar un proyecto.
+- Crear una campania.
+- Seleccionar destinatarios dentro de ese proyecto.
+- Usar o editar una plantilla de correo.
+- Revisar un resumen antes de enviar.
+- Enviar la campania manualmente.
+- Consultar el historial de envios.
 
-## Seleccion de destinatarios
+El envio sera manual. El sistema no enviara campanias automaticamente.
 
-El modulo debera permitir seleccionar clientes por grupos claros.
+## Destinatarios
 
-Grupos sugeridos:
+Primero se seleccionara el proyecto. Luego, dentro de ese proyecto, la seleccion principal sera:
 
 - Clientes sin unidad.
 - Clientes con unidad.
-- Clientes por proyecto.
-- Clientes por inmobiliaria.
-- Clientes por estatus.
-- Clientes captados.
 
-Tambien se debera poder combinar criterios. Por ejemplo:
+Esto permite diferenciar campanias comerciales de comunicados.
 
-- Clientes sin unidad de un proyecto especifico.
-- Clientes captados por una inmobiliaria especifica.
-- Clientes con estatus especifico dentro de un proyecto.
+Ejemplo: un cliente que ya tiene una unidad en Caney Oriental no deberia recibir una campania comercial de ese mismo proyecto, pero si podria recibir un comunicado sobre avances, entrega, mantenimiento o pagos.
 
-## Creacion de campania
+## Plantillas
 
-Al crear una campania, el usuario debera completar:
+Las plantillas de correo seran editables, similar a las notificaciones actuales del sistema.
 
-- Nombre de la campania.
-- Asunto del correo.
-- Mensaje del correo.
+Cada campania tendra:
+
+- Nombre.
 - Grupo de destinatarios.
+- Plantilla.
+- Asunto.
+- Mensaje.
 
-Antes de enviar, el sistema debera mostrar un resumen con:
+## Validacion antes del envio
+
+Antes de enviar, el sistema mostrara:
 
 - Cantidad de destinatarios seleccionados.
 - Correos validos.
 - Clientes sin correo.
 - Clientes con correo invalido.
 
-## Envio
-
-El envio debe realizarse solo a clientes que tengan correo valido.
-
-Si un cliente no tiene correo o tiene un correo invalido, no se le enviara la campania y debera aparecer en el resumen.
-
-El sistema no debe modificar datos de clientes automaticamente para poder enviar una campania.
+Solo se enviara a clientes con correo valido.
 
 ## Historial
 
-El modulo debera guardar un historial de campanias enviadas.
+El sistema guardara un historial con:
 
-El historial debera mostrar:
-
-- Nombre de la campania.
+- Campania enviada.
 - Fecha de envio.
-- Usuario que realizo el envio.
-- Cantidad de destinatarios.
+- Usuario que envio.
+- Grupo usado.
 - Cantidad de correos enviados.
-- Cantidad de clientes omitidos por no tener correo valido.
+- Clientes omitidos por no tener correo valido.
 
-Esto permitira revisar que se envio y a que grupo de clientes.
+## Pendiente de definir
 
-## Permisos
-
-Antes de implementar se debe definir que roles podran:
+Antes de implementar se debe confirmar que roles podran:
 
 - Ver campanias.
 - Crear campanias.
 - Enviar campanias.
-- Ver historial de envios.
-
-Por seguridad, no todos los usuarios deberian poder enviar correos masivos.
-
-## Alcance inicial recomendado
-
-Para una primera version se recomienda incluir:
-
-- Crear campania.
-- Seleccionar destinatarios por proyecto, inmobiliaria, estatus, con unidad o sin unidad.
-- Validar correos antes del envio.
-- Enviar correos.
-- Guardar historial basico.
+- Ver historial.
 
 ## Fuera del alcance inicial
 
-No se recomienda incluir en la primera version:
+No se incluye en la primera version:
 
-- Editor avanzado de diseno de correos.
-- Automatizaciones programadas.
+- Envios automaticos.
+- Campanias programadas.
 - Campanias recurrentes.
 - Estadisticas avanzadas de apertura o clics.
-- Segmentaciones complejas no definidas.
-
-Estos puntos podrian revisarse como mejoras futuras.
+- Editor avanzado de diseno de correos.
 
 ## Pendiente de aprobacion
 
 Pendiente de aprobacion para realizar este modulo nuevo.
-
-Este modulo debe aprobarse y estimarse por separado, ya que no forma parte del cambio visual de Clientes ni de la exportacion en Excel.

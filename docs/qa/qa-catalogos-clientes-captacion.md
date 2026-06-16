@@ -4,7 +4,7 @@
 
 - Ambiente: dev
 - URL: `https://d12nm0khvt8zd9.cloudfront.net`
-- Ultimo deploy dev revisado: catalogos de clientes, pais de residencia, nacionalidad y estado civil.
+- Ultimo deploy dev revisado: migracion Excel, exclusividad, catalogos de clientes, validaciones, exportacion de clientes, permisos y notificaciones.
 
 ## Estados
 
@@ -12,6 +12,7 @@
 - `Pendiente de implementar`: todavia falta desarrollo.
 - `Pendiente de confirmar`: falta aprobacion o definicion antes de desarrollar.
 - `No requiere cambio`: se reviso y no se hara cambio de sistema.
+- `Listo para revision documental`: no es funcionalidad implementada, pero el texto/propuesta ya puede revisarse con el cliente.
 
 ---
 
@@ -112,16 +113,28 @@
   - [ ] Boton exportar clientes descarga Excel.
   - [ ] Excel incluye cedula, nombres, apellidos, correo, telefono, proyecto, inmobiliaria, unidad, estatus, nacionalidad y pais de residencia.
 
-- [ ] `Pendiente de implementar` Modulo de campanias de correo.
+- [ ] `Listo para QA` Modulo de campanias de correo.
 
-  Pendiente:
+  Probar:
 
-  - [ ] Crear modulo nuevo.
-  - [ ] Definir destinatarios.
-  - [ ] Definir plantillas editables.
-  - [ ] Definir envio manual por proyecto.
-  - [ ] Definir historial de envios.
-  - [ ] Definir permisos y limites.
+  - [ ] El menu muestra `Campanias` para administrador.
+  - [ ] El menu muestra `Campanias` para coordinador.
+  - [ ] El menu muestra `Campanias` para supervisor.
+  - [ ] Seleccionar proyecto carga destinatarios de ese proyecto.
+  - [ ] Grupo `Clientes sin unidad` solo incluye clientes sin unidad.
+  - [ ] Grupo `Clientes con unidad` solo incluye clientes con unidad.
+  - [ ] Grupo `Todos` incluye ambos grupos.
+  - [ ] Filtro por pais de residencia reduce destinatarios.
+  - [ ] Filtro por nacionalidad reduce destinatarios.
+  - [ ] Vista previa muestra total clientes, correos validos, sin correo e invalidos.
+  - [ ] No permite enviar si no hay correos validos.
+  - [ ] Permite guardar plantilla.
+  - [ ] Permite reutilizar plantilla.
+  - [ ] Permite colocar URL de imagen en el cuerpo del correo.
+  - [ ] Envio manual envia correos a destinatarios validos.
+  - [ ] Historial muestra campania enviada, fecha, usuario, grupo, enviados y omitidos.
+  - [ ] Supervisor puede ver modulo e historial, pero no puede enviar.
+  - [ ] Backend rechaza envio si el rol no es administrador o coordinador.
 
 ### Procesos
 
@@ -146,6 +159,8 @@
 
 - [ ] `Listo para QA` Nuevas columnas de migracion y exclusividad.
 
+  Preparar Excel de prueba con al menos tres filas: una disponible sin cliente, una bloqueada con Fecha Bloqueo reciente y cliente, y una bloqueada con Fecha Bloqueo antigua y cliente.
+
   - [ ] Excel con fecha de nacimiento aparece en preview.
   - [ ] Excel con pais de residencia aparece en preview.
   - [ ] Excel con pais de nacionalidad aparece en preview.
@@ -159,6 +174,9 @@
   - [ ] Cliente importado sin Fecha Bloqueo usa la fecha de importacion.
   - [ ] Bloqueo operativo creado por migracion vence a 48 horas desde la importacion.
   - [ ] Fecha Bloqueo historica no cambia la liberacion operativa del bloqueo.
+  - [ ] Fecha invalida en fecha de nacimiento bloquea confirmacion.
+  - [ ] Fecha invalida en Fecha Bloqueo bloquea confirmacion.
+  - [ ] La migracion termina sin errores con un Excel valido.
 
 ### Usuarios
 
@@ -209,20 +227,23 @@
   - [ ] Resultados coinciden.
   - [ ] Mismo criterio para tipo.
 
-- [ ] `Pendiente de implementar` Link publico permanente de inventario.
+- [ ] `Listo para revision documental` Link publico permanente de inventario por proyecto.
 
-  Pendiente:
+  Revisar propuesta con cliente:
 
-  - [ ] Crear vista publica por inmobiliaria.
-  - [ ] Antes de mostrar unidades, seleccionar proyecto.
-  - [ ] Mostrar mismas columnas que inventario de inmobiliaria.
+  - [ ] El link sera por proyecto.
+  - [ ] Se copiara desde el proyecto correspondiente.
+  - [ ] Sera el mismo enlace para todos los vendedores externos.
+  - [ ] Al abrir, mostrara directamente el inventario disponible del proyecto.
+  - [ ] Mostrar mismas columnas que inventario del proyecto.
   - [ ] Mostrar solo unidades disponibles.
   - [ ] No mostrar acciones.
   - [ ] No permitir bloquear.
   - [ ] No mostrar clientes.
   - [ ] No mostrar comentarios internos.
-  - [ ] Permitir copiar link desde usuario JAM.
-  - [ ] Permitir copiar link desde usuario inmobiliaria.
+  - [ ] No permitir editar ni cambiar estatus.
+  - [ ] Permitir copiar link desde el proyecto en usuario JAM.
+  - [ ] Permitir copiar link desde el proyecto en usuario inmobiliaria.
 
 ### Clientes
 
@@ -255,15 +276,16 @@
   - [ ] Estado civil como lista.
   - [ ] Pais de residencia como lista.
   - [ ] Nacionalidad como lista.
+  - [ ] No permite escribir pais o nacionalidad como texto libre.
   - [ ] Telefono solo numeros.
   - [ ] Nombre/apellido en mayuscula.
-  - [ ] Cedula/pasaporte sin guiones.
-  - [ ] Cedula/pasaporte solo letras y numeros segun alcance final.
-  - [ ] Letras de pasaporte guardadas en mayuscula si se habilita pasaporte alfanumerico.
+  - [ ] Cedula numerica sin guiones.
+  - [ ] Cedula con letras se rechaza mientras no se apruebe pasaporte alfanumerico.
+  - [ ] Cedula con guiones se rechaza.
 
   Nota QA:
 
-  - [ ] Revisar alcance final de cedula/pasaporte: el sistema actualmente venia validando cedula numerica. Si se requiere pasaporte alfanumerico, falta ajustar regla.
+  - [ ] Revisar alcance final de cedula/pasaporte: si se requiere pasaporte alfanumerico, falta aprobar y desarrollar esa regla.
 
 - [ ] `Pendiente de revisar` Cliente registrado por inmobiliaria que no aparece en administrativo.
 
@@ -289,7 +311,7 @@
 
 ## Checklist De Cierre QA
 
-- [ ] Probar en dev.
+- [ ] Probar en dev despues del deploy `5911d12`.
 - [ ] Registrar evidencias o capturas de los puntos listos para QA.
 - [ ] Separar bugs reales de cambios nuevos de alcance.
 - [ ] Confirmar pendientes que no se pueden probar porque aun no estan implementados.

@@ -280,6 +280,14 @@ export class JamStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    const campaniasTable = new dynamodb.Table(this, 'JamCampaniasTable', {
+      tableName: resourceName('jam-campanias'),
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
     // ─── SQS jam-notificaciones-queue ────────────────────────────────────────
 
     // Agregar PROCESOS_TABLE a jam-proyectos ahora que procesosTable está declarada
@@ -549,6 +557,32 @@ export class JamStack extends cdk.Stack {
       resources: [crmLambdaArn],
     }));
 
+    // ─── LAMBDA jam-campanias ────────────────────────────────────────────────
+
+    const campaniasLambda = new lambda.Function(this, 'JamCampaniasLambda', {
+      functionName: resourceName('jam-campanias'),
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-campanias')),
+      timeout: cdk.Duration.seconds(60),
+      environment: {
+        CLIENTES_TABLE: clientesTable.tableName,
+        PROCESOS_TABLE: procesosTable.tableName,
+        INVENTARIO_TABLE: inventarioTable.tableName,
+        CAMPANIAS_TABLE: campaniasTable.tableName,
+        FROM_EMAIL: notificationEmail,
+      },
+    });
+
+    clientesTable.grantReadData(campaniasLambda);
+    procesosTable.grantReadData(campaniasLambda);
+    inventarioTable.grantReadData(campaniasLambda);
+    campaniasTable.grantReadWriteData(campaniasLambda);
+    campaniasLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: ['*'],
+    }));
+
     // ─── LAMBDA jam-transferir-cliente ───────────────────────────────────────
 
     const transferirClienteLambda = new lambda.Function(this, 'JamTransferirClienteLambda', {
@@ -797,6 +831,7 @@ def handler(event, context):
     const bloqueosLambdaIntegration = new apigateway.LambdaIntegration(bloqueosLambda);
     const captacionLambdaIntegration = new apigateway.LambdaIntegration(captacionLambda);
     const crmLambdaIntegration = new apigateway.LambdaIntegration(crmLambda);
+    const campaniasLambdaIntegration = new apigateway.LambdaIntegration(campaniasLambda);
 
     // /auth
     const authResource = api.root.addResource('auth');
@@ -1153,6 +1188,30 @@ def handler(event, context):
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // /admin/campanias
+    const adminCampaniasResource = adminResource.addResource('campanias');
+    adminCampaniasResource.addResource('preview').addMethod('POST', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    adminCampaniasResource.addResource('enviar').addMethod('POST', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    adminCampaniasResource.addResource('historial').addMethod('GET', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    const adminCampaniasTemplatesResource = adminCampaniasResource.addResource('templates');
+    adminCampaniasTemplatesResource.addMethod('GET', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    adminCampaniasTemplatesResource.addResource('{template_id}').addMethod('PUT', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     // /admin/procesos
     adminResource.addResource('procesos').addMethod('GET', crmLambdaIntegration, {
       authorizer: cognitoAuthorizer,
@@ -1375,6 +1434,7 @@ def handler(event, context):
         backup.BackupResource.fromDynamoDbTable(procesosTable),
         backup.BackupResource.fromDynamoDbTable(historialEstatusTable),
         backup.BackupResource.fromDynamoDbTable(historialTable),
+        backup.BackupResource.fromDynamoDbTable(campaniasTable),
       ],
     });
 

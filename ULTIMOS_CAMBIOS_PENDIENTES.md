@@ -111,20 +111,24 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: Clientes ahora inicia con seleccion de proyecto. Al entrar a un proyecto se muestran los clientes de ese proyecto con unidad y estatus; los clientes sin unidad aparecen con estatus "Sin unidad". El boton "Exportar clientes" descarga un Excel del proyecto con las columnas definidas.
 
-- [ ] Crear modulo de campanias de correo.
+- [x] Crear modulo de campanias de correo.
 
   Este sera un modulo nuevo, separado de la exportacion de clientes.
 
-  Alcance pendiente de definir:
+  Alcance propuesto:
 
-  - Seleccionar destinatarios desde clientes exportables o filtros de clientes.
+  - El envio sera por proyecto, no global.
+  - Seleccionar clientes sin unidad o clientes con unidad dentro del proyecto.
   - Crear y guardar plantillas de correo.
-  - Enviar campanias a grupos de clientes.
+  - Permitir imagenes en el cuerpo del correo de la forma mas practica y segura.
+  - Enviar campanias manualmente.
   - Registrar historial de envios.
-  - Validar correos disponibles, rebotados o no verificados.
-  - Definir limites de envio y permisos por rol.
+  - Validar correos disponibles o invalidos antes de enviar.
+  - Permisos propuestos: administrador y coordinador pueden crear/enviar/ver historial; supervisor puede ver el modulo y el historial.
 
-  Este punto no se implementara como parte de la exportacion de clientes. Se deja como tarea nueva para analizar y estimar por separado.
+  Este punto no se implementara como parte de la exportacion de clientes. Es un modulo nuevo y cualquier ampliacion adicional, como envios automaticos, campanias programadas, recurrentes, estadisticas avanzadas o editor avanzado, debera estimarse por separado.
+
+  Hecho: se creo el modulo "Campanias" para usuarios internos. Permite seleccionar proyecto, elegir grupo de destinatarios, filtrar por pais de residencia o nacionalidad, revisar destinatarios antes de enviar, usar/guardar plantillas, incluir una imagen mediante URL en el cuerpo del correo, enviar manualmente y consultar historial. Administrador y coordinador pueden crear/enviar; supervisor puede ver el modulo e historial.
 
 
 ### Procesos
@@ -242,9 +246,11 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 ### Clientes
 
-- [ ] No realizar cambio sobre "NaNd" si ya no aparece.
+- [x] No realizar cambio sobre "NaNd" si ya no aparece.
 
   El valor "NaNd" reportado en "Ver detalle" ya no aparece. Si vuelve a presentarse, se revisara con un caso reproducible.
+
+  Revisado: no requiere cambio de sistema mientras no exista un caso reproducible.
 
 ### Proceso de venta
 
@@ -274,6 +280,10 @@ URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
 
   No incluye validar legalmente documentos por pais ni limpiar toda la data historica ya registrada.
 
+  Avance: las listas desplegables de estado civil, pais de residencia y nacionalidad ya fueron agregadas en los formularios de clientes/captacion. Las validaciones generales de telefono, correo, nombres y cedula numerica tambien estan aplicadas.
+
+  Pendiente de definicion: el texto menciona cedula/pasaporte alfanumerico, pero la regla actualmente implementada y usada por el sistema es cedula numerica. Si se requiere pasaporte con letras, se debe confirmar como ajuste adicional de la regla de identificacion.
+
 - [ ] Revisar cliente registrado por inmobiliaria que no aparece en administrativo.
 
   Todo cliente registrado desde captacion por una inmobiliaria debe ser visible para el usuario administrativo segun los permisos actuales del sistema.
@@ -288,11 +298,9 @@ URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
 
 ## Pendientes por confirmar antes de implementar
 
-- [ ] Formato y columnas exactas para exportacion de clientes.
-- [ ] Roles que podran exportar clientes.
 - [ ] Confirmar si se implementa el nuevo estado "Desvinculada de JAM".
-- [ ] Definir si el link publico de inventario por proyecto sera permanente, revocable o con expiracion.
 - [ ] Confirmar nombres exactos de estatus usados en base de datos y pantalla.
+- [ ] Confirmar si se permitira pasaporte alfanumerico ademas de cedula numerica.
 
 ## Nota de alcance
 

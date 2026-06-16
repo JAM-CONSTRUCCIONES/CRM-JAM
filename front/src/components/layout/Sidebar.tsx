@@ -3,7 +3,7 @@ import {
   AppstoreOutlined, TeamOutlined, DashboardOutlined,
   BankOutlined, UserOutlined, PoweroffOutlined,
   ApartmentOutlined, LinkOutlined, ImportOutlined,
-  MessageOutlined, SettingOutlined,
+  MessageOutlined, SettingOutlined, MailOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
@@ -50,6 +50,7 @@ const Sidebar = ({ onSelect }: Props) => {
         { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
         { key: '/inventario', icon: <AppstoreOutlined />, label: 'Proyectos' },
         ...(isInterno || rol === 'inmobiliaria' ? [{ key: '/clientes', icon: <TeamOutlined />, label: 'Clientes' }] : []),
+        ...(isInterno ? [{ key: '/campanias', icon: <MailOutlined />, label: 'Campanias' }] : []),
         // { key: '/reportes', icon: <LinkOutlined />, label: 'Reportes' },
       ],
     },

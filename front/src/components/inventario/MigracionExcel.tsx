@@ -21,6 +21,10 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const ESTADOS_VALIDOS = ['disponible', 'bloqueada', 'no_disponible'];
+const fechaValida = (value?: string | null) => {
+  if (!value) return true;
+  return !Number.isNaN(Date.parse(value));
+};
 
 // ── Local-state input cells — only call parent on blur, not on every keystroke ──
 const CeldaInputLocal = memo(({ value, placeholder, onChange, style }: {
@@ -133,6 +137,8 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
         errores.push(err?.message || 'Datos de contacto del cliente invalidos');
       }
     }
+    if (!fechaValida(f.fecha_nacimiento)) errores.push('fecha de nacimiento invalida');
+    if (!fechaValida(f.fecha_bloqueo)) errores.push('Fecha Bloqueo invalida');
     if (f.cliente_nombre_excel && !f.cedula) {
       if (!f.nombres_sugerido || !f.apellidos_sugerido)
         advertencias.push('Completa nombres y apellidos para registrar el cliente');
@@ -417,6 +423,22 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'cliente_telefono', val)} /> },
     { title: 'Correo', dataIndex: 'cliente_correo', width: 160,
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'cliente_correo', val)} /> },
+    { title: 'Fecha nac.', dataIndex: 'fecha_nacimiento', width: 130,
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('fecha de nacimiento'))}>
+          <CeldaInputLocal value={v ?? ''} placeholder="YYYY-MM-DD" onChange={val => actualizarFila(r.id_unidad, 'fecha_nacimiento', val)} />
+        </CeldaRequerida>
+      ) },
+    { title: 'Pais residencia', dataIndex: 'pais_residencia', width: 150,
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'pais_residencia', val)} /> },
+    { title: 'Nacionalidad', dataIndex: 'nacionalidad', width: 150,
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'nacionalidad', val)} /> },
+    { title: 'Fecha Bloqueo', dataIndex: 'fecha_bloqueo', width: 140,
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('Fecha Bloqueo'))}>
+          <CeldaInputLocal value={v ?? ''} placeholder="YYYY-MM-DD" onChange={val => actualizarFila(r.id_unidad, 'fecha_bloqueo', val)} />
+        </CeldaRequerida>
+      ) },
     { title: 'Comentario', dataIndex: 'comentario', width: 150,
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'comentario', val)} /> },
     {
@@ -456,6 +478,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                       {[
                         'unidad','Area','Metraje Terraza','Metraje Patio','No Cuartos','No. baños','Tipo','Piso','Parqueos',
                         'NOMBRE CLIENTE','CEDULA','TELEFONO','CORREO',
+                        'FECHA NACIMIENTO','PAIS RESIDENCIA','NACIONALIDAD',
                         'Precios US$','RESERVA','SEPARACION','INICIAL',
                         'CUOTAS 24','Cuota Meses','CONTRA ENTREGA','ESTATUS','INMOBILIARIA',
                         'FECHA BLOQUEO','FECHA FIN BLOQUEO/ PAGO SEPARACION','COMENTARIO',
@@ -467,6 +490,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                       {[
                         'B-A-101','76.34','12.5','8.0','3','2','D','1','1',
                         'JOSE MIGUEL BARRERA','0912345678','0991234567','jose@email.com',
+                        '1995-04-15','Republica Dominicana','Dominicana',
                         '75958.30','500','3297.91','11393.74',
                         '474.73','24','60766.64','CONTRATO FIRMADO','Plusval',
                         '2026-02-21','2026-03-21','',
@@ -551,7 +575,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
           <div ref={tableRef}>
             <Table
               dataSource={filas} columns={columnas} rowKey="fila_excel"
-              scroll={{ x: 3600 }} size="small" pagination={{ pageSize: 50 }}
+              scroll={{ x: 4200 }} size="small" pagination={{ pageSize: 50 }}
               rowClassName={r => r.errores.length > 0 ? 'fila-error' : r.advertencias.length > 0 ? 'fila-advertencia' : ''}
             />
           </div>

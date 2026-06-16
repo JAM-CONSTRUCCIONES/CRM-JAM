@@ -25,6 +25,9 @@ export interface FilaMigracion {
   cliente_nombre_excel: string | null;
   cliente_telefono: string | null;
   cliente_correo: string | null;
+  fecha_nacimiento: string | null;
+  pais_residencia: string | null;
+  nacionalidad: string | null;
   nombres_sugerido: string | null;
   apellidos_sugerido: string | null;
   cedula: string | null;

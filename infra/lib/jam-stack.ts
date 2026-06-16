@@ -403,6 +403,7 @@ export class JamStack extends cdk.Stack {
     proyectosLambda.addEnvironment('HISTORIAL_TABLE', historialTable.tableName);
     proyectosLambda.addEnvironment('SCHEDULER_ROLE_ARN', schedulerRole.roleArn);
     proyectosLambda.addEnvironment('BLOQUEOS_LAMBDA_ARN', bloqueosLambdaArn);
+    proyectosLambda.addEnvironment('CAPTACION_LAMBDA_ARN', captacionLambdaArn);
     historialTable.grantReadWriteData(proyectosLambda);
 
     // Permisos para crear y eliminar schedules en jam-proyectos

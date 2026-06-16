@@ -178,6 +178,16 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
                                        'Email', 'EMAIL', 'Correo Electronico', 'Correo Electrónico',
                                        'E-mail', 'Mail']) or '').strip() or None
 
+        fecha_nacimiento     = parse_fecha(gc(['Fecha de nacimiento', 'FECHA NACIMIENTO',
+                                               'FECHA DE NACIMIENTO', 'NACIMIENTO',
+                                               'Fecha Nacimiento']))
+        pais_residencia      = str(gc(['Pais de residencia', 'PAIS RESIDENCIA',
+                                       'PAIS DE RESIDENCIA', 'Pais Residencia',
+                                       'Pais residencia']) or '').strip() or None
+        nacionalidad         = str(gc(['NACIONALIDAD', 'Nacionalidad',
+                                       'Pais de nacionalidad', 'PAIS NACIONALIDAD',
+                                       'PAIS DE NACIONALIDAD']) or '').strip() or None
+
         inmo_excel           = str(gc(['INMOBILIARIA', 'Inmobiliaria', 'INMO', 'AGENCIA']) or '').strip()
         inmo_match           = inmos_map.get(inmo_excel, {})
         inmo_id_sugerido     = inmo_match.get('id', '')
@@ -216,6 +226,9 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             'cliente_nombre_excel':         nombre_cliente or None,
             'cliente_telefono':             telefono_excel,
             'cliente_correo':               correo_excel,
+            'fecha_nacimiento':             fecha_nacimiento,
+            'pais_residencia':              pais_residencia,
+            'nacionalidad':                 nacionalidad,
             'nombres_sugerido':             nombres_final or None,
             'apellidos_sugerido':           apellidos_final or None,
             'cedula':                       cedula_excel,

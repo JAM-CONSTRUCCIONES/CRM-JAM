@@ -1,16 +1,16 @@
-# Propuesta: link publico de inventario por inmobiliaria
+# Propuesta: link publico de inventario por proyecto
 
-Se propone crear un link publico permanente para cada inmobiliaria, de solo lectura, para que pueda compartir su inventario disponible con vendedores externos sin crearles usuarios en el sistema.
+Se propone crear un link publico permanente de solo lectura para compartir el inventario disponible de un proyecto con vendedores externos, sin crearles usuarios en el sistema.
 
-El link sera por inmobiliaria. Al abrirlo, primero se mostraran los proyectos asignados a esa inmobiliaria. Luego de seleccionar un proyecto, se mostraran solamente las unidades disponibles de ese proyecto.
+El link sera por proyecto. Se copiara desde el proyecto correspondiente y, al abrirlo, mostrara automaticamente el inventario disponible de ese proyecto.
 
-El vendedor externo no podra editar, bloquear, cambiar estatus ni acceder al sistema administrativo.
+El vendedor externo solo podra consultar las unidades disponibles. No podra editar, bloquear, cambiar estatus ni acceder al sistema administrativo.
 
 ## Informacion que se mostrara
 
-La vista publica mostrara exactamente la misma estructura de inventario que actualmente ve una inmobiliaria, pero sin acciones.
+La vista publica mostrara exactamente la misma estructura de inventario del proyecto, pero sin acciones.
 
-Antes de ver unidades, el vendedor seleccionara un proyecto. Luego se mostrara la tabla de unidades disponibles con las mismas columnas que ve la inmobiliaria:
+Al abrir el link se mostrara la tabla de unidades disponibles del proyecto, con las mismas columnas que ve la inmobiliaria:
 
 - ID Unidad.
 - Etapa.
@@ -25,9 +25,11 @@ Antes de ver unidades, el vendedor seleccionara un proyecto. Luego se mostrara l
 
 La unica diferencia sera que no se mostrara el boton de bloquear ni ninguna otra accion.
 
+Las unidades bloqueadas, separadas, vendidas o no disponibles no se visualizaran. Solo se mostraran unidades disponibles.
+
 ## Filtros disponibles
 
-Luego de seleccionar el proyecto, el vendedor podra filtrar las unidades disponibles por:
+El vendedor podra filtrar las unidades disponibles por:
 
 - Etapa.
 - Estado.
@@ -36,7 +38,7 @@ Luego de seleccionar el proyecto, el vendedor podra filtrar las unidades disponi
 - Bloque o manzana.
 - Piso.
 
-Estos seran los mismos filtros visibles del inventario de inmobiliaria. En el link publico los filtros seran solo de consulta y no permitiran modificar, bloquear ni cambiar estatus de unidades.
+Estos seran los mismos filtros visibles del inventario. En el link publico los filtros seran solo de consulta y no permitiran modificar, bloquear ni cambiar estatus de unidades.
 
 ## Informacion que no se mostrara
 
@@ -51,27 +53,25 @@ El link publico no mostrara informacion interna ni sensible:
 - Quien bloqueo una unidad.
 - Fechas internas de bloqueo.
 - Acciones para bloquear, editar, eliminar o cambiar estatus.
-- Inventario de otras inmobiliarias.
+- Inventario de otros proyectos.
 - Botones de accion.
 
 ## Reglas del link
 
-- El link funcionara mientras la inmobiliaria exista y este activa.
-- Si la inmobiliaria esta inactiva, no se mostrara inventario.
-- Si un proyecto deja de estar asignado a la inmobiliaria, dejara de aparecer en el link.
+- El link funcionara mientras el proyecto exista y este activo.
+- Si el proyecto esta inactivo, no se mostrara inventario.
 - Si una unidad deja de estar disponible, dejara de aparecer en el link.
-- La seguridad se aplicara desde el sistema, no solo desde la pantalla.
+- El sistema validara que el link corresponda a un proyecto existente y activo antes de mostrar informacion.
 
 ## Donde se podra copiar el link
 
-El link se podra ver o copiar desde dos lugares:
+El link se podra copiar desde el proyecto correspondiente:
 
-- En el apartado de Inmobiliarias del usuario JAM, para que administracion pueda abrir o copiar el link de cualquier inmobiliaria.
-- En el acceso del usuario inmobiliaria, para que la propia inmobiliaria pueda copiar su enlace y compartirlo con sus vendedores externos.
+- En el usuario JAM.
+- En el acceso del usuario inmobiliaria.
 
-Opciones sugeridas:
+El boton se llamara "Copiar link de inventario".
 
-- "Ver link publico".
-- "Copiar link de inventario".
+Con esta aprobacion se procederia a crear la vista publica de inventario por proyecto, manteniendo el acceso como solo lectura y mostrando unicamente las unidades disponibles de ese proyecto.
 
-Con esta aprobacion se procederia a crear la vista publica de inventario por inmobiliaria, manteniendo el acceso como solo lectura y mostrando unicamente las unidades disponibles permitidas para esa inmobiliaria.
+Con relacion a la entrega del sistema con los cambios solicitados, debido a la incorporacion de nuevos modulos como campanas de correos y enlace publico, se estima completar la entrega hasta el viernes 19/06. Mientras tanto, el trabajo continua en paralelo y el sistema puede seguir siendo utilizado con las funcionalidades que ya fueron implementadas previamente.

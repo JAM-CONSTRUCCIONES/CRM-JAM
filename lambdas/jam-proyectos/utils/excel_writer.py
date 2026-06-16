@@ -54,18 +54,61 @@ def _normalizar_telefono(value):
         raise ValueError('El telefono solo debe contener numeros')
     return raw
 
+
+def _normalizar_texto_catalogo(value):
+    return _clean_spaces(value)
+
+
+def _parse_dt(value):
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    text = _clean_spaces(value)
+    if not text:
+        return None
+    try:
+        dt = datetime.fromisoformat(text.replace('Z', '+00:00'))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _parse_fecha_iso(value):
+    dt = _parse_dt(value)
+    return dt.isoformat() if dt else ''
+
+
+def _calcular_edad(fecha_nacimiento):
+    dt = _parse_dt(fecha_nacimiento)
+    if not dt:
+        return None
+    hoy = datetime.now(timezone.utc).date()
+    nacimiento = dt.date()
+    return hoy.year - nacimiento.year - ((hoy.month, hoy.day) < (nacimiento.month, nacimiento.day))
+
+
+def _add_months(dt, months):
+    month = dt.month - 1 + months
+    year = dt.year + month // 12
+    month = month % 12 + 1
+    days = [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    day = min(dt.day, days[month - 1])
+    return dt.replace(year=year, month=month, day=day)
+
 # Cliente para schedules y SQS
 scheduler = boto3.client('scheduler')
 sqs = boto3.client('sqs')
 
 # Variables de entorno
 LAMBDA_ARN = os.environ.get('BLOQUEOS_LAMBDA_ARN', '')
+CAPTACION_LAMBDA_ARN = os.environ.get('CAPTACION_LAMBDA_ARN', '')
 SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
 SQS_URL = os.environ.get('SQS_URL', '')
 
-# Duración de bloqueo en migración (24 horas)
-HORAS_BLOQUEO_MIGRACION = 24
-HORAS_ALERTA_MIGRACION = 19  # alerta 5 horas antes del vencimiento
+# Duración de bloqueo en migración (48 horas)
+HORAS_BLOQUEO_MIGRACION = 48
+HORAS_ALERTA_MIGRACION = 43  # alerta 5 horas antes del vencimiento
+MESES_EXCLUSIVIDAD = 3
 
 
 def escribir_migracion(proyecto_id, filas):
@@ -353,13 +396,13 @@ def _escribir_unidad(proyecto_id, id_unidad, fila, inmo_id, ahora):
         if fila.get(campo) is not None:
             item[campo] = fila[campo]
 
-    # Manejar fecha_bloqueo y fecha_liberacion con reglas de 24 horas
+    # Manejar fecha_bloqueo y fecha_liberacion con reglas de 48 horas
     # SIEMPRE usar fecha actual para bloqueos (ignorar fechas del Excel)
     if fila.get('estado') == 'bloqueada':
         dt_bloqueo = datetime.fromisoformat(ahora.replace('Z', '+00:00'))
         item['fecha_bloqueo'] = ahora
         
-        # Calcular fecha_liberacion: +24 horas desde ahora
+        # Calcular fecha_liberacion: +48 horas desde ahora
         dt_liberacion = dt_bloqueo + timedelta(hours=HORAS_BLOQUEO_MIGRACION)
         item['fecha_liberacion'] = dt_liberacion.isoformat()
         
@@ -397,8 +440,17 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
     apellidos = _normalizar_nombre(apellidos)
     correo = _normalizar_correo(fila.get('cliente_correo'))
     telefono = _normalizar_telefono(fila.get('cliente_telefono'))
+    fecha_nacimiento = _parse_fecha_iso(fila.get('fecha_nacimiento'))
+    edad = _calcular_edad(fecha_nacimiento)
+    nacionalidad = _normalizar_texto_catalogo(fila.get('nacionalidad'))
+    pais_residencia = _normalizar_texto_catalogo(fila.get('pais_residencia'))
+    fecha_historica_dt = _parse_dt(fila.get('fecha_bloqueo')) or _parse_dt(ahora) or datetime.now(timezone.utc)
+    fecha_captacion = fecha_historica_dt.isoformat()
+    fecha_vencimiento_dt = _add_months(fecha_historica_dt, MESES_EXCLUSIVIDAD)
+    fecha_vencimiento = fecha_vencimiento_dt.isoformat()
+    exclusividad_activa = fecha_vencimiento_dt > datetime.now(timezone.utc)
 
-    clientes_t.put_item(Item={
+    item_cliente = {
         'pk':                f'CLIENTE#{cedula}#{inmo_id}',
         'sk':                f'PROYECTO#{proyecto_id}',
         'cedula':            cedula,
@@ -409,21 +461,28 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
         'correo':            correo,
         'telefono':          telefono,
         'estado_civil':      '',
-        'nacionalidad':      '',
-        'pais_residencia':   '',
-        'fecha_nacimiento':  '',
-        'edad':              None,
-        'exclusividad_activa': True,
-        'fecha_captacion':   ahora,
-        'fecha_vencimiento': '',
+        'nacionalidad':      nacionalidad,
+        'pais_residencia':   pais_residencia,
+        'fecha_nacimiento':  fecha_nacimiento,
+        'edad':              edad,
+        'exclusividad_activa': exclusividad_activa,
+        'fecha_captacion':   fecha_captacion,
+        'fecha_vencimiento': fecha_vencimiento,
         'creado_en':         ahora,
         'origen':            'migracion',
-    })
+    }
+    if fila.get('fecha_bloqueo'):
+        item_cliente['fecha_bloqueo_historica'] = fecha_captacion
+
+    clientes_t.put_item(Item=item_cliente)
+
+    if exclusividad_activa:
+        _crear_schedule_exclusividad(cedula, inmo_id, proyecto_id, fecha_vencimiento)
 
     estado_proceso = fila.get('estado_proceso')
     if estado_proceso:
         unidad_id = fila.get('_unidad_id', '')
-        procesos_t.put_item(Item={
+        proceso_item = {
             'pk':             f'PROCESO#{cedula}#{inmo_id}',
             'sk':             f'UNIDAD#{unidad_id}',
             'cedula':         cedula,
@@ -436,12 +495,15 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
             'fecha_inicio':   fila.get('fecha_bloqueo') or ahora,
             'actualizado_en': ahora,
             'origen':         'migracion',
-        })
+        }
+        if fila.get('fecha_bloqueo'):
+            proceso_item['fecha_bloqueo_historica'] = fila.get('fecha_bloqueo')
+        procesos_t.put_item(Item=proceso_item)
 
 
 def _escribir_historial(proyecto_id, fila, inmo_id, cedula, ahora):
     """
-    Escribe historial de bloqueo aplicando reglas de 24 horas.
+    Escribe historial de bloqueo aplicando reglas de 48 horas.
     Usa las fechas calculadas en _escribir_unidad para mantener consistencia.
     """
     unidad_id = fila.get('_unidad_id', '')
@@ -451,7 +513,7 @@ def _escribir_historial(proyecto_id, fila, inmo_id, cedula, ahora):
     ts_bloqueo = fila.get('_fecha_bloqueo_calculada', ahora)
     ts_liberacion = fila.get('_fecha_liberacion_calculada', '')
     
-    historial_t.put_item(Item={
+    historial_item = {
         'pk':                f'UNIDAD#{unidad_id}',
         'sk':                f'BLOQUEO#{ts_bloqueo}',
         'proyecto_id':       proyecto_id,
@@ -464,7 +526,10 @@ def _escribir_historial(proyecto_id, fila, inmo_id, cedula, ahora):
         'motivo_liberacion': None,
         'cliente_cedula':    cedula or '',
         'origen':            'migracion',
-    })
+    }
+    if fila.get('fecha_bloqueo'):
+        historial_item['fecha_bloqueo_historica'] = fila.get('fecha_bloqueo')
+    historial_t.put_item(Item=historial_item)
 
 
 def _agregar_proyecto_a_inmo(inmo_id, proyecto_id):
@@ -489,6 +554,47 @@ def _agregar_proyecto_a_inmo(inmo_id, proyecto_id):
         logger.warning('[excel_writer] agregar proyecto error inmo_id=%s type=%s message=%s', inmo_id, type(e).__name__, e)
 
 
+def _schedule_name_exclusividad(cedula, inmobiliaria_id, proyecto_id):
+    safe_cedula = cedula.replace('/', '-').replace('#', '-')
+    safe_inmo = inmobiliaria_id.replace('/', '-').replace('#', '-').replace('INMOBILIARIA', 'I')
+    safe_proy = proyecto_id.replace('/', '-').replace('#', '-').replace('PROYECTO', 'P')
+    return f"exclusividad-{safe_cedula}-{safe_inmo}-{safe_proy}"
+
+
+def _crear_schedule_exclusividad(cedula, inmobiliaria_id, proyecto_id, fecha_vencimiento):
+    if not CAPTACION_LAMBDA_ARN or not SCHEDULER_ROLE_ARN:
+        print('WARN _crear_schedule_exclusividad: CAPTACION_LAMBDA_ARN o SCHEDULER_ROLE_ARN no configurados')
+        return
+
+    try:
+        ts_vencimiento = fecha_vencimiento[:19]
+        schedule_name = _schedule_name_exclusividad(cedula, inmobiliaria_id, proyecto_id)
+        try:
+            scheduler.delete_schedule(Name=schedule_name)
+        except Exception:
+            pass
+        scheduler.create_schedule(
+            Name=schedule_name,
+            ScheduleExpression=f"at({ts_vencimiento})",
+            ScheduleExpressionTimezone='UTC',
+            FlexibleTimeWindow={'Mode': 'OFF'},
+            Target={
+                'Arn': CAPTACION_LAMBDA_ARN,
+                'RoleArn': SCHEDULER_ROLE_ARN,
+                'Input': json.dumps({
+                    'accion': 'vencer_exclusividad',
+                    'cedula': cedula,
+                    'inmobiliaria_id': inmobiliaria_id,
+                    'proyecto_id': proyecto_id,
+                }),
+            },
+            ActionAfterCompletion='DELETE',
+        )
+        print(f'OK Schedule de exclusividad creado para {cedula} at {ts_vencimiento}')
+    except Exception as e:
+        print(f'ERROR _crear_schedule_exclusividad: {type(e).__name__}: {e}')
+
+
 def _schedule_name(unidad_id, suffix):
     """EventBridge Scheduler no permite '/' ni '#' en nombres"""
     safe = unidad_id.replace('/', '-').replace('#', '-')
@@ -498,7 +604,7 @@ def _schedule_name(unidad_id, suffix):
 def _crear_schedules_bloqueo(fila, proyecto_id):
     """
     Crea schedules de EventBridge para liberación automática y alerta.
-    Similar a bloqueos.py pero con duración de 24h.
+    Similar a bloqueos.py pero con duración de 48h.
     """
     if not LAMBDA_ARN or not SCHEDULER_ROLE_ARN:
         print(f'⚠ _crear_schedules_bloqueo: LAMBDA_ARN o SCHEDULER_ROLE_ARN no configurados')

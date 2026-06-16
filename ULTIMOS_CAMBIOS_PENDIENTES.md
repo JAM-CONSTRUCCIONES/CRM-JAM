@@ -147,9 +147,9 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: el modal de cambio de estatus ahora detecta cuando el usuario selecciona un estatus anterior dentro del flujo permitido y muestra una advertencia visual de "Correccion de estatus". La correccion sigue usando las transiciones permitidas y queda registrada en el historial del proceso.
 
-### Migracion Excel
+### Migracion Excel y exclusividad
 
-- [ ] Agregar y reconocer nuevas columnas en la migracion de Excel.
+- [x] Agregar columnas de migracion y corregir calculo de exclusividad de clientes.
 
   La migracion debe soportar estas columnas:
 
@@ -161,6 +161,26 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   Si las columnas existen y tienen datos validos, el sistema debe cargarlas automaticamente.
 
   Si una fecha obligatoria falta, debe poder corregirse en la etapa de migracion o el sistema debe mostrar error antes de completar la carga.
+
+  Para "Fecha Bloqueo":
+
+  - Se guardara como dato historico del bloqueo.
+  - Si se usa para calcular exclusividad, contara como fecha inicial de esos tres meses.
+  - Si al importar se crea un bloqueo operativo nuevo, el tiempo activo del bloqueo se creara con la regla actual de 48 horas desde el momento de la importacion, no desde la fecha historica del Excel.
+
+  La exclusividad del cliente debe durar tres meses.
+
+  Reglas:
+
+  - Si el cliente se importa por Excel, se usara la "Fecha Bloqueo" cargada en la migracion como fecha inicial de la exclusividad.
+  - Si el cliente se registra directamente en el sistema, se tomara la fecha de registro.
+  - Si el cliente se registra por captacion o bloqueo, se guardara la fecha correspondiente del registro o bloqueo.
+
+  El caso de un cliente captado el 28 de mayo no debe aparecer vencido antes de cumplir tres meses.
+
+  Hecho: la migracion reconoce y permite revisar fecha de nacimiento, pais de residencia, pais de nacionalidad y Fecha Bloqueo. Al confirmar, guarda los datos demograficos del cliente, calcula edad, usa Fecha Bloqueo como fecha historica para la exclusividad cuando exista, calcula vencimiento a tres meses y programa el vencimiento si la exclusividad sigue activa. Si la exclusividad historica ya esta vencida, el cliente se importa sin exclusividad activa. El bloqueo operativo creado por migracion usa 48 horas desde la importacion.
+
+  Pendiente QA: probar con Excel real de migracion en dev.
 
 ### Usuarios
 
@@ -212,29 +232,15 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: usa el mismo listado de unidades corregido que el modulo administrativo, por lo que las busquedas por unidad, tipo y manzana/bloque ya no dependen de mayusculas/minusculas.
 
-- [ ] Crear link publico permanente de visualizacion de inventario para inmobiliarias.
+- [ ] Crear link publico permanente de visualizacion de inventario por proyecto.
 
-  Se generara un link permanente de solo lectura por inmobiliaria, para que la inmobiliaria pueda compartir inventario con vendedores externos.
+  Se generara un link permanente de solo lectura por proyecto, para compartir el inventario disponible con vendedores externos sin crearles usuarios en el sistema.
 
-  El link debe mostrar solo las unidades disponibles de esa inmobiliaria. No debe permitir editar, bloquear, cambiar estatus, ver clientes, ver comentarios internos ni acceder a inventario de otras inmobiliarias.
+  El link se copiara desde el proyecto correspondiente y debe mostrar solo las unidades disponibles de ese proyecto. No debe permitir editar, bloquear, cambiar estatus, ver clientes, ver comentarios internos ni acceder a inventario de otros proyectos.
 
-  El link permanecera activo mientras la inmobiliaria exista en el sistema. Si mas adelante se requiere que el link sea revocable, tenga expiracion o requiera clave de acceso, eso se considerara un requerimiento adicional.
+  El link permanecera activo mientras el proyecto exista y este activo en el sistema. Si mas adelante se requiere que el link sea revocable, tenga expiracion o requiera clave de acceso, eso se considerara un requerimiento adicional.
 
 ### Clientes
-
-- [ ] Corregir calculo de exclusividad de clientes.
-
-  La exclusividad debe durar tres meses.
-
-  Reglas:
-
-  - Si el cliente se importa por Excel, se tomara la fecha de la fila "Fecha Bloqueo" como fecha historica para calcular la exclusividad.
-  - Si no existe "Fecha Bloqueo", debe poder editarse en migracion o debe marcar error si es obligatoria.
-  - Si el cliente se registra directamente en el sistema, se tomara la fecha de registro.
-  - Si el cliente se registra por captacion o bloqueo, se guardara la fecha correspondiente del registro o bloqueo.
-  - Si al importar se crea un bloqueo operativo nuevo, el tiempo activo del bloqueo se creara con la regla actual de 48 horas desde el momento de la importacion, no desde la fecha historica del Excel.
-
-  El caso de un cliente captado el 28 de mayo no debe aparecer vencido antes de cumplir tres meses.
 
 - [ ] No realizar cambio sobre "NaNd" si ya no aparece.
 
@@ -285,7 +291,7 @@ URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
 - [ ] Formato y columnas exactas para exportacion de clientes.
 - [ ] Roles que podran exportar clientes.
 - [ ] Confirmar si se implementa el nuevo estado "Desvinculada de JAM".
-- [ ] Definir si el link publico de inventario sera permanente, revocable o con expiracion.
+- [ ] Definir si el link publico de inventario por proyecto sera permanente, revocable o con expiracion.
 - [ ] Confirmar nombres exactos de estatus usados en base de datos y pantalla.
 
 ## Nota de alcance
@@ -307,4 +313,4 @@ No se consideraran correcciones y deberan aprobarse como requerimientos nuevos:
 - Cambiar diseno, estructura o flujo de pantallas fuera de lo indicado.
 - Pedir limpieza historica masiva de datos.
 - Agregar nuevas notificaciones o nuevos destinatarios no mencionados.
-- Cambiar el comportamiento del link publico mas alla de ser permanente, de solo lectura y por inmobiliaria.
+- Cambiar el comportamiento del link publico mas alla de ser permanente, de solo lectura y por proyecto.

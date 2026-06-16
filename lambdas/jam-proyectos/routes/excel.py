@@ -3,6 +3,7 @@ import uuid
 import boto3
 import os
 from io import BytesIO
+from datetime import datetime
 from boto3.dynamodb.conditions import Key
 from utils.response import ok, bad_request, not_found
 from utils.helpers import now
@@ -166,7 +167,22 @@ def _validar_clientes_confirmacion(filas):
             errores.append(f'fila {fila_excel} unidad {id_unidad}: cedula obligatoria')
         if cedula and not cedula.isdigit():
             errores.append(f'fila {fila_excel} unidad {id_unidad}: cedula solo debe contener numeros')
+        for campo, etiqueta in (
+            ('fecha_nacimiento', 'fecha de nacimiento'),
+            ('fecha_bloqueo', 'Fecha Bloqueo'),
+        ):
+            valor = str(fila.get(campo) or '').strip()
+            if valor and not _fecha_valida(valor):
+                errores.append(f'fila {fila_excel} unidad {id_unidad}: {etiqueta} invalida')
     return errores
+
+
+def _fecha_valida(valor):
+    try:
+        datetime.fromisoformat(valor.replace('Z', '+00:00'))
+        return True
+    except ValueError:
+        return False
 
 
 def _obtener_ids_unidades_existentes(proyecto_id):

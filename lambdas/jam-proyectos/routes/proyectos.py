@@ -39,6 +39,24 @@ def detalle(proyecto_id):
     return ok(item)
 
 
+def detalle_publico(proyecto_id):
+    result = inventario.get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    )
+    item = result.get('Item')
+    if not item or not item.get('activo', True):
+        return not_found('Proyecto no encontrado')
+    return ok({
+        'pk': item.get('pk'),
+        'proyecto_id': item.get('proyecto_id'),
+        'nombre': item.get('nombre'),
+        'descripcion': item.get('descripcion', ''),
+        'imagen_url': item.get('imagen_url'),
+        'activo': item.get('activo', True),
+        'creado_en': item.get('creado_en'),
+    })
+
+
 def crear(event):
     body = json.loads(event.get('body') or '{}')
     nombre = body.get('nombre')

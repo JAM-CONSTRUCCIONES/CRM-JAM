@@ -236,13 +236,15 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: usa el mismo listado de unidades corregido que el modulo administrativo, por lo que las busquedas por unidad, tipo y manzana/bloque ya no dependen de mayusculas/minusculas.
 
-- [ ] Crear link publico permanente de visualizacion de inventario por proyecto.
+- [x] Crear link publico permanente de visualizacion de inventario por proyecto.
 
   Se generara un link permanente de solo lectura por proyecto, para compartir el inventario disponible con vendedores externos sin crearles usuarios en el sistema.
 
   El link se copiara desde el proyecto correspondiente y debe mostrar solo las unidades disponibles de ese proyecto. No debe permitir editar, bloquear, cambiar estatus, ver clientes, ver comentarios internos ni acceder a inventario de otros proyectos.
 
   El link permanecera activo mientras el proyecto exista y este activo en el sistema. Si mas adelante se requiere que el link sea revocable, tenga expiracion o requiera clave de acceso, eso se considerara un requerimiento adicional.
+
+  Hecho: cada proyecto muestra la opcion "Copiar link de inventario". El enlace abre una vista publica de solo lectura del proyecto, sin login, mostrando unicamente unidades disponibles con la misma estructura comercial de inventario y filtros por etapa, estado disponible, unidad, tipo, bloque/manzana y piso. La API publica tambien filtra desde backend y no devuelve datos internos ni acciones.
 
 ### Clientes
 

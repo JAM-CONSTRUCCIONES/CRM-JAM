@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { Button, Modal, Form, Input, Space, Tooltip, Row, Col, Popconfirm, Upload, Select, Typography, Grid, Alert } from 'antd';
-import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined, EyeOutlined, DownloadOutlined, CopyOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
 import { useInventario } from '../../hooks/useInventario';
 import TablaUnidades from '../../components/inventario/TablaUnidades';
@@ -217,6 +217,16 @@ const InventarioPage = () => {
     }
   };
 
+  const copiarLinkPublico = async (proyectoId: string) => {
+    const url = `${window.location.origin}/inventario-publico/${proyectoId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      message.success('Link publico copiado');
+    } catch {
+      message.info(url);
+    }
+  };
+
   return (
     <div>
       {/* Banner modo preview */}
@@ -380,6 +390,17 @@ const InventarioPage = () => {
                   ) : (
                     <Text type="secondary" style={{ fontSize: 13, fontStyle: 'italic' }}>Sin descripción</Text>
                   )}
+                  <Button
+                    icon={<CopyOutlined />}
+                    size="small"
+                    style={{ marginTop: 12 }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      copiarLinkPublico(p.proyecto_id);
+                    }}
+                  >
+                    Copiar link de inventario
+                  </Button>
                 </div>
               </div>
             </Col>

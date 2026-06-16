@@ -20,6 +20,7 @@ interface Props {
   isAdmin: boolean;
   isInmobiliaria: boolean;
   canEdit?: boolean;
+  readOnlyPublic?: boolean;
   inmoNombre: (id: string) => string;
   onEditar: (u: Unidad) => void;
   onEliminar: (u: Unidad) => void;
@@ -28,8 +29,8 @@ interface Props {
 }
 
 // ── Card móvil ────────────────────────────────────────────────────────────────
-const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: {
-  u: Unidad; etapas: Etapa[]; isAdmin: boolean; isInmobiliaria: boolean; canEdit?: boolean;
+const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: {
+  u: Unidad; etapas: Etapa[]; isAdmin: boolean; isInmobiliaria: boolean; canEdit?: boolean; readOnlyPublic?: boolean;
   inmoNombre: (id: string) => string;
   onEditar: (u: Unidad) => void; onEliminar: (u: Unidad) => void; onBloquear?: (u: Unidad) => void;
   onCrearBloqueoAdmin?: (u: Unidad) => void;
@@ -124,12 +125,12 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
         )}
 
         {/* Bloquear button (inmobiliaria) */}
-        {isInmobiliaria && u.estado === 'disponible' && (
+        {isInmobiliaria && !readOnlyPublic && u.estado === 'disponible' && (
           <Button size="small" icon={<LockOutlined />} type="primary" ghost block onClick={() => onBloquear?.(u)}>
             Bloquear unidad
           </Button>
         )}
-        {isInmobiliaria && u.estado === 'bloqueada' && (
+        {isInmobiliaria && !readOnlyPublic && u.estado === 'bloqueada' && (
           <Tag icon={<LockOutlined />} color="warning" style={{ width: '100%', textAlign: 'center', padding: '4px 0' }}>Bloqueada</Tag>
         )}
         
@@ -145,7 +146,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
-const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: Props) => {
+const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: Props) => {
   const { md } = useBreakpoint();
 
   // Móvil → cards
@@ -157,6 +158,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
         {unidades.map(u => (
           <UnidadCard key={u.unidad_id} u={u} etapas={etapas}
             isAdmin={isAdmin} isInmobiliaria={isInmobiliaria} canEdit={canEdit} inmoNombre={inmoNombre}
+            readOnlyPublic={readOnlyPublic}
             onEditar={onEditar} onEliminar={onEliminar} onBloquear={onBloquear} onCrearBloqueoAdmin={onCrearBloqueoAdmin} />
         ))}
       </div>
@@ -254,7 +256,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
       { title: 'Bloqueado por', dataIndex: 'bloqueado_por', key: 'bloqueado_por', render: (v: string) => v ? <Tag>{inmoNombre(v)}</Tag> : <Text type="secondary">—</Text> },
       { title: 'Fecha bloqueo', dataIndex: 'fecha_bloqueo', key: 'fecha_bloqueo', render: (v: string) => v ? new Date(v).toLocaleDateString('es-VE') : <Text type="secondary">—</Text> },
     ] : []),
-    ...(isInmobiliaria ? [{
+    ...(isInmobiliaria && !readOnlyPublic ? [{
       title: '', key: 'bloqueo', width: 120,
       render: (_: any, u: Unidad) => {
         if (u.estado !== 'disponible') return null;

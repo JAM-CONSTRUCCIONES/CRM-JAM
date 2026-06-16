@@ -17,6 +17,7 @@ import MfaSetupPage from './pages/auth/MfaSetupPage';
 import MigracionPage from './pages/migracion/MigracionPage';
 import ConfigPage from './pages/config/ConfigPage';
 import CampaniasPage from './pages/campanias/CampaniasPage';
+import InventarioPublicoPage from './pages/inventario/InventarioPublicoPage';
 
 const App = () => (
   <BrowserRouter>
@@ -26,6 +27,7 @@ const App = () => (
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/captura" element={<CapturaPage />} />
         <Route path="/captura-global" element={<CapturaGlobalPage />} />
+        <Route path="/inventario-publico/:proyectoId" element={<InventarioPublicoPage />} />
         <Route path="/mfa-setup" element={<MfaSetupPage />} />
         <Route
           path="/"

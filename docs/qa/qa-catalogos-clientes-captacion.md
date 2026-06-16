@@ -4,7 +4,7 @@
 
 - Ambiente: dev
 - URL: `https://d12nm0khvt8zd9.cloudfront.net`
-- Ultimo deploy dev revisado: migracion Excel, exclusividad, catalogos de clientes, validaciones, exportacion de clientes, permisos y notificaciones.
+- Ultimo deploy dev revisado: migracion Excel, exclusividad, catalogos de clientes, validaciones, exportacion de clientes, permisos, notificaciones y campanias.
 
 ## Estados
 
@@ -227,23 +227,33 @@
   - [ ] Resultados coinciden.
   - [ ] Mismo criterio para tipo.
 
-- [ ] `Listo para revision documental` Link publico permanente de inventario por proyecto.
+- [ ] `Listo para QA` Link publico permanente de inventario por proyecto.
 
-  Revisar propuesta con cliente:
+  Probar:
 
-  - [ ] El link sera por proyecto.
-  - [ ] Se copiara desde el proyecto correspondiente.
-  - [ ] Sera el mismo enlace para todos los vendedores externos.
-  - [ ] Al abrir, mostrara directamente el inventario disponible del proyecto.
+  - [ ] El proyecto muestra el boton `Copiar link de inventario`.
+  - [ ] El link copiado abre sin iniciar sesion.
+  - [ ] El link abre directamente el inventario disponible del proyecto.
+  - [ ] El mismo enlace funciona para cualquier vendedor externo.
   - [ ] Mostrar mismas columnas que inventario del proyecto.
   - [ ] Mostrar solo unidades disponibles.
+  - [ ] Unidades bloqueadas no aparecen.
+  - [ ] Unidades no disponibles no aparecen.
+  - [ ] Unidades vendidas no aparecen.
   - [ ] No mostrar acciones.
   - [ ] No permitir bloquear.
   - [ ] No mostrar clientes.
   - [ ] No mostrar comentarios internos.
   - [ ] No permitir editar ni cambiar estatus.
-  - [ ] Permitir copiar link desde el proyecto en usuario JAM.
-  - [ ] Permitir copiar link desde el proyecto en usuario inmobiliaria.
+  - [ ] Filtro por etapa funciona.
+  - [ ] Filtro por unidad funciona.
+  - [ ] Filtro por tipo funciona sin depender de mayusculas/minusculas.
+  - [ ] Filtro por bloque/manzana funciona sin depender de mayusculas/minusculas.
+  - [ ] Filtro por piso funciona.
+  - [ ] El backend no devuelve cliente, cedula, correo, telefono, comentario interno, bloqueado_por ni fechas internas.
+  - [ ] El link deja de mostrar inventario si el proyecto esta inactivo.
+  - [ ] Permite copiar link desde el proyecto en usuario JAM.
+  - [ ] Permite copiar link desde el proyecto en usuario inmobiliaria.
 
 ### Clientes
 

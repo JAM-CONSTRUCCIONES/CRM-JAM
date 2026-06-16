@@ -4,10 +4,10 @@ import type { Etapa, Proyecto, Unidad } from '../types';
 const cleanFilter = (value?: string) => value?.trim();
 
 export const getProyectoPublico = (proyectoId: string): Promise<Proyecto> =>
-  apiGet<Proyecto>(`/publico/proyectos/${proyectoId}`);
+  apiGet<Proyecto>(`/publico/proyectos?inventario_publico=detalle&proyecto_id=${proyectoId}`);
 
 export const getEtapasPublicas = (proyectoId: string): Promise<Etapa[]> =>
-  apiGet<Etapa[]>(`/publico/proyectos/${proyectoId}/etapas`);
+  apiGet<Etapa[]>(`/publico/proyectos?inventario_publico=etapas&proyecto_id=${proyectoId}`);
 
 export const getUnidadesPublicas = (
   proyectoId: string,
@@ -20,6 +20,7 @@ export const getUnidadesPublicas = (
   if (cleanFilter(filtros?.manzana)) params.append('manzana', cleanFilter(filtros?.manzana)!);
   if (cleanFilter(filtros?.piso)) params.append('piso', cleanFilter(filtros?.piso)!);
   const qs = params.toString();
-  return apiGet<{ items: Unidad[]; count: number }>(`/publico/proyectos/${proyectoId}/unidades${qs ? `?${qs}` : ''}`)
+  const base = `/publico/proyectos?inventario_publico=unidades&proyecto_id=${proyectoId}`;
+  return apiGet<{ items: Unidad[]; count: number }>(`${base}${qs ? `&${qs}` : ''}`)
     .then(response => response.items || []);
 };

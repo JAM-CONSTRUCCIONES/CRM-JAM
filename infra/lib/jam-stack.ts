@@ -1232,11 +1232,6 @@ def handler(event, context):
     const publicoProyectosResource = publicoResource.addResource('proyectos');
     publicoProyectosResource.addMethod('GET', captacionLambdaIntegration);
 
-    const publicoProyectoResource = publicoProyectosResource.addResource('{proyecto_id}');
-    publicoProyectoResource.addMethod('GET', proyectosLambdaIntegration);
-    publicoProyectoResource.addResource('etapas').addMethod('GET', proyectosLambdaIntegration);
-    publicoProyectoResource.addResource('unidades').addMethod('GET', proyectosLambdaIntegration);
-
     const publicoClientesResource = publicoResource.addResource('clientes');
     publicoClientesResource.addMethod('POST', captacionLambdaIntegration);
 

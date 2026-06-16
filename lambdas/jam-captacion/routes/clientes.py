@@ -977,9 +977,122 @@ def listar_inmobiliarias_publico(event):
         return bad_request('Error al obtener inmobiliarias')
 
 
+def _case_variants(value):
+    text = str(value or '').strip()
+    if not text:
+        return []
+    return list(dict.fromkeys([text, text.lower(), text.upper(), text.title(), text.capitalize()]))
+
+
+def _contains_case_insensitive(attr_name, value):
+    expr = None
+    for variant in _case_variants(value):
+        current = Attr(attr_name).contains(variant)
+        expr = expr | current if expr else current
+    return expr
+
+
+def _get_inventario_table():
+    return dynamodb.Table(os.environ['INVENTARIO_TABLE'])
+
+
+def _get_proyecto_publico(proyecto_id):
+    item = _get_inventario_table().get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    ).get('Item')
+    if not item or not item.get('activo', True):
+        return None
+    return item
+
+
+def _detalle_inventario_publico(proyecto_id):
+    item = _get_proyecto_publico(proyecto_id)
+    if not item:
+        return not_found('Proyecto no encontrado')
+    return ok({
+        'pk': item.get('pk'),
+        'proyecto_id': item.get('proyecto_id'),
+        'nombre': item.get('nombre'),
+        'descripcion': item.get('descripcion', ''),
+        'imagen_url': item.get('imagen_url'),
+        'activo': item.get('activo', True),
+        'creado_en': item.get('creado_en'),
+    })
+
+
+def _etapas_inventario_publico(proyecto_id):
+    if not _get_proyecto_publico(proyecto_id):
+        return not_found('Proyecto no encontrado')
+    result = _get_inventario_table().query(
+        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('ETAPA#')
+    )
+    return ok(result.get('Items', []))
+
+
+def _unidades_inventario_publico(proyecto_id, qs):
+    if not _get_proyecto_publico(proyecto_id):
+        return not_found('Proyecto no encontrado')
+
+    filter_expr = Attr('estado').eq('disponible')
+
+    if qs.get('etapa_id'):
+        filter_expr = filter_expr & Attr('etapa_id').eq(qs['etapa_id'])
+    if qs.get('id_unidad'):
+        new_filter = _contains_case_insensitive('id_unidad', qs['id_unidad'])
+        if new_filter:
+            filter_expr = filter_expr & new_filter
+    if qs.get('tipo'):
+        new_filter = _contains_case_insensitive('tipo', qs['tipo'])
+        if new_filter:
+            filter_expr = filter_expr & new_filter
+    if qs.get('manzana'):
+        new_filter = _contains_case_insensitive('manzana', qs['manzana'])
+        if new_filter:
+            filter_expr = filter_expr & new_filter
+    if qs.get('piso'):
+        try:
+            piso_int = int(qs['piso'])
+            filter_expr = filter_expr & (Attr('piso').eq(piso_int) | Attr('piso').eq(qs['piso']))
+        except (ValueError, TypeError):
+            filter_expr = filter_expr & Attr('piso').eq(qs['piso'])
+
+    result = _get_inventario_table().query(
+        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
+        FilterExpression=filter_expr,
+    )
+
+    campos_publicos = {
+        'pk', 'sk', 'unidad_id', 'id_unidad', 'etapa_id', 'metraje',
+        'metraje_terraza', 'metraje_patio', 'precio', 'precio_reserva',
+        'precio_separacion', 'precio_inicial', 'cuota_monto', 'cuota_meses',
+        'contra_entrega', 'tipo', 'manzana', 'piso', 'parqueos',
+        'num_cuartos', 'num_banos', 'estado', 'creado_en', 'actualizado_en',
+    }
+    items = [
+        {k: v for k, v in item.items() if k in campos_publicos}
+        for item in result.get('Items', [])
+        if item.get('id_unidad')
+    ]
+    items.sort(key=lambda x: (x.get('id_unidad') or '').upper())
+    return ok({'items': items, 'count': len(items)})
+
+
 def listar_proyectos_publico(event):
     """GET /publico/proyectos?inmobiliaria_id=xxx — proyectos asignados a la inmobiliaria (sin auth)."""
     qs = event.get('queryStringParameters') or {}
+    inventario_publico = qs.get('inventario_publico', '').strip()
+    proyecto_publico_id = qs.get('proyecto_id', '').strip()
+    if inventario_publico:
+        if not proyecto_publico_id:
+            return bad_request('proyecto_id es requerido')
+        if inventario_publico == 'detalle':
+            return _detalle_inventario_publico(proyecto_publico_id)
+        if inventario_publico == 'etapas':
+            return _etapas_inventario_publico(proyecto_publico_id)
+        if inventario_publico == 'unidades':
+            return _unidades_inventario_publico(proyecto_publico_id, qs)
+        return bad_request('inventario_publico invalido')
+
     inmobiliaria_id = qs.get('inmobiliaria_id', '').strip()
     if not inmobiliaria_id:
         return bad_request('inmobiliaria_id es requerido')

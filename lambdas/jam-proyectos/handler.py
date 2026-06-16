@@ -34,17 +34,6 @@ def handler(event, context):
         job_id = path_params.get('job_id')
         is_admin = '/admin/' in path or path.startswith('/admin/')
 
-        # ===== PUBLICO: inventario de solo lectura =====
-
-        if method == 'GET' and path.startswith('/publico/proyectos/') and proyecto_id and path.endswith('/unidades'):
-            return unidades.listar_publico(proyecto_id, event)
-
-        if method == 'GET' and path.startswith('/publico/proyectos/') and proyecto_id and path.endswith('/etapas'):
-            return etapas.listar(proyecto_id)
-
-        if method == 'GET' and path.startswith('/publico/proyectos/') and proyecto_id:
-            return proyectos.detalle_publico(proyecto_id)
-
         # ===== LECTURA =====
 
         if method == 'GET' and path == '/proyectos':

@@ -11,6 +11,9 @@ const cleanSpaces = (value?: unknown) =>
 export const normalizeClientName = (value?: unknown) =>
   cleanSpaces(value).toLocaleUpperCase('es-VE');
 
+export const normalizeClientNameInput = (value?: unknown) =>
+  String(value ?? '').replace(/\s+/g, ' ').toLocaleUpperCase('es-VE');
+
 export const normalizeClientEmail = (value?: unknown) =>
   cleanSpaces(value).toLowerCase();
 
@@ -62,7 +65,7 @@ const validateCatalogosCliente = (values: Record<string, any>) => {
 };
 
 export const clienteFieldNormalizers = {
-  nombre: normalizeClientName,
+  nombre: normalizeClientNameInput,
   correo: normalizeClientEmail,
 };
 

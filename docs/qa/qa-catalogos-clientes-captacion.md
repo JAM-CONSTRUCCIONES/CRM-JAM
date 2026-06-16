@@ -4,7 +4,8 @@
 
 - Ambiente: dev
 - URL: `https://d12nm0khvt8zd9.cloudfront.net`
-- Ultimo deploy dev revisado: migracion Excel, exclusividad, catalogos de clientes, validaciones, exportacion de clientes, permisos, notificaciones y campanias.
+- Ultimo deploy dev disponible: `8fd30a3`.
+- Incluye: migracion Excel, exclusividad, catalogos de clientes, validaciones, exportacion de clientes, permisos, notificaciones, campanias y link publico de inventario por proyecto.
 
 ## Estados
 
@@ -13,6 +14,27 @@
 - `Pendiente de confirmar`: falta aprobacion o definicion antes de desarrollar.
 - `No requiere cambio`: se reviso y no se hara cambio de sistema.
 - `Listo para revision documental`: no es funcionalidad implementada, pero el texto/propuesta ya puede revisarse con el cliente.
+
+---
+
+## Orden sugerido para QA
+
+1. Probar link publico de inventario por proyecto.
+2. Probar modulo de campanias de correo.
+3. Probar clientes por proyecto y exportacion.
+4. Probar validaciones y catalogos de clientes/captacion.
+5. Probar migracion Excel con archivo real.
+6. Probar permisos de coordinador.
+7. Probar notificaciones y formato de correo.
+8. Probar dashboard/reportes.
+
+No probar todavia como funcionalidad terminada:
+
+- Grafico de inmobiliaria con unidades desvinculadas: pendiente de confirmacion.
+- Icono de informacion en proceso de venta para inmobiliaria: pendiente de implementar.
+- Pasaporte alfanumerico: pendiente de definicion.
+- Cliente captado que no aparece en administrativo: pendiente de revisar con caso real.
+- Notificacion `Cliente Captado`: pendiente de revisar con caso real y correo verificado.
 
 ---
 
@@ -72,6 +94,8 @@
   - [ ] Nombre con numeros no guarda.
   - [ ] Apellido con simbolos no guarda.
   - [ ] Nombre y apellido se guardan en mayuscula.
+  - [ ] Nombre compuesto permite espacios, por ejemplo `JUAN CARLOS`.
+  - [ ] Apellido compuesto permite espacios, por ejemplo `PEREZ GOMEZ`.
   - [ ] Los mensajes aparecen debajo del campo invalido.
   - [ ] Si hay dos errores, se ven ambos en sus campos correspondientes.
 
@@ -321,7 +345,7 @@
 
 ## Checklist De Cierre QA
 
-- [ ] Probar en dev despues del deploy `5911d12`.
+- [ ] Probar en dev despues del deploy `8fd30a3`.
 - [ ] Registrar evidencias o capturas de los puntos listos para QA.
 - [ ] Separar bugs reales de cambios nuevos de alcance.
 - [ ] Confirmar pendientes que no se pueden probar porque aun no estan implementados.

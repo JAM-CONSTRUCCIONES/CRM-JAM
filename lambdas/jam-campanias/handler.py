@@ -334,13 +334,18 @@ def guardar_template(event, template_id):
 
 def listar_historial(event):
     proyecto_id = _qs(event).get('proyecto_id', '').strip()
-    if not proyecto_id:
-        return bad_request('proyecto_id requerido')
-    items = _query_all(
-        campanias_t,
-        KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('CAMPANIA#'),
-        ScanIndexForward=False,
-    )
+    if proyecto_id:
+        items = _query_all(
+            campanias_t,
+            KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('CAMPANIA#'),
+            ScanIndexForward=False,
+        )
+    else:
+        items = _scan_all(
+            campanias_t,
+            FilterExpression=Attr('sk').begins_with('CAMPANIA#'),
+        )
+        items.sort(key=lambda x: x.get('fecha_envio', ''), reverse=True)
     return ok(items[:100])
 
 

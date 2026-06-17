@@ -64,7 +64,6 @@ export default function CampaniasPage() {
   const [preview, setPreview] = useState<PreviewCampania | null>(null);
   const [historial, setHistorial] = useState<CampaniaHistorial[]>([]);
   const [templates, setTemplates] = useState<TemplateCampania[]>([]);
-  const [historialProyectoId, setHistorialProyectoId] = useState<string>();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>();
   const [editorVisible, setEditorVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -73,24 +72,18 @@ export default function CampaniasPage() {
   const asuntoPreview = Form.useWatch('asunto', form);
   const mensajePreview = Form.useWatch('mensaje', form);
 
-  const proyectoNombre = useMemo(
-    () => proyectos.find(p => p.proyecto_id === historialProyectoId)?.nombre ?? '',
-    [proyectos, historialProyectoId],
+  const proyectosPorId = useMemo(
+    () => new Map(proyectos.map(p => [p.proyecto_id, p.nombre])),
+    [proyectos],
   );
 
   useEffect(() => {
     getProyectos()
-      .then(items => {
-        setProyectos(items);
-        if (items[0]) setHistorialProyectoId(items[0].proyecto_id);
-      })
+      .then(setProyectos)
       .catch(() => message.error('Error al cargar proyectos'));
     cargarTemplates();
+    cargarHistorial();
   }, []);
-
-  useEffect(() => {
-    if (historialProyectoId) cargarHistorial(historialProyectoId);
-  }, [historialProyectoId]);
 
   const cargarTemplates = async () => {
     try {
@@ -100,10 +93,9 @@ export default function CampaniasPage() {
     }
   };
 
-  const cargarHistorial = async (proyectoId = historialProyectoId) => {
-    if (!proyectoId) return;
+  const cargarHistorial = async () => {
     try {
-      setHistorial(await getHistorialCampanias(proyectoId));
+      setHistorial(await getHistorialCampanias());
     } catch {
       message.error('Error al cargar historial');
     }
@@ -255,7 +247,7 @@ export default function CampaniasPage() {
           await enviarCampania(values);
           message.success('Campaña enviada');
           setPreview(null);
-          if (historialProyectoId === values.proyecto_id) await cargarHistorial(values.proyecto_id);
+          await cargarHistorial();
         } catch (err: any) {
           message.error(err?.message || 'Error al enviar campaña');
         } finally {
@@ -476,9 +468,6 @@ export default function CampaniasPage() {
             children: (
               <Card>
                 <Space style={{ marginBottom: 12 }}>
-                  <Select value={historialProyectoId} onChange={setHistorialProyectoId} style={{ width: 260 }} placeholder="Seleccionar proyecto">
-                    {proyectos.map(p => <Select.Option key={p.proyecto_id} value={p.proyecto_id}>{p.nombre}</Select.Option>)}
-                  </Select>
                   <Button onClick={() => cargarHistorial()}>Actualizar</Button>
                 </Space>
                 <Table
@@ -488,7 +477,7 @@ export default function CampaniasPage() {
                     { title: 'Fecha', dataIndex: 'fecha_envio', render: v => new Date(v).toLocaleString() },
                     { title: 'Titulo', dataIndex: 'nombre' },
                     { title: 'Descripcion', dataIndex: 'descripcion', render: v => v || '-' },
-                    { title: 'Proyecto', render: (_, r) => r.proyecto_nombre || proyectoNombre },
+                    { title: 'Proyecto', render: (_, r) => r.proyecto_nombre || proyectosPorId.get(r.proyecto_id) || r.proyecto_id || '-' },
                     { title: 'Grupo', dataIndex: 'grupo', render: v => <Tag>{grupoLabel[v] || v}</Tag> },
                     { title: 'Clientes', dataIndex: 'cantidad_destinatarios' },
                     { title: 'Enviados', dataIndex: 'correos_enviados' },

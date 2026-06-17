@@ -76,8 +76,8 @@ export const previewCampania = (data: {
 export const enviarCampania = (data: EnviarCampaniaPayload): Promise<CampaniaHistorial> =>
   apiPost('/admin/campanias/enviar', data);
 
-export const getHistorialCampanias = (proyectoId: string): Promise<CampaniaHistorial[]> =>
-  apiGet(`/admin/campanias/historial?proyecto_id=${proyectoId}`);
+export const getHistorialCampanias = (proyectoId?: string): Promise<CampaniaHistorial[]> =>
+  apiGet(proyectoId ? `/admin/campanias/historial?proyecto_id=${proyectoId}` : '/admin/campanias/historial');
 
 export const getTemplatesCampanias = (): Promise<TemplateCampania[]> =>
   apiGet('/admin/campanias/templates');

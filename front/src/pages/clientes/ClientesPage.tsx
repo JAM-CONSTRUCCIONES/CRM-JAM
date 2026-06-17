@@ -33,8 +33,14 @@ const { Option } = Select;
 const { useBreakpoint } = Grid;
 
 const ESTATUS_CLIENTE_OPTIONS = [
-  { value: 'sin_unidad', label: 'Sin unidad' },
-  ...Object.entries(ESTADO_PROCESO_LABEL).map(([value, label]) => ({ value, label })),
+  { value: 'sin_unidad_actual', label: 'Sin unidad actual' },
+  { value: 'captacion', label: ESTADO_PROCESO_LABEL.captacion },
+  { value: 'reserva', label: ESTADO_PROCESO_LABEL.reserva },
+  { value: 'separacion', label: ESTADO_PROCESO_LABEL.separacion },
+  { value: 'inicial', label: ESTADO_PROCESO_LABEL.inicial },
+  { value: 'pagos_atrasados', label: ESTADO_PROCESO_LABEL.pagos_atrasados },
+  { value: 'contra_entrega', label: ESTADO_PROCESO_LABEL.contra_entrega },
+  { value: 'vendida', label: ESTADO_PROCESO_LABEL.vendida },
 ];
 
 // Función para calcular días restantes de exclusividad
@@ -286,7 +292,20 @@ const ClientesPage = () => {
 
   const clienteCoincideEstatus = (c: ClienteProyecto) => {
     if (!estatusFiltro) return true;
-    return normalizarEstatus(c.estatus) === normalizarEstatus(estatusFiltro);
+    const estatus = normalizarEstatus(c.estatus);
+    if (estatusFiltro === 'sin_unidad_actual') {
+      return estatus === 'sin_unidad' || estatus === 'desvinculado';
+    }
+    return estatus === normalizarEstatus(estatusFiltro);
+  };
+
+  const filtroEstatusTable = (value: boolean | React.Key, record: ClienteProyecto) => {
+    const selected = String(value);
+    const estatus = normalizarEstatus(record.estatus);
+    if (selected === 'sin_unidad_actual') {
+      return estatus === 'sin_unidad' || estatus === 'desvinculado';
+    }
+    return estatus === normalizarEstatus(selected);
   };
 
   const clientesFiltrados = clientes.filter(c =>
@@ -566,8 +585,7 @@ const ClientesPage = () => {
       render: (_: unknown, r: ClienteProyecto) => renderEstatusCliente(r),
       filters: ESTATUS_CLIENTE_OPTIONS.map(opt => ({ text: opt.label, value: opt.value })),
       filteredValue: estatusFiltro ? [estatusFiltro] : null,
-      onFilter: (value: boolean | React.Key, record: ClienteProyecto) =>
-        normalizarEstatus(record.estatus) === normalizarEstatus(String(value)),
+      onFilter: filtroEstatusTable,
     },
     ...(isAdmin && !isMobile ? [{
       title: 'Inmobiliaria', key: 'inmo',

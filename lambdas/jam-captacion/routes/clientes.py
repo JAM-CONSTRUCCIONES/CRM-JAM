@@ -777,7 +777,7 @@ def buscar_por_cedula_admin(event, cedula):
 def detalle_admin(event, cedula, proyecto_id):
     """GET /admin/clientes/{cedula}/proyecto/{id} — admin."""
     qs = event.get('queryStringParameters') or {}
-    inmobiliaria_id = qs.get('inmobiliaria_id')
+    inmobiliaria_id = _normalizar_inmo_id(qs.get('inmobiliaria_id'))
     if not inmobiliaria_id:
         return bad_request('inmobiliaria_id requerido como query param')
 
@@ -834,7 +834,16 @@ def actualizar_admin(event, cedula, proyecto_id):
         ExpressionAttributeValues=values,
         ExpressionAttributeNames=names,
     )
-    return ok({'message': 'Cliente actualizado'})
+    actualizado = clientes.get_item(Key={'pk': pk, 'sk': sk}).get('Item') or {}
+    print('DEBUG actualizar_admin cliente actualizado:', json.dumps({
+        'cedula': cedula,
+        'proyecto_id': proyecto_id,
+        'inmobiliaria_id': inmobiliaria_id,
+        'estado_civil': actualizado.get('estado_civil', ''),
+        'nacionalidad': actualizado.get('nacionalidad', ''),
+        'pais_residencia': actualizado.get('pais_residencia', ''),
+    }, ensure_ascii=False))
+    return ok({'message': 'Cliente actualizado', 'cliente': actualizado})
 
 
 def listar_mis_procesos(event):

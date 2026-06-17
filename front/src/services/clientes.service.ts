@@ -80,7 +80,7 @@ export const actualizarClienteAdmin = (
   proyectoId: string,
   inmobiliariaId: string,
   data: Partial<RegistrarClientePayload & { estado: string }>
-): Promise<{ message: string }> =>
+): Promise<{ message: string; cliente?: Cliente }> =>
   apiPut(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`, validateAndNormalizeClientePayload(data));
 
 export const transferirClienteInmobiliaria = (

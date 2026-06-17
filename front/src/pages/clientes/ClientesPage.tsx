@@ -371,7 +371,8 @@ const ClientesPage = () => {
       fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
     };
     try {
-      await actualizarClienteAdmin(editarRegistro.cedula, editarRegistro.proyecto_id, editarRegistro.inmobiliaria_id, payload);
+      const respuesta = await actualizarClienteAdmin(editarRegistro.cedula, editarRegistro.proyecto_id, editarRegistro.inmobiliaria_id, payload);
+      const datosActualizados = respuesta.cliente ? { ...payload, ...respuesta.cliente } : payload;
       message.success('Cliente actualizado');
       setEditarModal(false);
       setEditarRegistro(null);
@@ -380,14 +381,14 @@ const ClientesPage = () => {
         cliente.cedula === editarRegistro.cedula &&
         cliente.proyecto_id === editarRegistro.proyecto_id &&
         cliente.inmobiliaria_id === editarRegistro.inmobiliaria_id
-          ? { ...cliente, ...payload }
+          ? { ...cliente, ...datosActualizados }
           : cliente
       )));
       setDrawerRegistros(prev => prev.map(registro => (
         registro.cedula === editarRegistro.cedula &&
         registro.proyecto_id === editarRegistro.proyecto_id &&
         registro.inmobiliaria_id === editarRegistro.inmobiliaria_id
-          ? { ...registro, ...payload }
+          ? { ...registro, ...datosActualizados }
           : registro
       )));
       setDrawerCliente(prev => (
@@ -395,7 +396,7 @@ const ClientesPage = () => {
         prev.cedula === editarRegistro.cedula &&
         prev.proyecto_id === editarRegistro.proyecto_id &&
         prev.inmobiliaria_id === editarRegistro.inmobiliaria_id
-          ? { ...prev, ...payload }
+          ? { ...prev, ...datosActualizados }
           : prev
       ));
 

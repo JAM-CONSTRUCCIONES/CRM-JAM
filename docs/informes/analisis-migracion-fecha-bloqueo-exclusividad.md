@@ -103,6 +103,22 @@ Reglas aplicadas:
 
 Esto evita que un Excel exportado por el sistema falle al volver a importarse por diferencias de encabezados o por un mapeo incorrecto de IA.
 
+### Hallazgo en logs de dev
+
+En dev se revisaron logs de `jam-excel-parser` y se encontro:
+
+- Bedrock esta devolviendo `AccessDeniedException`.
+- Por ese error, la IA no esta haciendo mapeo de columnas, nombres ni inmobiliarias.
+- El sistema usa fallback vacio cuando la IA falla.
+- El ultimo archivo revisado era una exportacion de clientes, no una exportacion de inventario.
+- Ese archivo de clientes trae columnas como `Cedula`, `Nombre`, `Apellido`, `Correo`, `Telefono`, `Nacionalidad`, `Pais de residencia`, `Proyecto`, `Inmobiliaria`, `Estatus` y `Unidad`.
+- Ese archivo no trae `Precio` ni `Metraje`, por lo tanto no puede completar una migracion de inventario sin correccion manual o sin agregar esas columnas.
+
+Mejora aplicada por este hallazgo:
+
+- La migracion ya no depende de IA para reconocer inmobiliarias que existen exactamente en el sistema.
+- Si el Excel trae `Nombre` y `Apellido` separados, se usan directamente sin depender de IA.
+
 ### Exclusividad
 
 La exclusividad del cliente importado se calcula por tres meses.

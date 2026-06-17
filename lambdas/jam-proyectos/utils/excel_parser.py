@@ -52,6 +52,10 @@ PROCESO_MAP = {
 }
 
 
+def _normalizar_texto(value):
+    return ' '.join(str(value or '').strip().lower().split())
+
+
 def parsear_excel(bucket, key, proyecto_id, job_id):
     """Descarga el Excel, parsea con openpyxl, llama a Bedrock y guarda preview en S3."""
     import openpyxl
@@ -95,6 +99,11 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
         {'id': i['pk'].replace('INMOBILIARIA#', ''), 'nombre': i.get('nombre', '')}
         for i in inmos_result.get('Items', [])
     ]
+    inmobiliarias_por_nombre = {
+        _normalizar_texto(i.get('nombre')): i
+        for i in inmobiliarias_existentes
+        if i.get('nombre')
+    }
     logger.info(
         '[excel_parser] inmobiliarias sistema job_id=%s count=%s scanned=%s nombres=%s',
         job_id,
@@ -175,12 +184,16 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             if estado_proceso != 'captacion':
                 estado_interno = 'no_disponible'
 
-        nombre_cliente = str(gc(['NOMBRE CLIENTE', 'Cliente Nombre', 'CLIENTE NOMBRE', 'NOMBRE', 'CLIENTE']) or '').strip()
+        nombre_cliente = str(gc(['NOMBRE CLIENTE', 'Cliente Nombre', 'CLIENTE NOMBRE', 'NOMBRE', 'Nombre', 'CLIENTE']) or '').strip()
+        apellidos_excel = str(gc(['APELLIDO', 'Apellido', 'APELLIDOS', 'Apellidos', 'Cliente Apellido', 'Cliente Apellidos']) or '').strip()
         nombres_ia     = nombres_map.get(nombre_cliente, {})
 
         # Fallback: si la IA no separó, intentar separación simple por palabras
         nombres_final   = nombres_ia.get('nombres') or ''
         apellidos_final = nombres_ia.get('apellidos') or ''
+        if nombre_cliente and apellidos_excel:
+            nombres_final = nombre_cliente
+            apellidos_final = apellidos_excel
         if nombre_cliente and not nombres_final:
             partes = nombre_cliente.split()
             if len(partes) >= 4:
@@ -223,6 +236,15 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
 
         inmo_excel           = str(gc(['INMOBILIARIA', 'Inmobiliaria', 'INMO', 'AGENCIA']) or '').strip()
         inmo_match           = inmos_map.get(inmo_excel, {})
+        if not inmo_match and inmo_excel:
+            inmo_existente = inmobiliarias_por_nombre.get(_normalizar_texto(inmo_excel))
+            if inmo_existente:
+                inmo_match = {
+                    'id': inmo_existente.get('id', ''),
+                    'nombre': inmo_existente.get('nombre', inmo_excel),
+                    'confianza': 100,
+                    'es_nueva': False,
+                }
         inmo_id_sugerido     = inmo_match.get('id', '')
         inmo_confianza       = inmo_match.get('confianza', 0)
         inmo_es_nueva        = inmo_match.get('es_nueva', not bool(inmo_id_sugerido))

@@ -118,6 +118,7 @@ Mejora aplicada por este hallazgo:
 
 - La migracion ya no depende de IA para reconocer inmobiliarias que existen exactamente en el sistema.
 - Si el Excel trae `Nombre` y `Apellido` separados, se usan directamente sin depender de IA.
+- Se cambio el modelo de Bedrock usado por migracion a `Claude Haiku 4.5`, porque el modelo anterior aparecia como `LEGACY` y los logs mostraban rechazo de acceso al invocarlo.
 
 ### Exclusividad
 

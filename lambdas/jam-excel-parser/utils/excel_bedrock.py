@@ -6,7 +6,7 @@ import os
 import logging
 
 bedrock_client = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-BEDROCK_MODEL  = 'anthropic.claude-3-5-haiku-20241022-v1:0'
+BEDROCK_MODEL  = 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
 logger         = logging.getLogger()
 
 

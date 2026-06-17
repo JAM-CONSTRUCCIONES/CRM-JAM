@@ -16,6 +16,7 @@ usuarios = dynamodb.Table(os.environ['USUARIOS_TABLE'])
 procesos = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 MESES_EXCLUSIVIDAD = 3
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-z .-]+$')
 ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
 PAISES_VALIDOS = {
     'Alemania', 'Argentina', 'Australia', 'Belgica', 'Bolivia', 'Brasil', 'Canada',
@@ -264,9 +265,9 @@ def _normalizar_telefono(value):
 def _validar_catalogos_cliente(data):
     nacionalidad = _clean_spaces(data.get('nacionalidad'))
     pais_residencia = _clean_spaces(data.get('pais_residencia'))
-    if nacionalidad and nacionalidad not in NACIONALIDADES_VALIDAS:
+    if nacionalidad and not CATALOGO_TEXTO_RE.match(nacionalidad):
         raise ValueError('Selecciona una nacionalidad valida')
-    if pais_residencia and pais_residencia not in PAISES_VALIDOS:
+    if pais_residencia and not CATALOGO_TEXTO_RE.match(pais_residencia):
         raise ValueError('Selecciona un pais de residencia valido')
     if 'nacionalidad' in data:
         data['nacionalidad'] = nacionalidad

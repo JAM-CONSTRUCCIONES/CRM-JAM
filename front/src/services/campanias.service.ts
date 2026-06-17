@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiPut } from './api';
 
-export type GrupoCampania = 'sin_unidad' | 'con_unidad' | 'todos';
+export type GrupoCampania = 'sin_unidad' | 'con_unidad';
 
 export interface CampaniaFiltros {
   pais_residencia?: string;
@@ -32,9 +32,9 @@ export interface TemplateCampania {
   template_id: string;
   proyecto_id: string;
   nombre: string;
+  descripcion?: string;
   asunto: string;
   mensaje: string;
-  imagen_url?: string;
   actualizado_en?: string;
   actualizado_por?: string;
 }
@@ -44,10 +44,8 @@ export interface CampaniaHistorial {
   proyecto_id: string;
   proyecto_nombre: string;
   nombre: string;
+  descripcion?: string;
   grupo: GrupoCampania;
-  asunto: string;
-  mensaje: string;
-  imagen_url?: string;
   fecha_envio: string;
   enviado_por: string;
   cantidad_destinatarios: number;
@@ -61,10 +59,10 @@ export interface CampaniaHistorial {
 export interface EnviarCampaniaPayload {
   proyecto_id: string;
   nombre: string;
+  descripcion?: string;
   grupo: GrupoCampania;
   asunto: string;
   mensaje: string;
-  imagen_url?: string;
   filtros?: CampaniaFiltros;
 }
 
@@ -81,11 +79,16 @@ export const enviarCampania = (data: EnviarCampaniaPayload): Promise<CampaniaHis
 export const getHistorialCampanias = (proyectoId: string): Promise<CampaniaHistorial[]> =>
   apiGet(`/admin/campanias/historial?proyecto_id=${proyectoId}`);
 
-export const getTemplatesCampanias = (proyectoId: string): Promise<TemplateCampania[]> =>
-  apiGet(`/admin/campanias/templates?proyecto_id=${proyectoId}`);
+export const getTemplatesCampanias = (): Promise<TemplateCampania[]> =>
+  apiGet('/admin/campanias/templates');
 
 export const guardarTemplateCampania = (
   templateId: string,
   data: Omit<TemplateCampania, 'template_id'>
 ): Promise<TemplateCampania> =>
   apiPut(`/admin/campanias/templates/${templateId}`, data);
+
+export const getUploadImagenCampania = (
+  contentType: string
+): Promise<{ upload_url: string; public_url: string; key: string }> =>
+  apiGet(`/admin/campanias/templates?upload=image&content_type=${encodeURIComponent(contentType)}`);

@@ -1,70 +1,106 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Button, Card, Col, Divider, Form, Input, Modal, Row, Select,
-  Space, Statistic, Table, Tabs, Tag, Typography, message,
+  Alert, Button, Card, Col, Divider, Empty, Form, Input, Modal, Row, Select,
+  Space, Statistic, Table, Tabs, Tag, Typography, Upload, message,
 } from 'antd';
 import {
-  EyeOutlined, HistoryOutlined, MailOutlined, SaveOutlined, SendOutlined,
+  CopyOutlined, EyeOutlined, HistoryOutlined, MailOutlined, PlusOutlined,
+  SaveOutlined, SendOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { getProyectos } from '../../services/proyectos.service';
 import type { Proyecto } from '../../types';
 import {
   enviarCampania, getHistorialCampanias, getTemplatesCampanias,
-  guardarTemplateCampania, previewCampania,
+  getUploadImagenCampania, guardarTemplateCampania, previewCampania,
   type CampaniaHistorial, type PreviewCampania, type TemplateCampania,
 } from '../../services/campanias.service';
+import { NACIONALIDADES_OPTIONS, PAISES_OPTIONS } from '../../constants/catalogosCliente';
 import useAuth from '../../hooks/useAuth';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const IMAGE_TOKEN_RE = /\[imagen:([^\]\s]+)\]/g;
 
 const grupos = [
   { value: 'sin_unidad', label: 'Clientes sin unidad' },
   { value: 'con_unidad', label: 'Clientes con unidad' },
-  { value: 'todos', label: 'Todos los clientes del proyecto' },
 ] as const;
 
 const grupoLabel: Record<string, string> = {
   sin_unidad: 'Sin unidad',
   con_unidad: 'Con unidad',
-  todos: 'Todos',
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const mensajeToHtml = (mensaje = '') => {
+  let html = '';
+  let lastIndex = 0;
+  const normalized = mensaje.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  normalized.replace(IMAGE_TOKEN_RE, (token, url: string, index: number) => {
+    html += escapeHtml(normalized.slice(lastIndex, index)).replace(/\n/g, '<br />');
+    html += `<p style="margin:12px 0"><img src="${escapeHtml(url)}" style="max-width:100%;height:auto;border:0" alt="Imagen de campania" /></p>`;
+    lastIndex = index + token.length;
+    return token;
+  });
+  html += escapeHtml(normalized.slice(lastIndex)).replace(/\n/g, '<br />');
+  return html || '<span style="color:#999">Sin mensaje todavia.</span>';
 };
 
 export default function CampaniasPage() {
   const { usuario } = useAuth();
   const puedeEnviar = usuario?.rol === 'admin' || usuario?.rol === 'coordinador';
   const [form] = Form.useForm();
-  const [tplForm] = Form.useForm();
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
-  const [proyectoId, setProyectoId] = useState<string>();
   const [preview, setPreview] = useState<PreviewCampania | null>(null);
   const [historial, setHistorial] = useState<CampaniaHistorial[]>([]);
   const [templates, setTemplates] = useState<TemplateCampania[]>([]);
+  const [historialProyectoId, setHistorialProyectoId] = useState<string>();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>();
+  const [editorVisible, setEditorVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [templateModal, setTemplateModal] = useState(false);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const asuntoPreview = Form.useWatch('asunto', form);
+  const mensajePreview = Form.useWatch('mensaje', form);
+
+  const proyectoNombre = useMemo(
+    () => proyectos.find(p => p.proyecto_id === historialProyectoId)?.nombre ?? '',
+    [proyectos, historialProyectoId],
+  );
 
   useEffect(() => {
-    getProyectos().then(items => {
-      setProyectos(items);
-      if (items[0]) setProyectoId(items[0].proyecto_id);
-    }).catch(() => message.error('Error al cargar proyectos'));
+    getProyectos()
+      .then(items => {
+        setProyectos(items);
+        if (items[0]) setHistorialProyectoId(items[0].proyecto_id);
+      })
+      .catch(() => message.error('Error al cargar proyectos'));
+    cargarTemplates();
   }, []);
 
   useEffect(() => {
-    if (!proyectoId) return;
-    form.setFieldsValue({ proyecto_id: proyectoId, grupo: form.getFieldValue('grupo') || 'sin_unidad' });
-    cargarHistorial();
-    cargarTemplates();
-    setPreview(null);
-  }, [proyectoId]);
+    if (historialProyectoId) cargarHistorial(historialProyectoId);
+  }, [historialProyectoId]);
 
-  const proyectoNombre = useMemo(
-    () => proyectos.find(p => p.proyecto_id === proyectoId)?.nombre ?? '',
-    [proyectos, proyectoId],
-  );
+  const cargarTemplates = async () => {
+    try {
+      setTemplates(await getTemplatesCampanias());
+    } catch {
+      message.error('Error al cargar plantillas');
+    }
+  };
 
-  const cargarHistorial = async () => {
+  const cargarHistorial = async (proyectoId = historialProyectoId) => {
     if (!proyectoId) return;
     try {
       setHistorial(await getHistorialCampanias(proyectoId));
@@ -73,13 +109,60 @@ export default function CampaniasPage() {
     }
   };
 
-  const cargarTemplates = async () => {
-    if (!proyectoId) return;
-    try {
-      setTemplates(await getTemplatesCampanias(proyectoId));
-    } catch {
-      message.error('Error al cargar plantillas');
+  const iniciarEnBlanco = () => {
+    setSelectedTemplateId(undefined);
+    setPreview(null);
+    setEditorVisible(true);
+    form.resetFields();
+    form.setFieldsValue({ grupo: 'sin_unidad', mensaje: '' });
+  };
+
+  const usarTemplate = (tpl: TemplateCampania) => {
+    setSelectedTemplateId(tpl.template_id);
+    setPreview(null);
+    setEditorVisible(true);
+    form.setFieldsValue({
+      nombre: tpl.nombre,
+      descripcion: tpl.descripcion,
+      asunto: tpl.asunto,
+      mensaje: tpl.mensaje,
+      grupo: 'sin_unidad',
+    });
+  };
+
+  const insertarImagenEnMensaje = (url: string) => {
+    const current = form.getFieldValue('mensaje') || '';
+    const token = `[imagen:${url}]`;
+    const next = current ? `${current}\n${token}` : token;
+    form.setFieldsValue({ mensaje: next });
+  };
+
+  const subirImagen = async (file: File) => {
+    if (!IMAGE_TYPES.includes(file.type)) {
+      message.error('Solo se permiten imagenes JPG, PNG o WEBP');
+      return Upload.LIST_IGNORE;
     }
+    if (file.size > MAX_IMAGE_SIZE) {
+      message.error('La imagen no puede pesar mas de 5 MB');
+      return Upload.LIST_IGNORE;
+    }
+    setSubiendoImagen(true);
+    try {
+      const data = await getUploadImagenCampania(file.type);
+      const res = await fetch(data.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!res.ok) throw new Error('No se pudo subir la imagen');
+      insertarImagenEnMensaje(data.public_url);
+      message.success('Imagen subida e insertada en el mensaje');
+    } catch (err: any) {
+      message.error(err?.message || 'Error al subir la imagen');
+    } finally {
+      setSubiendoImagen(false);
+    }
+    return Upload.LIST_IGNORE;
   };
 
   const handlePreview = async () => {
@@ -102,8 +185,61 @@ export default function CampaniasPage() {
     }
   };
 
-  const handleEnviar = async () => {
+  const payloadFromForm = async () => {
     const values = await form.validateFields();
+    return {
+      proyecto_id: values.proyecto_id,
+      nombre: values.nombre,
+      descripcion: values.descripcion || '',
+      grupo: values.grupo,
+      asunto: values.asunto,
+      mensaje: values.mensaje,
+      filtros: {
+        pais_residencia: values.pais_residencia || undefined,
+        nacionalidad: values.nacionalidad || undefined,
+      },
+    };
+  };
+
+  const guardarCambiosTemplate = async () => {
+    if (!selectedTemplateId) return;
+    const values = await form.validateFields(['nombre', 'descripcion', 'asunto', 'mensaje']);
+    try {
+      await guardarTemplateCampania(selectedTemplateId, {
+        proyecto_id: 'global',
+        nombre: values.nombre,
+        descripcion: values.descripcion || '',
+        asunto: values.asunto,
+        mensaje: values.mensaje,
+      });
+      message.success('Plantilla actualizada');
+      await cargarTemplates();
+    } catch (err: any) {
+      message.error(err?.message || 'Error al guardar plantilla');
+    }
+  };
+
+  const crearNuevaTemplate = async () => {
+    const values = await form.validateFields(['nombre', 'descripcion', 'asunto', 'mensaje']);
+    try {
+      const templateId = `TPL-${Date.now()}`;
+      await guardarTemplateCampania(templateId, {
+        proyecto_id: 'global',
+        nombre: values.nombre,
+        descripcion: values.descripcion || '',
+        asunto: values.asunto,
+        mensaje: values.mensaje,
+      });
+      setSelectedTemplateId(templateId);
+      message.success('Nueva plantilla creada');
+      await cargarTemplates();
+    } catch (err: any) {
+      message.error(err?.message || 'Error al crear plantilla');
+    }
+  };
+
+  const handleEnviar = async () => {
+    const values = await payloadFromForm();
     if (!preview) {
       message.warning('Primero revisa los destinatarios');
       return;
@@ -116,21 +252,10 @@ export default function CampaniasPage() {
       onOk: async () => {
         setEnviando(true);
         try {
-          await enviarCampania({
-            proyecto_id: values.proyecto_id,
-            nombre: values.nombre,
-            grupo: values.grupo,
-            asunto: values.asunto,
-            mensaje: values.mensaje,
-            imagen_url: values.imagen_url,
-            filtros: {
-              pais_residencia: values.pais_residencia || undefined,
-              nacionalidad: values.nacionalidad || undefined,
-            },
-          });
+          await enviarCampania(values);
           message.success('Campania enviada');
           setPreview(null);
-          await cargarHistorial();
+          if (historialProyectoId === values.proyecto_id) await cargarHistorial(values.proyecto_id);
         } catch (err: any) {
           message.error(err?.message || 'Error al enviar campania');
         } finally {
@@ -138,46 +263,6 @@ export default function CampaniasPage() {
         }
       },
     });
-  };
-
-  const aplicarTemplate = (templateId: string) => {
-    const tpl = templates.find(t => t.template_id === templateId);
-    if (!tpl) return;
-    form.setFieldsValue({
-      asunto: tpl.asunto,
-      mensaje: tpl.mensaje,
-      imagen_url: tpl.imagen_url,
-    });
-  };
-
-  const abrirGuardarTemplate = async () => {
-    const values = await form.validateFields(['nombre', 'asunto', 'mensaje']);
-    tplForm.setFieldsValue({
-      nombre: values.nombre,
-      asunto: values.asunto,
-      mensaje: values.mensaje,
-      imagen_url: form.getFieldValue('imagen_url'),
-    });
-    setTemplateModal(true);
-  };
-
-  const guardarTemplate = async () => {
-    const values = await tplForm.validateFields();
-    if (!proyectoId) return;
-    try {
-      await guardarTemplateCampania(`TPL-${Date.now()}`, {
-        proyecto_id: proyectoId,
-        nombre: values.nombre,
-        asunto: values.asunto,
-        mensaje: values.mensaje,
-        imagen_url: values.imagen_url || '',
-      });
-      message.success('Plantilla guardada');
-      setTemplateModal(false);
-      await cargarTemplates();
-    } catch (err: any) {
-      message.error(err?.message || 'Error al guardar plantilla');
-    }
   };
 
   return (
@@ -190,127 +275,199 @@ export default function CampaniasPage() {
         items={[
           {
             key: 'crear',
-            label: <span><MailOutlined /> Crear campania</span>,
+            label: <span><MailOutlined /> Campanias</span>,
             children: (
-              <Row gutter={[16, 16]}>
-                <Col xs={24} lg={15}>
-                  <Card>
-                    <Form
-                      form={form}
-                      layout="vertical"
-                      initialValues={{ grupo: 'sin_unidad' }}
-                      onValuesChange={(changed) => {
-                        if ('grupo' in changed || 'pais_residencia' in changed || 'nacionalidad' in changed) setPreview(null);
-                      }}
-                    >
-                      <Row gutter={12}>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="proyecto_id" label="Proyecto" rules={[{ required: true }]}>
-                            <Select value={proyectoId} onChange={setProyectoId} placeholder="Seleccionar proyecto">
-                              {proyectos.map(p => <Select.Option key={p.proyecto_id} value={p.proyecto_id}>{p.nombre}</Select.Option>)}
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="grupo" label="Grupo de destinatarios" rules={[{ required: true }]}>
-                            <Select options={grupos as any} />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Row gutter={12}>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="pais_residencia" label="Pais de residencia">
-                            <Input placeholder="Opcional" />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="nacionalidad" label="Nacionalidad">
-                            <Input placeholder="Opcional" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Divider />
-
-                      <Row gutter={12}>
-                        <Col xs={24} md={12}>
-                          <Form.Item name="nombre" label="Nombre de campania" rules={[{ required: true }]}>
-                            <Input placeholder="Ej: Lanzamiento etapa 2" disabled={!puedeEnviar} />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="Usar plantilla">
-                            <Select
-                              allowClear
-                              placeholder="Seleccionar plantilla"
-                              onChange={aplicarTemplate}
-                              disabled={!templates.length || !puedeEnviar}
-                            >
-                              {templates.map(t => <Select.Option key={t.template_id} value={t.template_id}>{t.nombre}</Select.Option>)}
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Form.Item name="asunto" label="Asunto" rules={[{ required: true }]}>
-                        <Input placeholder="Asunto del correo" disabled={!puedeEnviar} />
-                      </Form.Item>
-
-                      <Form.Item name="imagen_url" label="Imagen en el cuerpo del correo">
-                        <Input placeholder="URL de imagen, opcional" disabled={!puedeEnviar} />
-                      </Form.Item>
-
-                      <Form.Item name="mensaje" label="Mensaje" rules={[{ required: true }]}>
-                        <TextArea rows={8} placeholder="Mensaje de la campania" disabled={!puedeEnviar} />
-                      </Form.Item>
-
-                      <Space wrap>
-                        <Button icon={<EyeOutlined />} onClick={handlePreview} loading={loading}>
-                          Revisar destinatarios
-                        </Button>
-                        <Button icon={<SaveOutlined />} onClick={abrirGuardarTemplate} disabled={!puedeEnviar}>
-                          Guardar como plantilla
-                        </Button>
-                        <Button type="primary" icon={<SendOutlined />} onClick={handleEnviar} loading={enviando} disabled={!puedeEnviar || !preview}>
-                          Enviar campania
-                        </Button>
-                      </Space>
-                      {!puedeEnviar && (
-                        <Alert style={{ marginTop: 16 }} type="info" showIcon message="Tu rol puede ver campanias e historial, pero no crear ni enviar." />
-                      )}
-                    </Form>
-                  </Card>
-                </Col>
-
-                <Col xs={24} lg={9}>
-                  <Card title="Resumen de destinatarios">
-                    {preview ? (
-                      <Space direction="vertical" style={{ width: '100%' }} size={16}>
-                        <Row gutter={12}>
-                          <Col span={12}><Statistic title="Clientes" value={preview.total_clientes} /></Col>
-                          <Col span={12}><Statistic title="Correos validos" value={preview.correos_validos} /></Col>
-                          <Col span={12}><Statistic title="Sin correo" value={preview.sin_correo} /></Col>
-                          <Col span={12}><Statistic title="Correo invalido" value={preview.correos_invalidos} /></Col>
-                        </Row>
-                        <Table
-                          size="small"
-                          rowKey={(r) => `${r.cedula}-${r.correo}-${r.unidad}`}
-                          dataSource={preview.destinatarios.slice(0, 8)}
-                          pagination={false}
-                          columns={[
-                            { title: 'Cliente', render: (_, r) => `${r.nombres} ${r.apellidos}`.trim() || r.cedula },
-                            { title: 'Correo', dataIndex: 'correo' },
-                          ]}
-                        />
-                        {preview.destinatarios.length > 8 && <Text type="secondary">Mostrando 8 de {preview.destinatarios.length} destinatarios.</Text>}
-                      </Space>
-                    ) : (
-                      <Text type="secondary">Selecciona proyecto, grupo y presiona "Revisar destinatarios".</Text>
+              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                <Card title="Plantillas">
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} sm={12} lg={8}>
+                      <Card
+                        hoverable={puedeEnviar}
+                        style={{ height: '100%' }}
+                        onClick={puedeEnviar ? iniciarEnBlanco : undefined}
+                      >
+                        <Space direction="vertical">
+                          <PlusOutlined style={{ fontSize: 24 }} />
+                          <Title level={5} style={{ margin: 0 }}>Campania nueva</Title>
+                          <Text type="secondary">Abrir una plantilla en blanco para preparar un envio.</Text>
+                        </Space>
+                      </Card>
+                    </Col>
+                    {templates.map(tpl => (
+                      <Col xs={24} sm={12} lg={8} key={tpl.template_id}>
+                        <Card
+                          hoverable
+                          style={{
+                            height: '100%',
+                            borderColor: selectedTemplateId === tpl.template_id ? '#1677ff' : undefined,
+                          }}
+                          onClick={() => usarTemplate(tpl)}
+                        >
+                          <Card.Meta
+                            title={tpl.nombre}
+                            description={tpl.descripcion || 'Sin descripcion'}
+                          />
+                          <Paragraph ellipsis={{ rows: 2 }} style={{ marginTop: 12, marginBottom: 0 }}>
+                            {tpl.asunto}
+                          </Paragraph>
+                        </Card>
+                      </Col>
+                    ))}
+                    {!templates.length && (
+                      <Col span={24}>
+                        <Empty description="No hay plantillas creadas todavia" />
+                      </Col>
                     )}
-                  </Card>
-                </Col>
-              </Row>
+                  </Row>
+                  {!puedeEnviar && (
+                    <Alert style={{ marginTop: 16 }} type="info" showIcon message="Tu rol puede ver campanias e historial, pero no crear ni enviar." />
+                  )}
+                </Card>
+
+                {editorVisible && (
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} lg={15}>
+                      <Card title={selectedTemplateId ? 'Preparar envio desde plantilla' : 'Preparar envio nuevo'}>
+                        <Form
+                          form={form}
+                          layout="vertical"
+                          initialValues={{ grupo: 'sin_unidad' }}
+                          onValuesChange={(changed) => {
+                            if ('proyecto_id' in changed || 'grupo' in changed || 'pais_residencia' in changed || 'nacionalidad' in changed) setPreview(null);
+                          }}
+                        >
+                          <Row gutter={12}>
+                            <Col xs={24} md={12}>
+                              <Form.Item name="nombre" label="Titulo" rules={[{ required: true, message: 'Requerido' }]}>
+                                <Input placeholder="Ej: Lanzamiento etapa 2" disabled={!puedeEnviar} />
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                              <Form.Item name="descripcion" label="Descripcion">
+                                <Input placeholder="Uso interno de la plantilla o envio" disabled={!puedeEnviar} />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+
+                          <Row gutter={12}>
+                            <Col xs={24} md={12}>
+                              <Form.Item name="proyecto_id" label="Proyecto del envio" rules={[{ required: true, message: 'Selecciona un proyecto' }]}>
+                                <Select placeholder="Seleccionar proyecto" disabled={!puedeEnviar}>
+                                  {proyectos.map(p => <Select.Option key={p.proyecto_id} value={p.proyecto_id}>{p.nombre}</Select.Option>)}
+                                </Select>
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                              <Form.Item name="grupo" label="Grupo de destinatarios" rules={[{ required: true }]}>
+                                <Select options={grupos as any} disabled={!puedeEnviar} />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+
+                          <Row gutter={12}>
+                            <Col xs={24} md={12}>
+                              <Form.Item name="pais_residencia" label="Pais de residencia">
+                                <Select
+                                  allowClear
+                                  showSearch
+                                  options={PAISES_OPTIONS}
+                                  placeholder="Opcional"
+                                  optionFilterProp="label"
+                                  disabled={!puedeEnviar}
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                              <Form.Item name="nacionalidad" label="Nacionalidad">
+                                <Select
+                                  allowClear
+                                  showSearch
+                                  options={NACIONALIDADES_OPTIONS}
+                                  placeholder="Opcional"
+                                  optionFilterProp="label"
+                                  disabled={!puedeEnviar}
+                                />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+
+                          <Divider />
+
+                          <Form.Item name="asunto" label="Asunto" rules={[{ required: true, message: 'Requerido' }]}>
+                            <Input placeholder="Asunto del correo" disabled={!puedeEnviar} />
+                          </Form.Item>
+
+                          <Form.Item name="mensaje" label="Mensaje" rules={[{ required: true, message: 'Requerido' }]}>
+                            <TextArea
+                              rows={9}
+                              placeholder="Mensaje de la campania"
+                              disabled={!puedeEnviar}
+                            />
+                          </Form.Item>
+
+                          <Space wrap>
+                            <Upload accept=".jpg,.jpeg,.png,.webp" showUploadList={false} beforeUpload={subirImagen} disabled={!puedeEnviar || subiendoImagen}>
+                              <Button icon={<UploadOutlined />} loading={subiendoImagen} disabled={!puedeEnviar}>
+                                Subir imagen
+                              </Button>
+                            </Upload>
+                            <Button icon={<EyeOutlined />} onClick={handlePreview} loading={loading}>
+                              Revisar destinatarios
+                            </Button>
+                            <Button icon={<SaveOutlined />} onClick={guardarCambiosTemplate} disabled={!puedeEnviar || !selectedTemplateId}>
+                              Guardar cambios
+                            </Button>
+                            <Button icon={<CopyOutlined />} onClick={crearNuevaTemplate} disabled={!puedeEnviar}>
+                              Crear nueva plantilla
+                            </Button>
+                            <Button type="primary" icon={<SendOutlined />} onClick={handleEnviar} loading={enviando} disabled={!puedeEnviar || !preview}>
+                              Enviar campania
+                            </Button>
+                          </Space>
+                        </Form>
+                      </Card>
+                    </Col>
+
+                    <Col xs={24} lg={9}>
+                      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                        <Card title="Vista previa">
+                          <Title level={5}>{asuntoPreview || 'Sin asunto'}</Title>
+                          <div
+                            style={{ border: '1px solid #eee', padding: 12, minHeight: 120, background: '#fff' }}
+                            dangerouslySetInnerHTML={{ __html: mensajeToHtml(mensajePreview) }}
+                          />
+                        </Card>
+
+                        <Card title="Resumen del envio">
+                          {preview ? (
+                            <Space direction="vertical" style={{ width: '100%' }} size={16}>
+                              <Row gutter={12}>
+                                <Col span={12}><Statistic title="Clientes" value={preview.total_clientes} /></Col>
+                                <Col span={12}><Statistic title="Correos validos" value={preview.correos_validos} /></Col>
+                                <Col span={12}><Statistic title="Sin correo" value={preview.sin_correo} /></Col>
+                                <Col span={12}><Statistic title="Correo invalido" value={preview.correos_invalidos} /></Col>
+                              </Row>
+                              <Table
+                                size="small"
+                                rowKey={(r, i) => `${r.cedula}-${r.correo}-${r.unidad}-${i}`}
+                                dataSource={preview.destinatarios.slice(0, 8)}
+                                pagination={false}
+                                columns={[
+                                  { title: 'Cliente', render: (_, r) => `${r.nombres} ${r.apellidos}`.trim() || r.cedula },
+                                  { title: 'Correo', dataIndex: 'correo' },
+                                ]}
+                              />
+                              {preview.destinatarios.length > 8 && <Text type="secondary">Mostrando 8 de {preview.destinatarios.length} destinatarios.</Text>}
+                            </Space>
+                          ) : (
+                            <Text type="secondary">Selecciona proyecto, grupo y presiona "Revisar destinatarios".</Text>
+                          )}
+                        </Card>
+                      </Space>
+                    </Col>
+                  </Row>
+                )}
+              </Space>
             ),
           },
           {
@@ -319,19 +476,21 @@ export default function CampaniasPage() {
             children: (
               <Card>
                 <Space style={{ marginBottom: 12 }}>
-                  <Select value={proyectoId} onChange={setProyectoId} style={{ width: 260 }}>
+                  <Select value={historialProyectoId} onChange={setHistorialProyectoId} style={{ width: 260 }} placeholder="Seleccionar proyecto">
                     {proyectos.map(p => <Select.Option key={p.proyecto_id} value={p.proyecto_id}>{p.nombre}</Select.Option>)}
                   </Select>
-                  <Button onClick={cargarHistorial}>Actualizar</Button>
+                  <Button onClick={() => cargarHistorial()}>Actualizar</Button>
                 </Space>
                 <Table
                   rowKey="campania_id"
                   dataSource={historial}
                   columns={[
                     { title: 'Fecha', dataIndex: 'fecha_envio', render: v => new Date(v).toLocaleString() },
-                    { title: 'Campania', dataIndex: 'nombre' },
-                    { title: 'Proyecto', render: () => proyectoNombre },
+                    { title: 'Titulo', dataIndex: 'nombre' },
+                    { title: 'Descripcion', dataIndex: 'descripcion', render: v => v || '-' },
+                    { title: 'Proyecto', render: (_, r) => r.proyecto_nombre || proyectoNombre },
                     { title: 'Grupo', dataIndex: 'grupo', render: v => <Tag>{grupoLabel[v] || v}</Tag> },
+                    { title: 'Clientes', dataIndex: 'cantidad_destinatarios' },
                     { title: 'Enviados', dataIndex: 'correos_enviados' },
                     { title: 'Omitidos', render: (_, r) => (r.clientes_sin_correo || 0) + (r.correos_invalidos || 0) },
                     { title: 'Usuario', dataIndex: 'enviado_por' },
@@ -342,22 +501,6 @@ export default function CampaniasPage() {
           },
         ]}
       />
-
-      <Modal
-        title="Guardar plantilla"
-        open={templateModal}
-        onOk={guardarTemplate}
-        onCancel={() => setTemplateModal(false)}
-        okText="Guardar"
-        cancelText="Cancelar"
-      >
-        <Form form={tplForm} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="asunto" label="Asunto" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="imagen_url" label="Imagen URL"><Input /></Form.Item>
-          <Form.Item name="mensaje" label="Mensaje" rules={[{ required: true }]}><TextArea rows={6} /></Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 }

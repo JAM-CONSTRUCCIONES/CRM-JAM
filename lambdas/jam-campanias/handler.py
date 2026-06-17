@@ -4,6 +4,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from html import escape
+from urllib.parse import quote
 
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
@@ -14,12 +15,15 @@ from utils.response import ok, created, bad_request, forbidden, not_found
 
 dynamodb = boto3.resource('dynamodb')
 ses = boto3.client('ses', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+s3 = boto3.client('s3')
 
 CLIENTES_TABLE = os.environ['CLIENTES_TABLE']
 PROCESOS_TABLE = os.environ['PROCESOS_TABLE']
 PROYECTOS_TABLE = os.environ['INVENTARIO_TABLE']
 CAMPANIAS_TABLE = os.environ['CAMPANIAS_TABLE']
 FROM_EMAIL = os.environ['FROM_EMAIL']
+ASSETS_BUCKET = os.environ.get('ASSETS_BUCKET', '')
+CLOUDFRONT_URL = os.environ.get('CLOUDFRONT_URL', '').rstrip('/')
 
 clientes_t = dynamodb.Table(CLIENTES_TABLE)
 procesos_t = dynamodb.Table(PROCESOS_TABLE)
@@ -27,6 +31,12 @@ proyectos_t = dynamodb.Table(PROYECTOS_TABLE)
 campanias_t = dynamodb.Table(CAMPANIAS_TABLE)
 
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+IMAGE_TOKEN_RE = re.compile(r'\[imagen:([^\]\s]+)\]')
+IMAGE_CONTENT_TYPES = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+}
 
 
 def handler(event, context):
@@ -171,12 +181,14 @@ def _email_valido(value):
     return correo if EMAIL_RE.match(correo) else ''
 
 
+def _clean_text(value):
+    return ' '.join(str(value or '').strip().split())
+
+
 def _aplicar_filtros(filas, grupo, pais_residencia='', nacionalidad=''):
-    if grupo not in ('sin_unidad', 'con_unidad', 'todos'):
-        grupo = 'todos'
     result = []
     for fila in filas:
-        if grupo != 'todos' and fila.get('grupo') != grupo:
+        if fila.get('grupo') != grupo:
             continue
         if pais_residencia and str(fila.get('pais_residencia', '')).strip().lower() != pais_residencia.strip().lower():
             continue
@@ -198,8 +210,6 @@ def _resumen_destinatarios(proyecto_id, grupo, filtros=None):
     validos = []
     sin_correo = []
     invalidos = []
-    vistos = set()
-
     for fila in filas:
         correo_raw = str(fila.get('correo') or '').strip()
         correo = _email_valido(correo_raw)
@@ -219,9 +229,6 @@ def _resumen_destinatarios(proyecto_id, grupo, filtros=None):
         if not correo:
             invalidos.append(cliente)
             continue
-        if correo in vistos:
-            continue
-        vistos.add(correo)
         validos.append({**cliente, 'correo': correo})
 
     return {
@@ -235,32 +242,62 @@ def _resumen_destinatarios(proyecto_id, grupo, filtros=None):
     }
 
 
-def _render_html(mensaje, imagen_url=''):
-    safe = escape(str(mensaje or '')).replace('\r\n', '\n').replace('\r', '\n').replace('\n', '<br>')
-    image_html = ''
-    if imagen_url:
-        url = escape(str(imagen_url).strip(), quote=True)
-        image_html = f'<p><img src="{url}" style="max-width:100%;height:auto;border:0" alt="Imagen de campania"></p>'
+def _render_html(mensaje):
+    normalized = str(mensaje or '').replace('\r\n', '\n').replace('\r', '\n')
+    parts = []
+    last = 0
+    for match in IMAGE_TOKEN_RE.finditer(normalized):
+        text = normalized[last:match.start()]
+        if text:
+            parts.append(escape(text).replace('\n', '<br>'))
+        url = escape(match.group(1).strip(), quote=True)
+        parts.append(f'<p><img src="{url}" style="max-width:100%;height:auto;border:0" alt="Imagen de campania"></p>')
+        last = match.end()
+    tail = normalized[last:]
+    if tail:
+        parts.append(escape(tail).replace('\n', '<br>'))
+    body = ''.join(parts)
     return f"""
     <div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#222">
-      {image_html}
-      <div>{safe}</div>
+      <div>{body}</div>
     </div>
     """
 
 
+def get_upload_url(event):
+    if not puede_enviar(event):
+        return forbidden('Solo administrador o coordinador pueden subir imagenes')
+    if not ASSETS_BUCKET or not CLOUDFRONT_URL:
+        return bad_request('Carga de imagenes no configurada')
+    content_type = (_qs(event).get('content_type') or '').strip().lower()
+    if content_type not in IMAGE_CONTENT_TYPES:
+        return bad_request('Formato de imagen no permitido')
+    ext = IMAGE_CONTENT_TYPES[content_type]
+    image_id = str(uuid.uuid4())
+    key = f'assets/campanias/imagenes/{image_id}.{ext}'
+    upload_url = s3.generate_presigned_url(
+        'put_object',
+        Params={
+            'Bucket': ASSETS_BUCKET,
+            'Key': key,
+            'ContentType': content_type,
+        },
+        ExpiresIn=900,
+    )
+    return ok({
+        'upload_url': upload_url,
+        'public_url': f'{CLOUDFRONT_URL}/{quote(key)}',
+        'key': key,
+    })
+
+
 def listar_templates(event):
-    proyecto_id = _qs(event).get('proyecto_id', 'global').strip() or 'global'
+    if (_qs(event).get('upload') or '').strip().lower() == 'image':
+        return get_upload_url(event)
     items = _query_all(
         campanias_t,
-        KeyConditionExpression=Key('pk').eq(f'TEMPLATES#{proyecto_id}') & Key('sk').begins_with('TEMPLATE#'),
+        KeyConditionExpression=Key('pk').eq('TEMPLATES#global') & Key('sk').begins_with('TEMPLATE#'),
     )
-    if proyecto_id != 'global':
-        globales = _query_all(
-            campanias_t,
-            KeyConditionExpression=Key('pk').eq('TEMPLATES#global') & Key('sk').begins_with('TEMPLATE#'),
-        )
-        items = globales + items
     items.sort(key=lambda x: x.get('actualizado_en', ''), reverse=True)
     return ok(items)
 
@@ -269,25 +306,24 @@ def guardar_template(event, template_id):
     if not puede_enviar(event):
         return forbidden('Solo administrador o coordinador pueden editar plantillas')
     body = _body(event)
-    proyecto_id = str(body.get('proyecto_id') or 'global').strip() or 'global'
     nombre = str(body.get('nombre') or '').strip()
+    descripcion = str(body.get('descripcion') or '').strip()
     asunto = str(body.get('asunto') or '').strip()
     mensaje = str(body.get('mensaje') or '').strip()
-    imagen_url = str(body.get('imagen_url') or '').strip()
     if not nombre or not asunto or not mensaje:
         return bad_request('nombre, asunto y mensaje son requeridos')
 
     usuario = get_usuario(event)
     now = _now()
     item = {
-        'pk': f'TEMPLATES#{proyecto_id}',
+        'pk': 'TEMPLATES#global',
         'sk': f'TEMPLATE#{template_id}',
         'template_id': template_id,
-        'proyecto_id': proyecto_id,
+        'proyecto_id': 'global',
         'nombre': nombre,
+        'descripcion': descripcion,
         'asunto': asunto,
         'mensaje': mensaje,
-        'imagen_url': imagen_url,
         'actualizado_en': now,
         'actualizado_por': usuario.get('nombre', ''),
     }
@@ -310,9 +346,11 @@ def listar_historial(event):
 def preview_destinatarios(event):
     body = _body(event)
     proyecto_id = str(body.get('proyecto_id') or '').strip()
-    grupo = str(body.get('grupo') or 'todos').strip()
+    grupo = str(body.get('grupo') or '').strip()
     if not proyecto_id:
         return bad_request('proyecto_id requerido')
+    if grupo not in ('sin_unidad', 'con_unidad'):
+        return bad_request('grupo debe ser sin_unidad o con_unidad')
     resumen = _resumen_destinatarios(proyecto_id, grupo, body.get('filtros') or {})
     return ok(resumen)
 
@@ -324,14 +362,16 @@ def enviar_campania(event):
     body = _body(event)
     proyecto_id = str(body.get('proyecto_id') or '').strip()
     nombre = str(body.get('nombre') or '').strip()
-    grupo = str(body.get('grupo') or 'todos').strip()
+    descripcion = str(body.get('descripcion') or '').strip()
+    grupo = str(body.get('grupo') or '').strip()
     asunto = str(body.get('asunto') or '').strip()
     mensaje = str(body.get('mensaje') or '').strip()
-    imagen_url = str(body.get('imagen_url') or '').strip()
     filtros = body.get('filtros') or {}
 
     if not proyecto_id or not nombre or not asunto or not mensaje:
         return bad_request('proyecto_id, nombre, asunto y mensaje son requeridos')
+    if grupo not in ('sin_unidad', 'con_unidad'):
+        return bad_request('grupo debe ser sin_unidad o con_unidad')
 
     proyecto = _get_proyecto(proyecto_id)
     proyecto_nombre = proyecto.get('nombre', proyecto_id)
@@ -341,7 +381,7 @@ def enviar_campania(event):
     if not destinatarios:
         return bad_request('No hay destinatarios con correo valido')
 
-    html = _render_html(mensaje, imagen_url)
+    html = _render_html(mensaje)
     enviados = 0
     errores_envio = []
     for dest in destinatarios:
@@ -371,11 +411,9 @@ def enviar_campania(event):
         'proyecto_id': proyecto_id,
         'proyecto_nombre': proyecto_nombre,
         'nombre': nombre,
+        'descripcion': descripcion,
         'grupo': grupo,
         'filtros': filtros,
-        'asunto': asunto,
-        'mensaje': mensaje,
-        'imagen_url': imagen_url,
         'fecha_envio': now,
         'enviado_por': usuario.get('nombre', ''),
         'enviado_por_email': usuario.get('email', ''),

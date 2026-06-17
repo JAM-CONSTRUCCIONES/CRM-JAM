@@ -1323,6 +1323,10 @@ def handler(event, context):
     authLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
     authLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
 
+    assetsBucket.grantReadWrite(campaniasLambda);
+    campaniasLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
+    campaniasLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
+
     // Permisos: proyectosLambda puede leer/escribir en archivos (Excel migrations)
     archivosBucket.grantReadWrite(proyectosLambda);
     proyectosLambda.addEnvironment('ARCHIVOS_BUCKET', archivosBucket.bucketName);

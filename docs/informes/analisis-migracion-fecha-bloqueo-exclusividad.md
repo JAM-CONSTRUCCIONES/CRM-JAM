@@ -53,7 +53,7 @@ Para cliente ya se reconocen:
 
 ### Datos de cliente
 
-La migracion no debe crear documentos temporales ni valores inventados.
+La migracion mantiene un boton para completar documentos de identidad temporales cuando el Excel trae cliente sin documento.
 
 Reglas actuales:
 
@@ -62,6 +62,7 @@ Reglas actuales:
 - El documento solo aceptara letras y numeros.
 - El documento no aceptara guiones, espacios, puntos ni otros simbolos.
 - Las letras del documento se guardaran en mayuscula.
+- El boton de documentos temporales genera valores alfanumericos sin guiones ni simbolos.
 - Nombres y apellidos son obligatorios cuando hay cliente.
 - Nombres y apellidos se guardan en mayuscula.
 - Nombres y apellidos permiten espacios para personas con dos nombres o dos apellidos.
@@ -84,6 +85,23 @@ Cuando la migracion crea un cliente, ya guarda:
 - Edad calculada desde la fecha de nacimiento.
 - Pais de residencia.
 - Nacionalidad.
+
+### Compatibilidad entre exportacion e importacion
+
+La migracion debe leer correctamente el Excel generado por la exportacion del propio sistema.
+
+Reglas aplicadas:
+
+- Si el nombre de una columna coincide exactamente, se usa esa columna antes de consultar el mapeo de IA.
+- La IA queda como apoyo para archivos externos o columnas ambiguas, no para reemplazar columnas que ya coinciden.
+- El Excel exportado usa encabezados compatibles con migracion.
+- La exportacion incluye `Documento`, `Fecha Nacimiento`, `Pais Residencia` y `Nacionalidad`.
+- Los estados exportados se escriben en valores que migracion entiende, por ejemplo `DISPONIBLE`, `BLOQUEADO` y `NO DISPONIBLE`.
+- Si el Excel trae `Estado Proceso`, migracion lo usa para recuperar procesos como separacion, contrato firmado, pagos atrasados, contra entrega o vendido.
+- Los precios y metrajes se leen sin depender de IA cuando vienen con encabezados conocidos.
+- La lectura numerica soporta valores con simbolos de moneda, comas, puntos y espacios.
+
+Esto evita que un Excel exportado por el sistema falle al volver a importarse por diferencias de encabezados o por un mapeo incorrecto de IA.
 
 ### Exclusividad
 
@@ -220,7 +238,9 @@ Si el Excel trae cliente pero no trae documento de identidad:
 
 - Debe aparecer error en preview.
 - No debe permitir confirmar.
-- No debe existir boton para generar documento temporal.
+- Debe poder usarse el boton de documentos temporales.
+- El documento temporal generado debe contener solo letras y numeros.
+- El documento temporal no debe contener guiones ni simbolos.
 
 ### Nombre con espacios
 

@@ -418,7 +418,8 @@ def exportar_inventario(event):
             'Cuartos', 'Baños', 'Parqueos',
             'Precio', 'Precio Reserva', 'Precio Separación', 'Precio Inicial',
             'Cuota Monto', 'Cuota Meses', 'Contra Entrega',
-            'Estado', 'Cliente Cédula', 'Cliente Nombre', 'Cliente Teléfono', 'Cliente Correo',
+            'Estado', 'Documento', 'Cliente Nombre', 'Cliente Teléfono', 'Cliente Correo',
+            'Fecha Nacimiento', 'Pais Residencia', 'Nacionalidad',
             'Inmobiliaria', 'Estado Proceso',
             'Fecha Bloqueo', 'Fecha Liberación', 'Días Restantes',
             'Comentario'
@@ -432,7 +433,7 @@ def exportar_inventario(event):
             cell.border = border
         
         # Ajustar anchos de columna
-        column_widths = [15, 15, 12, 10, 8, 10, 12, 12, 8, 8, 10, 12, 12, 12, 12, 12, 10, 12, 12, 15, 25, 15, 25, 20, 15, 18, 18, 12, 30]
+        column_widths = [15, 15, 12, 10, 8, 10, 12, 12, 8, 8, 10, 12, 12, 12, 12, 12, 10, 12, 14, 15, 25, 15, 25, 18, 18, 18, 20, 15, 18, 18, 12, 30]
         for i, width in enumerate(column_widths, 1):
             ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
         
@@ -464,6 +465,14 @@ def exportar_inventario(event):
                 if isinstance(val, Decimal):
                     return float(val)
                 return val
+
+            def estado_export(val):
+                estados = {
+                    'disponible': 'DISPONIBLE',
+                    'bloqueada': 'BLOQUEADO',
+                    'no_disponible': 'NO DISPONIBLE',
+                }
+                return estados.get(str(val or '').strip().lower(), val or '')
             
             row_data = [
                 unidad.get('id_unidad', ''),
@@ -484,11 +493,14 @@ def exportar_inventario(event):
                 fmt(unidad.get('cuota_monto')),
                 fmt(unidad.get('cuota_meses')),
                 fmt(unidad.get('contra_entrega')),
-                unidad.get('estado', ''),
+                estado_export(unidad.get('estado', '')),
                 cliente.get('cedula', ''),
                 f"{cliente.get('nombres', '')} {cliente.get('apellidos', '')}".strip(),
                 cliente.get('telefono', ''),
                 cliente.get('correo', ''),
+                cliente.get('fecha_nacimiento', ''),
+                cliente.get('pais_residencia', ''),
+                cliente.get('nacionalidad', ''),
                 inmobiliarias_map.get(inmo_id, ''),
                 proceso.get('estado', ''),
                 unidad.get('fecha_bloqueo', ''),

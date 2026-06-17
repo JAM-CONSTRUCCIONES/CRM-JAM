@@ -23,10 +23,32 @@ DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 ESTATUS_MAP = {
     'DISPONIBLE':       ('disponible',    None),
     'BLOQUEADO':        ('bloqueada',     'captacion'),
+    'BLOQUEADA':        ('bloqueada',     'captacion'),
+    'NO_DISPONIBLE':    ('no_disponible', 'reserva'),
     'NO DISPONIBLE':    ('no_disponible', 'reserva'),
     'SEPARACIÓN':       ('no_disponible', 'separacion'),
     'SEPARACION':       ('no_disponible', 'separacion'),
     'CONTRATO FIRMADO': ('no_disponible', 'inicial'),
+    'PAGOS ATRASADOS':  ('no_disponible', 'pagos_atrasados'),
+    'CONTRA ENTREGA':   ('no_disponible', 'contra_entrega'),
+    'VENDIDO':          ('no_disponible', 'vendido'),
+    'VENDIDA':          ('no_disponible', 'vendido'),
+}
+
+PROCESO_MAP = {
+    'CAPTACION': 'captacion',
+    'RESERVA': 'reserva',
+    'SEPARACION': 'separacion',
+    'SEPARACIÓN': 'separacion',
+    'INICIAL': 'inicial',
+    'CONTRATO FIRMADO': 'inicial',
+    'CONTRATO_FIRMADO': 'inicial',
+    'PAGOS ATRASADOS': 'pagos_atrasados',
+    'PAGOS_ATRASADOS': 'pagos_atrasados',
+    'CONTRA ENTREGA': 'contra_entrega',
+    'CONTRA_ENTREGA': 'contra_entrega',
+    'VENDIDO': 'vendido',
+    'VENDIDA': 'vendido',
 }
 
 
@@ -146,8 +168,14 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
         estatus_raw  = gc(['ESTATUS', 'ESTADO', 'STATUS', 'estado', 'Estado'])
         estatus_norm = str(estatus_raw).strip().upper() if estatus_raw else 'DISPONIBLE'
         estado_interno, estado_proceso = ESTATUS_MAP.get(estatus_norm, ('disponible', None))
+        estado_proceso_raw = gc(['Estado Proceso', 'ESTADO PROCESO', 'Proceso', 'PROCESO'])
+        estado_proceso_norm = str(estado_proceso_raw or '').strip().upper()
+        if estado_proceso_norm in PROCESO_MAP:
+            estado_proceso = PROCESO_MAP[estado_proceso_norm]
+            if estado_proceso != 'captacion':
+                estado_interno = 'no_disponible'
 
-        nombre_cliente = str(gc(['NOMBRE CLIENTE', 'Cliente Nombre', 'NOMBRE', 'CLIENTE']) or '').strip()
+        nombre_cliente = str(gc(['NOMBRE CLIENTE', 'Cliente Nombre', 'CLIENTE NOMBRE', 'NOMBRE', 'CLIENTE']) or '').strip()
         nombres_ia     = nombres_map.get(nombre_cliente, {})
 
         # Fallback: si la IA no separó, intentar separación simple por palabras
@@ -185,7 +213,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
 
         fecha_nacimiento     = parse_fecha(gc(['Fecha de nacimiento', 'FECHA NACIMIENTO',
                                                'FECHA DE NACIMIENTO', 'NACIMIENTO',
-                                               'Fecha Nacimiento']))
+                                               'Fecha Nacimiento', 'Fecha Nac.', 'Fecha Nac']))
         pais_residencia      = str(gc(['Pais de residencia', 'PAIS RESIDENCIA',
                                        'PAIS DE RESIDENCIA', 'Pais Residencia',
                                        'Pais residencia']) or '').strip() or None
@@ -222,8 +250,8 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             'id_unidad':                    id_unidad,
             'metraje':                      str(metraje) if metraje is not None else None,
             'precio':                       str(precio)  if precio  is not None else None,
-            'num_cuartos':                  parse_int(gc(['No Cuartos', 'Cuartos', 'CUARTOS', 'HABITACIONES'])),
-            'num_banos':                    parse_int(gc(['No. baños', 'Baños', 'BAÑOS', 'BANOS'])),
+            'num_cuartos':                  parse_int(gc(['No Cuartos', 'Cuartos', 'CUARTOS', 'HABITACIONES', 'Habitaciones'])),
+            'num_banos':                    parse_int(gc(['No. baños', 'Baños', 'BAÑOS', 'BANOS', 'Banos'])),
             'tipo':                         str(gc(['Tipo', 'TIPO']) or '').strip() or None,
             'piso':                         parse_int(gc(['Piso', 'PISO'])),
             'parqueos':                     parse_int(gc(['Parqueos', 'PARQUEOS', 'PARKING'])),

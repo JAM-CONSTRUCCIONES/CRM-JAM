@@ -39,6 +39,10 @@ const fechaValida = (value?: string | null) => {
 
 const cleanSpaces = (value?: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const normalizeDocumentoInput = (value?: unknown) => String(value ?? '').trim().toLocaleUpperCase('es-VE');
+const documentoTemporal = (proyectoId: string, idx: number) => {
+  const proyectoSeguro = normalizeDocumentoInput(proyectoId).replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'PROYECTO';
+  return `MIGP${proyectoSeguro}${String(idx).padStart(3, '0')}`;
+};
 
 const validarDatosClienteMigracion = (f: FilaMigracion) => {
   const errores: string[] = [];
@@ -256,6 +260,17 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
     }));
   }, []);
 
+  // ── Documentos temporales ────────────────────────────────────────────────
+  const asignarDocumentosTemporales = useCallback(() => {
+    let contador = 1;
+    setFilas(prev => prev.map(f => {
+      if (!f.cliente_nombre_excel || f.cedula) return f;
+      const updated = { ...f, cedula: documentoTemporal(proyectoId, contador++) };
+      const { errores, advertencias } = validarFila(updated);
+      return { ...updated, errores, advertencias };
+    }));
+  }, [proyectoId]);
+
   // ── Nueva etapa ───────────────────────────────────────────────────────────
   const [nuevaEtapaModal, setNuevaEtapaModal] = useState(false);
   const [nuevaEtapaNombre, setNuevaEtapaNombre] = useState('');
@@ -316,6 +331,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
   const filasConAdvertencia = filas.filter(f => f.advertencias.length > 0 && f.errores.length === 0);
   const filasOk = filas.filter(f => f.errores.length === 0 && f.advertencias.length === 0);
   const puedeConfirmar = filasConError.length === 0 && filas.length > 0;
+  const filasConClienteSinDocumento = filas.filter(f => f.cliente_nombre_excel && !f.cedula).length;
 
   // ── Columnas ─────────────────────────────────────────────────────────────
   const columnas = useMemo(() => [
@@ -611,6 +627,13 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
 
           {/* Botones de relleno */}
           <Space style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+            {filasConClienteSinDocumento > 0 && (
+              <Tooltip title={`Asigna documentos temporales sin guiones ni símbolos a ${filasConClienteSinDocumento} clientes sin documento.`}>
+                <Button icon={<ThunderboltOutlined />} onClick={asignarDocumentosTemporales}>
+                  Cédulas identidad ({filasConClienteSinDocumento})
+                </Button>
+              </Tooltip>
+            )}
             <RellenarVaciosBtn campo="metraje" label="Rellenar metraje vacío" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="metraje_terraza" label="Rellenar terraza vacía" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="metraje_patio" label="Rellenar patio vacío" tipo="numero" onRellenar={rellenarVacios} />

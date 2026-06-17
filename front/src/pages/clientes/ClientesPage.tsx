@@ -366,14 +366,43 @@ const ClientesPage = () => {
 
   const handleEditar = async (values: any) => {
     if (!editarRegistro) return;
+    const payload = {
+      ...normalizeClientePayload(values),
+      fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
+    };
     try {
-      await actualizarClienteAdmin(editarRegistro.cedula, editarRegistro.proyecto_id, editarRegistro.inmobiliaria_id, {
-        ...normalizeClientePayload(values),
-        fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
-      });
+      await actualizarClienteAdmin(editarRegistro.cedula, editarRegistro.proyecto_id, editarRegistro.inmobiliaria_id, payload);
       message.success('Cliente actualizado');
       setEditarModal(false);
-      if (drawerCedula) abrirDetalleCedula(drawerCedula);
+      setEditarRegistro(null);
+
+      setClientes(prev => prev.map(cliente => (
+        cliente.cedula === editarRegistro.cedula &&
+        cliente.proyecto_id === editarRegistro.proyecto_id &&
+        cliente.inmobiliaria_id === editarRegistro.inmobiliaria_id
+          ? { ...cliente, ...payload }
+          : cliente
+      )));
+      setDrawerRegistros(prev => prev.map(registro => (
+        registro.cedula === editarRegistro.cedula &&
+        registro.proyecto_id === editarRegistro.proyecto_id &&
+        registro.inmobiliaria_id === editarRegistro.inmobiliaria_id
+          ? { ...registro, ...payload }
+          : registro
+      )));
+      setDrawerCliente(prev => (
+        prev &&
+        prev.cedula === editarRegistro.cedula &&
+        prev.proyecto_id === editarRegistro.proyecto_id &&
+        prev.inmobiliaria_id === editarRegistro.inmobiliaria_id
+          ? { ...prev, ...payload }
+          : prev
+      ));
+
+      if (modoVista === 'lista') {
+        await cargar(proyectoFiltro, inmoFiltro);
+      }
+      if (drawerCedula) await abrirDetalleCedula(drawerCedula);
     } catch (err: any) {
       console.error('Error al actualizar cliente:', err);
       // El mensaje ya viene procesado por handleApiError en api.ts
@@ -1224,7 +1253,8 @@ const ClientesPage = () => {
 
       {/* Modal editar */}
       <Modal title="Editar datos del cliente" open={editarModal}
-        onCancel={() => setEditarModal(false)} onOk={() => formEditar.submit()}
+        onCancel={() => { setEditarModal(false); setEditarRegistro(null); formEditar.resetFields(); }}
+        onOk={() => formEditar.submit()}
         okText="Guardar" cancelText="Cancelar" width={520}>
         <Form form={formEditar} layout="vertical" onFinish={handleEditar}>
           <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>

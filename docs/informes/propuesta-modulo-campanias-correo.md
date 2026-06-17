@@ -1,10 +1,10 @@
-# Propuesta para modulo de campanias de correo
+# Propuesta para modulo de campañas de correo
 
 ## Objetivo
 
 Crear un modulo nuevo para enviar correos masivos a clientes desde el sistema, siempre seleccionando un proyecto.
 
-Este modulo permitira realizar campanias comerciales o comunicados a grupos de clientes de un proyecto especifico, sin depender de exportar archivos y enviar correos por fuera.
+Este modulo permitira realizar campañas comerciales o comunicados a grupos de clientes de un proyecto especifico, sin depender de exportar archivos y enviar correos por fuera.
 
 No se plantea como un envio global a todos los clientes del sistema.
 
@@ -15,36 +15,36 @@ Este modulo no formaba parte del alcance inicial del proyecto. Se esta agregando
 Para evitar confusiones, el modulo separara estos conceptos:
 
 - Plantilla: contenido editable del correo, con titulo, descripcion, asunto, mensaje e imagenes.
-- Campania o envio: accion de usar una plantilla, seleccionar proyecto y destinatarios, revisar el resumen y enviar los correos.
+- Campaña o envio: accion de usar una plantilla, seleccionar proyecto y destinatarios, revisar el resumen y enviar los correos.
 
 ## Funcionamiento propuesto
 
 Al ingresar al modulo, el usuario no seleccionara el proyecto de inmediato. Primero vera las plantillas disponibles como tarjetas y tendra dos opciones:
 
 - Seleccionar una plantilla base.
-- Crear una campania nueva.
+- Crear una campaña nueva.
 
-Si crea una campania nueva, se abrira una plantilla en blanco.
+Si crea una campaña nueva, se abrira una plantilla en blanco.
 
 Si selecciona una plantilla existente, podra usarla como base para el envio.
 
 Luego, dentro del envio, el usuario podra:
 
-- Seleccionar el proyecto al que pertenece la campania.
+- Seleccionar el proyecto al que pertenece la campaña.
 - Seleccionar destinatarios dentro de ese proyecto.
 - Editar el asunto y el mensaje.
 - Subir imagenes para usarlas dentro del cuerpo del correo.
 - Colocar las imagenes en la parte del mensaje donde correspondan.
 - Ver una vista previa del correo antes de enviarlo.
 - Revisar un resumen antes de enviar.
-- Enviar la campania manualmente.
+- Enviar la campaña manualmente.
 - Consultar el historial de envios.
 
-El envio sera manual. El sistema no enviara campanias automaticamente.
+El envio sera manual. El sistema no enviara campañas automaticamente.
 
 ## Destinatarios
 
-Los destinatarios se seleccionaran despues de elegir el proyecto de la campania. Dentro de ese proyecto, la seleccion principal sera:
+Los destinatarios se seleccionaran despues de elegir el proyecto de la campaña. Dentro de ese proyecto, la seleccion principal sera:
 
 - Clientes sin unidad.
 - Clientes con unidad.
@@ -60,9 +60,9 @@ Los filtros se combinaran entre si. Por ejemplo, si se selecciona "Clientes sin 
 
 Si un cliente aparece mas de una vez dentro de la seleccion, se enviara un correo por cada registro seleccionado.
 
-Esto permite diferenciar campanias comerciales de comunicados.
+Esto permite diferenciar campañas comerciales de comunicados.
 
-Ejemplo: un cliente que ya tiene una unidad en Caney Oriental no deberia recibir una campania comercial de ese mismo proyecto, pero si podria recibir un comunicado sobre avances, entrega, mantenimiento o pagos.
+Ejemplo: un cliente que ya tiene una unidad en Caney Oriental no deberia recibir una campaña comercial de ese mismo proyecto, pero si podria recibir un comunicado sobre avances, entrega, mantenimiento o pagos.
 
 Si un cliente fue captado para un proyecto y vence su exclusividad, el cliente no se elimina del sistema ni del proyecto. El sistema solo deja de marcarlo como cliente con exclusividad activa. Por eso, para este modulo, el cliente podra seguir apareciendo como cliente del proyecto mientras conserve su registro asociado.
 
@@ -72,7 +72,7 @@ Al ingresar al modulo, las plantillas se mostraran como tarjetas para que el usu
 
 Las plantillas seran globales y reutilizables. No dependeran de un proyecto especifico.
 
-Cuando se cree una campania desde una plantilla, el sistema copiara el contenido de esa plantilla dentro de la campania. Asi el usuario podra editar asunto, mensaje e imagenes para esa campania sin cambiar la plantilla original.
+Cuando se cree una campaña desde una plantilla, el sistema copiara el contenido de esa plantilla dentro de la campaña. Asi el usuario podra editar asunto, mensaje e imagenes para esa campaña sin cambiar la plantilla original.
 
 Cada plantilla tendra:
 
@@ -87,7 +87,7 @@ Al abrir una plantilla, el usuario podra editarla. La pantalla tendra estas opci
 - Guardar cambios en esa plantilla.
 - Crear una nueva plantilla a partir de esa plantilla.
 
-Cada campania tendra:
+Cada campaña tendra:
 
 - Nombre.
 - Grupo de destinatarios.
@@ -102,7 +102,7 @@ Las imagenes se guardaran en S3 y el sistema las usara dentro del correo. Si una
 
 No se definira un limite de cantidad de imagenes para la primera version, pero cada imagen tendra un peso maximo de 5 MB para evitar correos demasiado pesados. Los formatos permitidos seran JPG, PNG y WEBP.
 
-## Estados de campania
+## Estados de campaña
 
 Los envios manejaran estados simples:
 
@@ -145,25 +145,25 @@ El historial guardara solo la informacion resumida del envio. No se guardara tod
 
 Los permisos propuestos para esta primera version son:
 
-- Administrador: ver el modulo, crear campanias, enviar campanias y ver historial.
-- Coordinador: ver el modulo, crear campanias, enviar campanias y ver historial.
+- Administrador: ver el modulo, crear campañas, enviar campañas y ver historial.
+- Coordinador: ver el modulo, crear campañas, enviar campañas y ver historial.
 - Supervisor: ver el modulo y ver historial.
 
-"Ver campanias" significa poder entrar al modulo y consultar campanias, plantillas y configuracion visible segun el rol.
+"Ver campañas" significa poder entrar al modulo y consultar campañas, plantillas y configuracion visible segun el rol.
 
-"Ver historial" significa consultar campanias que ya fueron enviadas, incluyendo fecha, usuario, grupo usado y resumen del envio.
+"Ver historial" significa consultar campañas que ya fueron enviadas, incluyendo fecha, usuario, grupo usado y resumen del envio.
 
 ## Fuera del alcance inicial
 
 No se incluye en la primera version:
 
 - Envios automaticos.
-- Campanias programadas.
-- Campanias recurrentes.
+- Campañas programadas.
+- Campañas recurrentes.
 - Estadisticas avanzadas de apertura o clics.
 - Editor avanzado de diseno de correos.
 - Envio de prueba antes del envio masivo.
-- Cancelacion de una campania despues de iniciar el envio.
+- Cancelacion de una campaña despues de iniciar el envio.
 - Auditoria completa de cada correo individual.
 
 Si se desea incluir alguno de estos puntos, se debera revisar y cotizar como una ampliacion del modulo.

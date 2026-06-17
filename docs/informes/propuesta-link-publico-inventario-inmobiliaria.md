@@ -74,4 +74,4 @@ El boton se llamara "Copiar link de inventario".
 
 Con esta aprobacion se procederia a crear la vista publica de inventario por proyecto, manteniendo el acceso como solo lectura y mostrando unicamente las unidades disponibles de ese proyecto.
 
-Con relacion a la entrega del sistema con los cambios solicitados, debido a la incorporacion de nuevos modulos como campanas de correos y enlace publico, se estima completar la entrega hasta el viernes 19/06. Mientras tanto, el trabajo continua en paralelo y el sistema puede seguir siendo utilizado con las funcionalidades que ya fueron implementadas previamente.
+Con relacion a la entrega del sistema con los cambios solicitados, debido a la incorporacion de nuevos modulos como campañas de correos y enlace publico, se estima completar la entrega hasta el viernes 19/06. Mientras tanto, el trabajo continua en paralelo y el sistema puede seguir siendo utilizado con las funcionalidades que ya fueron implementadas previamente.

@@ -252,7 +252,7 @@ def _render_html(mensaje):
         if text:
             parts.append(escape(text).replace('\n', '<br>'))
         url = escape(match.group(1).strip(), quote=True)
-        parts.append(f'<p><img src="{url}" style="max-width:100%;height:auto;border:0" alt="Imagen de campania"></p>')
+        parts.append(f'<p><img src="{url}" style="max-width:100%;height:auto;border:0" alt="Imagen de campaña"></p>')
         last = match.end()
     tail = normalized[last:]
     if tail:
@@ -358,7 +358,7 @@ def preview_destinatarios(event):
 
 def enviar_campania(event):
     if not puede_enviar(event):
-        return forbidden('Solo administrador o coordinador pueden enviar campanias')
+        return forbidden('Solo administrador o coordinador pueden enviar campañas')
 
     body = _body(event)
     proyecto_id = str(body.get('proyecto_id') or '').strip()

@@ -48,7 +48,7 @@ const mensajeToHtml = (mensaje = '') => {
   const normalized = mensaje.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   normalized.replace(IMAGE_TOKEN_RE, (token, url: string, index: number) => {
     html += escapeHtml(normalized.slice(lastIndex, index)).replace(/\n/g, '<br />');
-    html += `<p style="margin:12px 0"><img src="${escapeHtml(url)}" style="max-width:100%;height:auto;border:0" alt="Imagen de campania" /></p>`;
+    html += `<p style="margin:12px 0"><img src="${escapeHtml(url)}" style="max-width:100%;height:auto;border:0" alt="Imagen de campaña" /></p>`;
     lastIndex = index + token.length;
     return token;
   });
@@ -245,7 +245,7 @@ export default function CampaniasPage() {
       return;
     }
     Modal.confirm({
-      title: 'Enviar campania',
+      title: 'Enviar campaña',
       content: `Se enviara a ${preview.correos_validos} correo(s) valido(s).`,
       okText: 'Enviar',
       cancelText: 'Cancelar',
@@ -253,11 +253,11 @@ export default function CampaniasPage() {
         setEnviando(true);
         try {
           await enviarCampania(values);
-          message.success('Campania enviada');
+          message.success('Campaña enviada');
           setPreview(null);
           if (historialProyectoId === values.proyecto_id) await cargarHistorial(values.proyecto_id);
         } catch (err: any) {
-          message.error(err?.message || 'Error al enviar campania');
+          message.error(err?.message || 'Error al enviar campaña');
         } finally {
           setEnviando(false);
         }
@@ -267,15 +267,15 @@ export default function CampaniasPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Title level={3}>Campanias de correo</Title>
-      <Text type="secondary">Envios manuales por proyecto para campanias comerciales o comunicados.</Text>
+      <Title level={3}>Campañas de correo</Title>
+      <Text type="secondary">Envios manuales por proyecto para campañas comerciales o comunicados.</Text>
 
       <Tabs
         style={{ marginTop: 20 }}
         items={[
           {
             key: 'crear',
-            label: <span><MailOutlined /> Campanias</span>,
+            label: <span><MailOutlined /> Campañas</span>,
             children: (
               <Space direction="vertical" size={16} style={{ width: '100%' }}>
                 <Card title="Plantillas">
@@ -288,7 +288,7 @@ export default function CampaniasPage() {
                       >
                         <Space direction="vertical">
                           <PlusOutlined style={{ fontSize: 24 }} />
-                          <Title level={5} style={{ margin: 0 }}>Campania nueva</Title>
+                          <Title level={5} style={{ margin: 0 }}>Campaña nueva</Title>
                           <Text type="secondary">Abrir una plantilla en blanco para preparar un envio.</Text>
                         </Space>
                       </Card>
@@ -320,7 +320,7 @@ export default function CampaniasPage() {
                     )}
                   </Row>
                   {!puedeEnviar && (
-                    <Alert style={{ marginTop: 16 }} type="info" showIcon message="Tu rol puede ver campanias e historial, pero no crear ni enviar." />
+                    <Alert style={{ marginTop: 16 }} type="info" showIcon message="Tu rol puede ver campañas e historial, pero no crear ni enviar." />
                   )}
                 </Card>
 
@@ -400,7 +400,7 @@ export default function CampaniasPage() {
                           <Form.Item name="mensaje" label="Mensaje" rules={[{ required: true, message: 'Requerido' }]}>
                             <TextArea
                               rows={9}
-                              placeholder="Mensaje de la campania"
+                              placeholder="Mensaje de la campaña"
                               disabled={!puedeEnviar}
                             />
                           </Form.Item>
@@ -421,7 +421,7 @@ export default function CampaniasPage() {
                               Crear nueva plantilla
                             </Button>
                             <Button type="primary" icon={<SendOutlined />} onClick={handleEnviar} loading={enviando} disabled={!puedeEnviar || !preview}>
-                              Enviar campania
+                              Enviar campaña
                             </Button>
                           </Space>
                         </Form>

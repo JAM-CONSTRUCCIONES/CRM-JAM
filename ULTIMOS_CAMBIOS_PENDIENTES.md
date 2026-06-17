@@ -72,7 +72,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 - [x] Permitir exportar clientes desde el apartado Clientes.
 
-  La exportacion debe incluir clientes de captacion y clientes que tienen unidad. Esto es necesario para seguimiento comercial y para preparar bases de contacto que luego podran usarse en campanas de correo.
+  La exportacion debe incluir clientes de captacion y clientes que tienen unidad. Esto es necesario para seguimiento comercial y para preparar bases de contacto que luego podran usarse en campañas de correo.
 
   La propuesta recomendada es organizar primero el apartado Clientes por proyecto. Al entrar, el usuario seleccionara un proyecto y luego vera los clientes relacionados con ese proyecto.
 
@@ -111,7 +111,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: Clientes ahora inicia con seleccion de proyecto. Al entrar a un proyecto se muestran los clientes de ese proyecto con unidad y estatus; los clientes sin unidad aparecen con estatus "Sin unidad". El boton "Exportar clientes" descarga un Excel del proyecto con las columnas definidas.
 
-- [x] Crear modulo de campanias de correo.
+- [x] Crear modulo de campañas de correo.
 
   Este sera un modulo nuevo, separado de la exportacion de clientes.
 
@@ -121,14 +121,14 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   - Seleccionar clientes sin unidad o clientes con unidad dentro del proyecto.
   - Crear y guardar plantillas de correo.
   - Permitir imagenes en el cuerpo del correo de la forma mas practica y segura.
-  - Enviar campanias manualmente.
+  - Enviar campañas manualmente.
   - Registrar historial de envios.
   - Validar correos disponibles o invalidos antes de enviar.
   - Permisos propuestos: administrador y coordinador pueden crear/enviar/ver historial; supervisor puede ver el modulo y el historial.
 
-  Este punto no se implementara como parte de la exportacion de clientes. Es un modulo nuevo y cualquier ampliacion adicional, como envios automaticos, campanias programadas, recurrentes, estadisticas avanzadas o editor avanzado, debera estimarse por separado.
+  Este punto no se implementara como parte de la exportacion de clientes. Es un modulo nuevo y cualquier ampliacion adicional, como envios automaticos, campañas programadas, recurrentes, estadisticas avanzadas o editor avanzado, debera estimarse por separado.
 
-  Hecho: se creo el modulo "Campanias" para usuarios internos. Permite seleccionar proyecto, elegir grupo de destinatarios, filtrar por pais de residencia o nacionalidad, revisar destinatarios antes de enviar, usar/guardar plantillas, incluir una imagen mediante URL en el cuerpo del correo, enviar manualmente y consultar historial. Administrador y coordinador pueden crear/enviar; supervisor puede ver el modulo e historial.
+  Hecho: se creo el modulo "Campañas" para usuarios internos. Permite seleccionar proyecto, elegir grupo de destinatarios, filtrar por pais de residencia o nacionalidad, revisar destinatarios antes de enviar, usar/guardar plantillas, incluir una imagen mediante URL en el cuerpo del correo, enviar manualmente y consultar historial. Administrador y coordinador pueden crear/enviar; supervisor puede ver el modulo e historial.
 
 
 ### Procesos

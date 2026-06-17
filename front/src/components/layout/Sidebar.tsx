@@ -50,7 +50,7 @@ const Sidebar = ({ onSelect }: Props) => {
         { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
         { key: '/inventario', icon: <AppstoreOutlined />, label: 'Proyectos' },
         ...(isInterno || rol === 'inmobiliaria' ? [{ key: '/clientes', icon: <TeamOutlined />, label: 'Clientes' }] : []),
-        ...(isInterno ? [{ key: '/campanias', icon: <MailOutlined />, label: 'Campanias' }] : []),
+        ...(isInterno ? [{ key: '/campanias', icon: <MailOutlined />, label: 'Campañas' }] : []),
         // { key: '/reportes', icon: <LinkOutlined />, label: 'Reportes' },
       ],
     },

@@ -5,7 +5,7 @@
 - Ambiente: dev
 - URL: `https://d12nm0khvt8zd9.cloudfront.net`
 - Ultimo deploy dev disponible: `8fd30a3`.
-- Incluye: migracion Excel, exclusividad, catalogos de clientes, validaciones, exportacion de clientes, permisos, notificaciones, campanias y link publico de inventario por proyecto.
+- Incluye: migracion Excel, exclusividad, catalogos de clientes, validaciones, exportacion de clientes, permisos, notificaciones, campañas y link publico de inventario por proyecto.
 
 ## Estados
 
@@ -20,7 +20,7 @@
 ## Orden sugerido para QA
 
 1. Probar link publico de inventario por proyecto.
-2. Probar modulo de campanias de correo.
+2. Probar modulo de campañas de correo.
 3. Probar clientes por proyecto y exportacion.
 4. Probar validaciones y catalogos de clientes/captacion.
 5. Probar migracion Excel con archivo real.
@@ -137,13 +137,13 @@ No probar todavia como funcionalidad terminada:
   - [ ] Boton exportar clientes descarga Excel.
   - [ ] Excel incluye cedula, nombres, apellidos, correo, telefono, proyecto, inmobiliaria, unidad, estatus, nacionalidad y pais de residencia.
 
-- [ ] `Listo para QA` Modulo de campanias de correo.
+- [ ] `Listo para QA` Modulo de campañas de correo.
 
   Probar:
 
-  - [ ] El menu muestra `Campanias` para administrador.
-  - [ ] El menu muestra `Campanias` para coordinador.
-  - [ ] El menu muestra `Campanias` para supervisor.
+  - [ ] El menu muestra `Campañas` para administrador.
+  - [ ] El menu muestra `Campañas` para coordinador.
+  - [ ] El menu muestra `Campañas` para supervisor.
   - [ ] Seleccionar proyecto carga destinatarios de ese proyecto.
   - [ ] Grupo `Clientes sin unidad` solo incluye clientes sin unidad.
   - [ ] Grupo `Clientes con unidad` solo incluye clientes con unidad.
@@ -156,7 +156,7 @@ No probar todavia como funcionalidad terminada:
   - [ ] Permite reutilizar plantilla.
   - [ ] Permite colocar URL de imagen en el cuerpo del correo.
   - [ ] Envio manual envia correos a destinatarios validos.
-  - [ ] Historial muestra campania enviada, fecha, usuario, grupo, enviados y omitidos.
+  - [ ] Historial muestra campaña enviada, fecha, usuario, grupo, enviados y omitidos.
   - [ ] Supervisor puede ver modulo e historial, pero no puede enviar.
   - [ ] Backend rechaza envio si el rol no es administrador o coordinador.
 

@@ -299,15 +299,6 @@ const ClientesPage = () => {
     return estatus === normalizarEstatus(estatusFiltro);
   };
 
-  const filtroEstatusTable = (value: boolean | React.Key, record: ClienteProyecto) => {
-    const selected = String(value);
-    const estatus = normalizarEstatus(record.estatus);
-    if (selected === 'sin_unidad_actual') {
-      return estatus === 'sin_unidad' || estatus === 'desvinculado';
-    }
-    return estatus === normalizarEstatus(selected);
-  };
-
   const clientesFiltrados = clientes.filter(c =>
     clienteCoincideBusqueda(c) && clienteCoincideEstatus(c)
   );
@@ -583,9 +574,6 @@ const ClientesPage = () => {
       title: 'Estatus',
       key: 'estatus',
       render: (_: unknown, r: ClienteProyecto) => renderEstatusCliente(r),
-      filters: ESTATUS_CLIENTE_OPTIONS.map(opt => ({ text: opt.label, value: opt.value })),
-      filteredValue: estatusFiltro ? [estatusFiltro] : null,
-      onFilter: filtroEstatusTable,
     },
     ...(isAdmin && !isMobile ? [{
       title: 'Inmobiliaria', key: 'inmo',
@@ -837,7 +825,6 @@ const ClientesPage = () => {
               dataSource={clientesFiltrados} columns={columnasProyecto}
               rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
               pagination={false} locale={{ emptyText: 'Sin clientes' }}
-              onChange={(_, filters) => setEstatusFiltro((filters.estatus?.[0] as string) || undefined)}
               onRow={r => ({ onClick: () => abrirDetalleCedula(r.cedula), style: { cursor: 'pointer' } })}
               scroll={{ x: true }}
             />
@@ -879,7 +866,6 @@ const ClientesPage = () => {
             dataSource={clientesFiltrados} columns={columnasProyecto}
             rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
             pagination={{ pageSize: 20 }} locale={{ emptyText: 'Sin clientes' }}
-            onChange={(_, filters) => setEstatusFiltro((filters.estatus?.[0] as string) || undefined)}
             onRow={r => ({ onClick: () => abrirDrawerInmo(r), style: { cursor: 'pointer' } })}
             scroll={{ x: true }}
           />

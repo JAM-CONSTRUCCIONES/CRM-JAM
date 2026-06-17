@@ -27,6 +27,15 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const ESTADOS_VALIDOS = ['disponible', 'bloqueada', 'no_disponible'];
+const ESTADOS_PROCESO = [
+  { value: 'captacion', label: 'Captacion' },
+  { value: 'reserva', label: 'Reserva' },
+  { value: 'separacion', label: 'Separacion' },
+  { value: 'inicial', label: 'Contrato firmado / Inicial' },
+  { value: 'pagos_atrasados', label: 'Pagos atrasados' },
+  { value: 'contra_entrega', label: 'Contra entrega' },
+  { value: 'vendido', label: 'Vendido' },
+];
 const DOCUMENTO_REGEX = /^[A-Z0-9]+$/;
 const NOMBRE_REGEX = /^[\p{L}\s]+$/u;
 const TELEFONO_REGEX = /^\d+$/;
@@ -375,6 +384,22 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
             <Option value="no_disponible"><Tag color="red">No disponible</Tag></Option>
           </Select>
         </CeldaRequerida>
+      ),
+    },
+    {
+      title: 'Estatus proceso', dataIndex: 'estado_proceso', width: 170,
+      render: (v: string | null, r: FilaMigracion) => (
+        <Select
+          value={v ?? undefined}
+          placeholder="Sin proceso"
+          style={{ width: '100%' }}
+          allowClear
+          onChange={val => actualizarFila(r.id_unidad, 'estado_proceso', val ?? null)}
+        >
+          {ESTADOS_PROCESO.map(e => (
+            <Option key={e.value} value={e.value}>{e.label}</Option>
+          ))}
+        </Select>
       ),
     },
     {

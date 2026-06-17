@@ -32,6 +32,11 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 const { useBreakpoint } = Grid;
 
+const ESTATUS_CLIENTE_OPTIONS = [
+  { value: 'sin_unidad', label: 'Sin unidad' },
+  ...Object.entries(ESTADO_PROCESO_LABEL).map(([value, label]) => ({ value, label })),
+];
+
 // Función para calcular días restantes de exclusividad
 const calcularDiasRestantes = (fechaVencimiento: string): number => {
   const ahora = new Date();
@@ -66,6 +71,7 @@ const ClientesPage = () => {
   const [proyectoSeleccionado, setProyectoSeleccionado] = useState<Proyecto | null>(null);
   const [vista, setVista] = useState<'proyectos' | 'clientes'>('proyectos');
   const [inmoFiltro, setInmoFiltro] = useState<string | undefined>();
+  const [estatusFiltro, setEstatusFiltro] = useState<string | undefined>();
   const [modoVista, setModoVista] = useState<'lista' | 'busqueda'>('lista');
   const [tipoBusqueda, setTipoBusqueda] = useState<'nombre' | 'cedula'>('nombre');
 
@@ -153,6 +159,7 @@ const ClientesPage = () => {
     setProyectoFiltro(proyecto.proyecto_id);
     setVista('clientes');
     setBusqueda('');
+    setEstatusFiltro(undefined);
     setModoVista('lista');
     setNextToken(undefined);
     cargar(proyecto.proyecto_id, inmoFiltro);
@@ -164,6 +171,7 @@ const ClientesPage = () => {
     setProyectoFiltro(undefined);
     setClientes([]);
     setBusqueda('');
+    setEstatusFiltro(undefined);
     setModoVista('lista');
     setNextToken(undefined);
   };
@@ -263,14 +271,27 @@ const ClientesPage = () => {
   // }, [modoVista, busqueda, tipoBusqueda, proyectoFiltro, inmoFiltro, cargar]);
 
   // Filtro local por búsqueda (solo para búsquedas de 1 carácter)
-  const clientesFiltrados = (busqueda.trim().length >= 1 && modoVista === 'lista')
-    ? clientes.filter(c =>
-        c.cedula.toLowerCase().includes(busqueda.toLowerCase()) ||
-        `${c.nombres} ${c.apellidos}`.toLowerCase().includes(busqueda.toLowerCase()) ||
-        (c.unidad_nombre || c.unidad_id || '').toLowerCase().includes(busqueda.toLowerCase()) ||
-        (c.estatus_label || c.estatus || '').toLowerCase().includes(busqueda.toLowerCase())
-      )
-    : clientes;
+  const normalizarEstatus = (value?: string) => (value || '').trim().toLowerCase();
+
+  const clienteCoincideBusqueda = (c: ClienteProyecto) => {
+    const texto = busqueda.trim().toLowerCase();
+    if (!texto || modoVista !== 'lista') return true;
+    return (
+      c.cedula.toLowerCase().includes(texto) ||
+      `${c.nombres} ${c.apellidos}`.toLowerCase().includes(texto) ||
+      (c.unidad_nombre || c.unidad_id || '').toLowerCase().includes(texto) ||
+      (c.estatus_label || c.estatus || '').toLowerCase().includes(texto)
+    );
+  };
+
+  const clienteCoincideEstatus = (c: ClienteProyecto) => {
+    if (!estatusFiltro) return true;
+    return normalizarEstatus(c.estatus) === normalizarEstatus(estatusFiltro);
+  };
+
+  const clientesFiltrados = clientes.filter(c =>
+    clienteCoincideBusqueda(c) && clienteCoincideEstatus(c)
+  );
 
   // Abrir drawer de detalle por cédula (admin)
   const abrirDetalleCedula = async (cedula: string) => {
@@ -539,7 +560,15 @@ const ClientesPage = () => {
           : <Text type="secondary">Sin unidad</Text>
       ),
     },
-    { title: 'Estatus', key: 'estatus', render: (_: unknown, r: ClienteProyecto) => renderEstatusCliente(r) },
+    {
+      title: 'Estatus',
+      key: 'estatus',
+      render: (_: unknown, r: ClienteProyecto) => renderEstatusCliente(r),
+      filters: ESTATUS_CLIENTE_OPTIONS.map(opt => ({ text: opt.label, value: opt.value })),
+      filteredValue: estatusFiltro ? [estatusFiltro] : null,
+      onFilter: (value: boolean | React.Key, record: ClienteProyecto) =>
+        normalizarEstatus(record.estatus) === normalizarEstatus(String(value)),
+    },
     ...(isAdmin && !isMobile ? [{
       title: 'Inmobiliaria', key: 'inmo',
       render: (_: unknown, r: ClienteProyecto) => inmoNombre(r.inmobiliaria_id),
@@ -611,6 +640,14 @@ const ClientesPage = () => {
             onChange={e => handleBusqueda(e.target.value)} 
             allowClear 
             onClear={() => handleBusqueda('')} 
+          />
+          <Select
+            allowClear
+            placeholder="Estatus"
+            style={{ width: isMobile ? '100%' : 190 }}
+            value={estatusFiltro}
+            onChange={setEstatusFiltro}
+            options={ESTATUS_CLIENTE_OPTIONS}
           />
           <Select allowClear placeholder="Proyecto" style={{ width: isMobile ? '100%' : 180 }}
             value={proyectoFiltro}
@@ -782,6 +819,7 @@ const ClientesPage = () => {
               dataSource={clientesFiltrados} columns={columnasProyecto}
               rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
               pagination={false} locale={{ emptyText: 'Sin clientes' }}
+              onChange={(_, filters) => setEstatusFiltro((filters.estatus?.[0] as string) || undefined)}
               onRow={r => ({ onClick: () => abrirDetalleCedula(r.cedula), style: { cursor: 'pointer' } })}
               scroll={{ x: true }}
             />
@@ -823,6 +861,7 @@ const ClientesPage = () => {
             dataSource={clientesFiltrados} columns={columnasProyecto}
             rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
             pagination={{ pageSize: 20 }} locale={{ emptyText: 'Sin clientes' }}
+            onChange={(_, filters) => setEstatusFiltro((filters.estatus?.[0] as string) || undefined)}
             onRow={r => ({ onClick: () => abrirDrawerInmo(r), style: { cursor: 'pointer' } })}
             scroll={{ x: true }}
           />

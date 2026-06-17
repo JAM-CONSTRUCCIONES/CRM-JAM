@@ -246,7 +246,7 @@ export default function CampaniasPage() {
     }
     Modal.confirm({
       title: 'Enviar campania',
-      content: `Se enviara a ${preview.correos_validos} correo(s) valido(s). Esta accion no es automatica ni programada.`,
+      content: `Se enviara a ${preview.correos_validos} correo(s) valido(s).`,
       okText: 'Enviar',
       cancelText: 'Cancelar',
       onOk: async () => {

@@ -166,9 +166,10 @@ def _filas_clientes_proyecto(proyecto_id):
         for proceso in relacionados:
             fila = dict(cliente)
             fila['inmobiliaria_id'] = inmo_id
-            fila['grupo'] = 'con_unidad'
-            fila['estatus'] = proceso.get('estado', '')
-            fila['estatus_label'] = proceso.get('estado', '')
+            estado = proceso.get('estado', '')
+            fila['grupo'] = 'sin_unidad' if estado == 'desvinculado' else 'con_unidad'
+            fila['estatus'] = estado
+            fila['estatus_label'] = estado
             fila['unidad_id'] = proceso.get('unidad_id', '')
             fila['unidad_nombre'] = proceso.get('unidad_nombre') or proceso.get('unidad_id', '')
             filas.append(fila)

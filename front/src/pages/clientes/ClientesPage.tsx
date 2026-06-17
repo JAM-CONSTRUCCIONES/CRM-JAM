@@ -304,6 +304,20 @@ const ClientesPage = () => {
   );
 
   // Abrir drawer de detalle por cédula (admin)
+  const valorDetalle = (value?: string | number | null) => {
+    const texto = String(value ?? '').trim();
+    return texto || 'Sin dato';
+  };
+
+  const DetalleCampo = ({ label, value, strong = false }: { label: string; value?: string | number | null; strong?: boolean }) => (
+    <div>
+      <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase' }}>{label}</Text>
+      <div>
+        <Text strong={strong} type={value ? undefined : 'secondary'}>{valorDetalle(value)}</Text>
+      </div>
+    </div>
+  );
+
   const abrirDetalleCedula = async (cedula: string) => {
     setDrawerCedula(cedula);
     setDrawerRegistros([]);
@@ -336,12 +350,16 @@ const ClientesPage = () => {
 
   const abrirEditar = (registro: Cliente) => {
     setEditarRegistro(registro);
+    formEditar.resetFields();
     formEditar.setFieldsValue({
-      nombres: registro.nombres, apellidos: registro.apellidos,
-      correo: registro.correo, telefono: registro.telefono,
-      estado_civil: registro.estado_civil, nacionalidad: registro.nacionalidad,
-      pais_residencia: registro.pais_residencia,
-      fecha_nacimiento: registro.fecha_nacimiento ? dayjs(registro.fecha_nacimiento) : undefined,
+      nombres: registro.nombres ?? '',
+      apellidos: registro.apellidos ?? '',
+      correo: registro.correo ?? '',
+      telefono: registro.telefono ?? '',
+      estado_civil: registro.estado_civil ?? null,
+      nacionalidad: registro.nacionalidad ?? null,
+      pais_residencia: registro.pais_residencia ?? null,
+      fecha_nacimiento: registro.fecha_nacimiento ? dayjs(registro.fecha_nacimiento) : null,
     });
     setEditarModal(true);
   };
@@ -940,6 +958,23 @@ const ClientesPage = () => {
                     )}
                   </div>
                 </div>
+                <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
+                  <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>Datos completos</Title>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                    <DetalleCampo label="Nombres" value={reg.nombres} strong />
+                    <DetalleCampo label="Apellidos" value={reg.apellidos} strong />
+                    <DetalleCampo label="Documento" value={reg.cedula} strong />
+                    <DetalleCampo label="Correo" value={reg.correo} />
+                    <DetalleCampo label="Telefono" value={reg.telefono} />
+                    <DetalleCampo label="Fecha nacimiento" value={reg.fecha_nacimiento ? dayjs(reg.fecha_nacimiento).format('DD/MM/YYYY') : null} />
+                    <DetalleCampo label="Edad" value={reg.edad ? `${reg.edad} anos` : null} />
+                    <DetalleCampo label="Estado civil" value={reg.estado_civil?.replace('_', ' ')} />
+                    <DetalleCampo label="Nacionalidad" value={reg.nacionalidad} />
+                    <DetalleCampo label="Pais residencia" value={reg.pais_residencia} />
+                    <DetalleCampo label="Fecha captacion" value={reg.fecha_captacion ? dayjs(reg.fecha_captacion).format('DD/MM/YYYY') : null} />
+                    <DetalleCampo label="Vencimiento exclusividad" value={reg.fecha_vencimiento ? dayjs(reg.fecha_vencimiento).format('DD/MM/YYYY') : null} />
+                  </div>
+                </div>
                 <Title level={5} style={{ marginBottom: 12 }}>Registros por proyecto</Title>
               </>
             )}
@@ -1119,6 +1154,23 @@ const ClientesPage = () => {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+            <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+              <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>Datos completos</Title>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                <DetalleCampo label="Nombres" value={drawerCliente.nombres} strong />
+                <DetalleCampo label="Apellidos" value={drawerCliente.apellidos} strong />
+                <DetalleCampo label="Documento" value={drawerCliente.cedula} strong />
+                <DetalleCampo label="Correo" value={drawerCliente.correo} />
+                <DetalleCampo label="Telefono" value={drawerCliente.telefono} />
+                <DetalleCampo label="Fecha nacimiento" value={drawerCliente.fecha_nacimiento ? dayjs(drawerCliente.fecha_nacimiento).format('DD/MM/YYYY') : null} />
+                <DetalleCampo label="Edad" value={drawerCliente.edad ? `${drawerCliente.edad} anos` : null} />
+                <DetalleCampo label="Estado civil" value={drawerCliente.estado_civil?.replace('_', ' ')} />
+                <DetalleCampo label="Nacionalidad" value={drawerCliente.nacionalidad} />
+                <DetalleCampo label="Pais residencia" value={drawerCliente.pais_residencia} />
+                <DetalleCampo label="Proyecto" value={proyectoNombre(drawerCliente.proyecto_id)} />
+                <DetalleCampo label="Fecha captacion" value={drawerCliente.fecha_captacion ? dayjs(drawerCliente.fecha_captacion).format('DD/MM/YYYY') : null} />
               </div>
             </div>
             {drawerProcesos.length > 0 && (

@@ -25,7 +25,12 @@ def _clean_spaces(value):
 
 
 def _normalizar_nombre(value):
-    return _clean_spaces(value).upper()
+    nombre = _clean_spaces(value)
+    if not nombre:
+        return ''
+    if not all(ch.isalpha() or ch.isspace() for ch in nombre):
+        raise ValueError('Nombres y apellidos solo deben contener letras y espacios')
+    return nombre.upper()
 
 
 def _normalizar_cedula(value):

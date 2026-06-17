@@ -4,6 +4,7 @@ import boto3
 import os
 import tempfile
 import logging
+import re
 from boto3.dynamodb.conditions import Key
 from utils.helpers import now
 from utils.excel_helpers import col_idx, parse_decimal, parse_int, parse_fecha
@@ -16,6 +17,7 @@ inventario_t = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 logger     = logging.getLogger()
 
 ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
+EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 
 ESTATUS_MAP = {
     'DISPONIBLE':       ('disponible',    None),
@@ -204,6 +206,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             id_unidad, id_unidades_vistos, precio, metraje, estatus_norm, estatus_raw,
             inmo_excel, inmo_confianza, inmo_es_nueva, id_unidades_existentes,
             nombre_cliente, nombres_final, apellidos_final, cedula_excel,
+            telefono_excel, correo_excel,
         )
         id_unidades_vistos.add(id_unidad)
 
@@ -321,7 +324,8 @@ def _obtener_ids_unidades_existentes(proyecto_id):
 
 def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
                   inmo_excel, inmo_confianza, inmo_es_nueva, existentes=None,
-                  nombre_cliente='', nombres='', apellidos='', cedula=None):
+                  nombre_cliente='', nombres='', apellidos='', cedula=None,
+                  telefono=None, correo=None):
     errores, advertencias = [], []
     existentes = existentes or set()
     id_normalizado = _normalizar_id_unidad(id_unidad)
@@ -348,6 +352,14 @@ def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
         errores.append('cédula obligatoria cuando hay cliente')
     if cedula and not str(cedula).strip().isdigit():
         errores.append('cédula solo debe contener números')
+    if nombres and not all(ch.isalpha() or ch.isspace() for ch in str(nombres).strip()):
+        errores.append('nombres solo deben contener letras y espacios')
+    if apellidos and not all(ch.isalpha() or ch.isspace() for ch in str(apellidos).strip()):
+        errores.append('apellidos solo deben contener letras y espacios')
+    if telefono and not str(telefono).strip().isdigit():
+        errores.append('teléfono solo debe contener números')
+    if correo and not EMAIL_RE.match(str(correo).strip().lower()):
+        errores.append('correo inválido')
     if nombre_cliente and not inmo_excel:
         advertencias.append('Sin inmobiliaria, el cliente no se registrará')
     # Si hay nombre de cliente pero faltan nombres/apellidos separados → advertencia

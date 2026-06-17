@@ -15,7 +15,8 @@ import {
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
 import { getEtapas } from '../../services/proyectos.service';
 import type { Etapa } from '../../types';
-import { validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
+import { PAISES_OPTIONS, NACIONALIDADES_OPTIONS } from '../../constants/catalogosCliente';
+import { clienteFieldNormalizers, validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -70,10 +71,6 @@ interface Props {
 
 type Paso = 'upload' | 'revision' | 'resultado';
 
-// Genera cédula fantasma única por proyecto + índice
-const cedulaFantasma = (proyectoId: string, idx: number) =>
-  `MIGP-${proyectoId}-${String(idx).padStart(3, '0')}`;
-
 export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }: Props) {
   const [paso, setPaso] = useState<Paso>('upload');
   const [cargando, setCargando] = useState(false);
@@ -119,9 +116,21 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
     if (!ESTADOS_VALIDOS.includes(f.estado)) errores.push('estado inválido');
     if (f.estado !== 'disponible' && !f.inmobiliaria_nombre_sugerido)
       errores.push('inmobiliaria requerida para este estado');
-    if (f.cliente_nombre_excel && !f.cedula)
-      errores.push('cédula obligatoria cuando hay cliente');
-    if (f.cedula) {
+
+    const tieneDatosCliente = [
+      f.cliente_nombre_excel,
+      f.cedula,
+      f.nombres_sugerido,
+      f.apellidos_sugerido,
+      f.cliente_correo,
+      f.cliente_telefono,
+      f.fecha_nacimiento,
+      f.pais_residencia,
+      f.nacionalidad,
+    ].some(value => String(value ?? '').trim());
+
+    if (tieneDatosCliente) {
+      if (!f.cedula) errores.push('cédula obligatoria cuando hay cliente');
       if (!f.nombres_sugerido) errores.push('nombres requeridos si hay cédula');
       if (!f.apellidos_sugerido) errores.push('apellidos requeridos si hay cédula');
       if (!f.inmobiliaria_nombre_sugerido) errores.push('inmobiliaria requerida si hay cédula');
@@ -132,6 +141,8 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
           apellidos: f.apellidos_sugerido ?? '',
           correo: f.cliente_correo ?? '',
           telefono: f.cliente_telefono ?? '',
+          nacionalidad: f.nacionalidad ?? '',
+          pais_residencia: f.pais_residencia ?? '',
         });
       } catch (err: any) {
         errores.push(err?.message || 'Datos de contacto del cliente invalidos');
@@ -177,7 +188,17 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
   const actualizarFila = useCallback((idUnidad: string, campo: keyof FilaMigracion, valor: unknown) => {
     setFilas(prev => prev.map(f => {
       if (f.id_unidad !== idUnidad) return f;
-      let updated = { ...f, [campo]: valor };
+      let valorNormalizado = valor;
+      if (campo === 'nombres_sugerido' || campo === 'apellidos_sugerido') {
+        valorNormalizado = clienteFieldNormalizers.nombre(valor);
+      }
+      if (campo === 'cliente_correo') {
+        valorNormalizado = clienteFieldNormalizers.correo(valor);
+      }
+      if (campo === 'cedula' || campo === 'cliente_telefono') {
+        valorNormalizado = String(valor ?? '').trim();
+      }
+      let updated = { ...f, [campo]: valorNormalizado };
       // Si el admin cambia la inmobiliaria manualmente, limpiar el ID sugerido
       // para que el writer haga lookup por nombre
       if (campo === 'inmobiliaria_nombre_sugerido') {
@@ -198,18 +219,6 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       return { ...updated, errores, advertencias };
     }));
   }, []);
-
-  // ── Cédulas fantasma ─────────────────────────────────────────────────────
-  const asignarCedulasFantasma = useCallback(() => {
-    let contador = 1;
-    setFilas(prev => prev.map(f => {
-      if (!f.cliente_nombre_excel || f.cedula) return f;
-      const cedula = cedulaFantasma(proyectoId, contador++);
-      const updated = { ...f, cedula, cedula_es_fantasma: true } as FilaMigracion & { cedula_es_fantasma?: boolean };
-      const { errores, advertencias } = validarFila(updated);
-      return { ...updated, errores, advertencias };
-    }));
-  }, [proyectoId]);
 
   // ── Nueva etapa ───────────────────────────────────────────────────────────
   const [nuevaEtapaModal, setNuevaEtapaModal] = useState(false);
@@ -271,7 +280,6 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
   const filasConAdvertencia = filas.filter(f => f.advertencias.length > 0 && f.errores.length === 0);
   const filasOk = filas.filter(f => f.errores.length === 0 && f.advertencias.length === 0);
   const puedeConfirmar = filasConError.length === 0 && filas.length > 0;
-  const filasConClienteSinCedula = filas.filter(f => f.cliente_nombre_excel && !f.cedula).length;
 
   // ── Columnas ─────────────────────────────────────────────────────────────
   const columnas = useMemo(() => [
@@ -353,16 +361,13 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
     },
     {
       title: 'Cédula', dataIndex: 'cedula', width: 140,
-      render: (v: string | null, r: FilaMigracion & { cedula_es_fantasma?: boolean }) => (
+      render: (v: string | null, r: FilaMigracion) => (
         <CeldaRequerida error={r.errores.some(e => e.includes('cédula'))}>
-          <Tooltip title={r.cedula_es_fantasma ? 'Cédula temporal — completa la real después' : undefined}>
-            <CeldaInputLocal
-              value={v ?? ''}
-              placeholder="Cédula"
-              style={r.cedula_es_fantasma ? { borderColor: '#faad14', background: '#fffbe6' } : undefined}
-              onChange={val => actualizarFila(r.id_unidad, 'cedula', val)}
-            />
-          </Tooltip>
+          <CeldaInputLocal
+            value={v ?? ''}
+            placeholder="Solo números"
+            onChange={val => actualizarFila(r.id_unidad, 'cedula', val)}
+          />
         </CeldaRequerida>
       ),
     },
@@ -430,9 +435,35 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
         </CeldaRequerida>
       ) },
     { title: 'Pais residencia', dataIndex: 'pais_residencia', width: 150,
-      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'pais_residencia', val)} /> },
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('pais de residencia'))}>
+          <Select
+            value={v ?? undefined}
+            placeholder="Opcional"
+            style={{ width: '100%' }}
+            showSearch
+            allowClear
+            optionFilterProp="label"
+            options={PAISES_OPTIONS}
+            onChange={val => actualizarFila(r.id_unidad, 'pais_residencia', val ?? null)}
+          />
+        </CeldaRequerida>
+      ) },
     { title: 'Nacionalidad', dataIndex: 'nacionalidad', width: 150,
-      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'nacionalidad', val)} /> },
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('nacionalidad'))}>
+          <Select
+            value={v ?? undefined}
+            placeholder="Opcional"
+            style={{ width: '100%' }}
+            showSearch
+            allowClear
+            optionFilterProp="label"
+            options={NACIONALIDADES_OPTIONS}
+            onChange={val => actualizarFila(r.id_unidad, 'nacionalidad', val ?? null)}
+          />
+        </CeldaRequerida>
+      ) },
     { title: 'Fecha Bloqueo', dataIndex: 'fecha_bloqueo', width: 140,
       render: (v: string | null, r: FilaMigracion) => (
         <CeldaRequerida error={r.errores.some(e => e.includes('Fecha Bloqueo'))}>
@@ -506,7 +537,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                   <Tag color="blue">Area — obligatorio</Tag>
                   <Tag color="blue">ESTATUS — obligatorio</Tag>
                   <Tag color="default">El resto es opcional</Tag>
-                  <Tag color="orange">Si hay cliente, INMOBILIARIA y CEDULA también son obligatorias</Tag>
+                  <Tag color="orange">Si hay cliente, NOMBRES, APELLIDOS, CEDULA e INMOBILIARIA son obligatorias</Tag>
                 </div>
                 <div style={{ marginTop: 6, color: '#888', fontSize: 11 }}>
                   💡 Los nombres de columna no tienen que ser exactos — la IA intenta mapearlos automáticamente. Pero si coinciden, el resultado es más preciso.
@@ -544,13 +575,6 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
 
           {/* Botones de relleno */}
           <Space style={{ marginBottom: 12, flexWrap: 'wrap' }}>
-            {filasConClienteSinCedula > 0 && (
-              <Tooltip title={`Asigna cédulas temporales (MIGP-${proyectoId}-001...) a ${filasConClienteSinCedula} clientes sin cédula. Puedes completar las reales después.`}>
-                <Button icon={<ThunderboltOutlined />} onClick={asignarCedulasFantasma}>
-                  Cédulas temporales ({filasConClienteSinCedula})
-                </Button>
-              </Tooltip>
-            )}
             <RellenarVaciosBtn campo="metraje" label="Rellenar metraje vacío" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="metraje_terraza" label="Rellenar terraza vacía" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="metraje_patio" label="Rellenar patio vacío" tipo="numero" onRellenar={rellenarVacios} />

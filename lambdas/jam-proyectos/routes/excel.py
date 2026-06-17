@@ -2,6 +2,7 @@ import json
 import uuid
 import boto3
 import os
+import re
 from io import BytesIO
 from datetime import datetime
 from boto3.dynamodb.conditions import Key
@@ -18,6 +19,16 @@ procesos_t   = dynamodb.Table(os.environ.get('PROCESOS_TABLE', ''))
 usuarios_t   = dynamodb.Table(os.environ.get('USUARIOS_TABLE', ''))
 
 ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
+EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+
+
+def _clean_spaces(value):
+    return ' '.join(str(value or '').strip().split())
+
+
+def _nombre_valido(value):
+    nombre = _clean_spaces(value)
+    return bool(nombre) and all(ch.isalpha() or ch.isspace() for ch in nombre)
 
 
 def get_upload_url(event):
@@ -160,13 +171,40 @@ def _validar_clientes_confirmacion(filas):
     errores = []
     for fila in filas:
         cedula = str(fila.get('cedula') or '').strip()
-        cliente = str(fila.get('cliente_nombre_excel') or '').strip()
+        nombres = _clean_spaces(fila.get('nombres_sugerido'))
+        apellidos = _clean_spaces(fila.get('apellidos_sugerido'))
+        telefono = _clean_spaces(fila.get('cliente_telefono'))
+        correo = _clean_spaces(fila.get('cliente_correo')).lower()
+        tiene_datos_cliente = any(_clean_spaces(fila.get(campo)) for campo in (
+            'cliente_nombre_excel',
+            'cedula',
+            'nombres_sugerido',
+            'apellidos_sugerido',
+            'cliente_telefono',
+            'cliente_correo',
+            'fecha_nacimiento',
+            'pais_residencia',
+            'nacionalidad',
+        ))
         fila_excel = fila.get('fila_excel', '?')
         id_unidad = fila.get('id_unidad', '')
-        if cliente and not cedula:
+
+        if tiene_datos_cliente and not cedula:
             errores.append(f'fila {fila_excel} unidad {id_unidad}: cedula obligatoria')
         if cedula and not cedula.isdigit():
             errores.append(f'fila {fila_excel} unidad {id_unidad}: cedula solo debe contener numeros')
+        if tiene_datos_cliente and not nombres:
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: nombres requeridos')
+        elif nombres and not _nombre_valido(nombres):
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: nombres solo deben contener letras y espacios')
+        if tiene_datos_cliente and not apellidos:
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: apellidos requeridos')
+        elif apellidos and not _nombre_valido(apellidos):
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: apellidos solo deben contener letras y espacios')
+        if telefono and not telefono.isdigit():
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: telefono solo debe contener numeros')
+        if correo and not EMAIL_RE.match(correo):
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: correo invalido')
         for campo, etiqueta in (
             ('fecha_nacimiento', 'fecha de nacimiento'),
             ('fecha_bloqueo', 'Fecha Bloqueo'),

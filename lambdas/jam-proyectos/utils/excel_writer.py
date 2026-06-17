@@ -18,6 +18,7 @@ procesos_t   = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 historial_t  = dynamodb.Table(os.environ['HISTORIAL_TABLE'])
 logger       = logging.getLogger()
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 
 
 def _clean_spaces(value):
@@ -34,11 +35,11 @@ def _normalizar_nombre(value):
 
 
 def _normalizar_cedula(value):
-    cedula = _clean_spaces(value)
+    cedula = _clean_spaces(value).upper()
     if not cedula:
         return ''
-    if not cedula.isdigit():
-        raise ValueError('La cedula solo debe contener numeros')
+    if not DOCUMENTO_RE.match(cedula):
+        raise ValueError('El documento solo debe contener letras y numeros')
     return cedula
 
 
@@ -184,7 +185,7 @@ def escribir_migracion(proyecto_id, filas):
             stats['advertencias'] += 1
             stats['detalle'].append({
                 'fila': fila_num, 'id_unidad': id_unidad, 'tipo': 'advertencia',
-                'motivo': 'Cédula no ingresada, unidad cargada sin cliente',
+                'motivo': 'Documento no ingresado, unidad cargada sin cliente',
             })
 
         if fila.get('estado') == 'bloqueada' and inmo_id:

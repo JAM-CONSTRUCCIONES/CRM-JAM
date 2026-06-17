@@ -18,6 +18,7 @@ logger     = logging.getLogger()
 
 ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 
 ESTATUS_MAP = {
     'DISPONIBLE':       ('disponible',    None),
@@ -169,8 +170,10 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
         cedula_raw           = str(gc(['Cliente Cédula', 'Cliente Cedula', 'CLIENTE CEDULA',
                                        'Cédula', 'Cedula', 'CEDULA', 'CC', 'DNI',
                                        'Identificacion', 'Identificación', 'No. Cedula',
-                                       'Num Cedula', 'No Identificacion']) or '').strip()
-        cedula_excel         = cedula_raw or None
+                                       'Num Cedula', 'No Identificacion', 'Documento',
+                                       'DOCUMENTO', 'Doc Identidad', 'PASAPORTE',
+                                       'Pasaporte', 'Passport']) or '').strip()
+        cedula_excel         = cedula_raw.upper() or None
 
         telefono_excel       = str(gc(['Cliente Teléfono', 'Cliente Telefono', 'CLIENTE TELEFONO',
                                        'Teléfono', 'Telefono', 'TELEFONO', 'Celular', 'CELULAR',
@@ -349,9 +352,9 @@ def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
         advertencias.append(f'Inmobiliaria con baja confianza ({inmo_confianza}%)')
     # Si hay nombre de cliente y NO viene cédula del Excel → error (debe ingresarla)
     if nombre_cliente and not cedula:
-        errores.append('cédula obligatoria cuando hay cliente')
-    if cedula and not str(cedula).strip().isdigit():
-        errores.append('cédula solo debe contener números')
+        errores.append('documento de identidad obligatorio cuando hay cliente')
+    if cedula and not DOCUMENTO_RE.match(str(cedula).strip().upper()):
+        errores.append('documento solo debe contener letras y números')
     if nombres and not all(ch.isalpha() or ch.isspace() for ch in str(nombres).strip()):
         errores.append('nombres solo deben contener letras y espacios')
     if apellidos and not all(ch.isalpha() or ch.isspace() for ch in str(apellidos).strip()):

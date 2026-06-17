@@ -1,193 +1,256 @@
-# Analisis: migracion Excel y exclusividad de clientes
+# Analisis: migracion Excel, datos de cliente y exclusividad
 
 ## Objetivo
 
-Revisar como esta hoy la migracion de Excel y definir la forma correcta de implementar el pendiente:
+Dejar documentado como funciona actualmente la migracion de Excel, que ya se corrigio y que puntos quedan pendientes de revisar o ajustar.
 
-- Cargar fecha de nacimiento.
-- Cargar pais de residencia.
-- Cargar pais de nacionalidad.
-- Cargar Fecha Bloqueo.
-- Usar Fecha Bloqueo como dato historico cuando venga desde Excel.
-- Corregir el calculo de exclusividad de clientes importados.
-- Mantener separado el bloqueo operativo activo de la fecha historica importada.
+Este documento sirve como base para seguir cambiando migraciones sin mezclarlo con QA ni con otros modulos.
 
-## Que tenemos actualmente
+## Flujo actual de migracion
 
-### Flujo de migracion
+La migracion de inventario funciona asi:
 
-La migracion ya tiene un flujo completo:
+1. El usuario sube un archivo Excel desde el proyecto.
+2. La IA ayuda a leer el archivo, detectar columnas y proponer valores cuando el Excel no viene perfectamente ordenado.
+3. El sistema genera un preview con los datos interpretados.
+4. En el preview se pueden corregir datos antes de confirmar.
+5. Si hay errores, no se permite confirmar.
+6. Al confirmar, se crean unidades, inmobiliarias nuevas cuando corresponda, clientes, procesos e historial.
 
-1. Se sube el Excel.
-2. Se genera un preview.
-3. El usuario revisa y corrige filas.
-4. Se confirma la migracion.
-5. Se crean unidades, clientes, procesos e historial.
+Archivos principales:
 
-Archivos relevantes revisados:
-
-- `lambdas/jam-proyectos/utils/excel_parser.py`
-- `lambdas/jam-proyectos/utils/excel_writer.py`
-- `lambdas/jam-proyectos/routes/excel.py`
-- `lambdas/jam-excel-parser/utils/excel_parser.py`
-- `lambdas/jam-excel-parser/utils/excel_writer.py`
 - `front/src/components/inventario/MigracionExcel.tsx`
 - `front/src/services/migracion.service.ts`
+- `lambdas/jam-proyectos/routes/excel.py`
+- `lambdas/jam-proyectos/utils/excel_parser.py`
+- `lambdas/jam-proyectos/utils/excel_writer.py`
 
-Nota importante: existen archivos parecidos en mas de una lambda. Antes de implementar hay que confirmar cual ruta esta usando el endpoint actual de migracion en dev. La recomendacion es corregir la ruta activa y mantener alineados los archivos duplicados si tambien se empaquetan o despliegan.
+Nota: tambien existen copias dentro de `lambdas/jam-proyectos/package/`. Esas copias pueden estar desactualizadas y no deben usarse como referencia principal para nuevos cambios, salvo que se confirme que el empaquetado las necesita.
 
-## Hallazgos
+## Columnas que se reconocen actualmente
 
-### 1. Fecha Bloqueo ya se reconoce
+La migracion ya reconoce datos de unidad, precios, estado, inmobiliaria y cliente.
 
-El parser ya reconoce `Fecha Bloqueo` y variantes como:
+Para cliente ya se reconocen:
+
+- Nombre cliente.
+- Cedula.
+- Telefono.
+- Correo.
+- Fecha de nacimiento.
+- Pais de residencia.
+- Nacionalidad.
+- Fecha Bloqueo.
+
+`Fecha Bloqueo` se reconoce con variantes como:
 
 - `FECHA BLOQUEO`
 - `Fecha Bloqueo`
 - `FECHA_BLOQUEO`
 - `FECHA INICIO`
 
-El dato llega como `fecha_bloqueo` al preview.
+## Cambios ya aplicados
 
-Lo incompleto es que esa fecha no se usa correctamente para calcular la exclusividad del cliente importado.
+### Datos de cliente
 
-### 2. Datos demograficos no se guardan desde Excel
+La migracion no debe crear documentos temporales ni valores inventados.
 
-Actualmente, cuando la migracion crea clientes, guarda estos campos vacios:
+Reglas actuales:
 
-- `fecha_nacimiento`
-- `nacionalidad`
-- `pais_residencia`
-- `edad`
+- Si hay datos de cliente, el documento de identidad es obligatorio.
+- El campo de documento seguira siendo el mismo campo usado actualmente para cedula/pasaporte.
+- El documento solo aceptara letras y numeros.
+- El documento no aceptara guiones, espacios, puntos ni otros simbolos.
+- Las letras del documento se guardaran en mayuscula.
+- Nombres y apellidos son obligatorios cuando hay cliente.
+- Nombres y apellidos se guardan en mayuscula.
+- Nombres y apellidos permiten espacios para personas con dos nombres o dos apellidos.
+- Nombres y apellidos no aceptan numeros ni simbolos.
+- Telefono solo acepta numeros.
+- Correo debe tener formato valido y dominio con punto.
+- Pais de residencia y nacionalidad se seleccionan desde el catalogo del sistema.
 
-Aunque el Excel traiga estos datos, hoy no se estan cargando realmente al cliente desde la migracion.
+Estas reglas se aplican en tres momentos:
 
-### 3. Exclusividad de migracion queda incompleta
+- En el preview editable del frontend.
+- En la validacion backend antes de confirmar.
+- En la escritura final del cliente.
 
-En captacion y bloqueo normal, la exclusividad ya funciona con tres meses:
+### Datos demograficos
 
-- Se guarda `fecha_captacion`.
-- Se calcula `fecha_vencimiento`.
-- Se crea un schedule para vencer la exclusividad.
-
-En migracion, actualmente:
-
-- El cliente se crea con `exclusividad_activa = true`.
-- `fecha_captacion` usa la fecha de importacion.
-- `fecha_vencimiento` queda vacia.
-- No se crea schedule de vencimiento.
-
-Esto puede dejar clientes importados con exclusividad activa, pero sin vencimiento automatico real.
-
-### 4. Bloqueo operativo de migracion usa 24 horas
-
-La regla normal de bloqueo del sistema es 48 horas.
-
-En la migracion revisada, cuando una unidad entra como bloqueada, el bloqueo operativo se crea desde la fecha actual de importacion, pero usa 24 horas.
-
-Esto no coincide con el pendiente, que indica que el bloqueo activo debe usar la regla actual de 48 horas desde el momento de la importacion.
-
-### 5. Hay que separar dos fechas
-
-Para evitar errores, deben manejarse dos conceptos separados:
-
-- Fecha historica del Excel: viene de `Fecha Bloqueo` y sirve para historial y exclusividad.
-- Fecha operativa del bloqueo activo: se crea al importar y sirve para liberar automaticamente la unidad.
-
-La fecha historica no debe usarse para liberar el bloqueo activo, porque podria venir de meses anteriores.
-
-## Recomendacion
-
-Implementar esto como un solo cambio de migracion y exclusividad, no como tareas separadas.
-
-### Regla propuesta
-
-- Si el Excel trae `Fecha Bloqueo`, esa fecha se guarda como fecha historica.
-- Para clientes importados, `Fecha Bloqueo` sera la fecha inicial de la exclusividad.
-- `fecha_vencimiento` se calculara tres meses despues de esa fecha.
-- Si no viene `Fecha Bloqueo`, se usara la fecha de importacion como fecha inicial, salvo que JAM confirme que debe ser obligatoria para ciertos estatus.
-- Si el vencimiento calculado ya queda en el pasado, el cliente debe importarse sin exclusividad activa.
-- Si al importar se crea un bloqueo operativo nuevo, ese bloqueo debe durar 48 horas desde la importacion.
-- La fecha historica del Excel no debe alterar la duracion del bloqueo operativo activo.
-
-## Que se debe implementar despues
-
-### Backend: parser
-
-Agregar reconocimiento de columnas:
-
-- `FECHA NACIMIENTO`
-- `Fecha de nacimiento`
-- `NACIMIENTO`
-- `PAIS RESIDENCIA`
-- `Pais de residencia`
-- `PAIS DE RESIDENCIA`
-- `NACIONALIDAD`
-- `Pais de nacionalidad`
-- `PAIS NACIONALIDAD`
-- `PAIS DE NACIONALIDAD`
-
-El preview debe incluir:
-
-- `fecha_nacimiento`
-- `pais_residencia`
-- `nacionalidad`
-- `fecha_bloqueo`
-
-### Frontend: revision de migracion
-
-Agregar columnas editables en el preview:
+Cuando la migracion crea un cliente, ya guarda:
 
 - Fecha de nacimiento.
+- Edad calculada desde la fecha de nacimiento.
 - Pais de residencia.
 - Nacionalidad.
-- Fecha Bloqueo.
 
-Si una fecha obligatoria falta, debe poder corregirse antes de confirmar o debe mostrarse error claro.
+### Exclusividad
 
-### Backend: confirmacion
+La exclusividad del cliente importado se calcula por tres meses.
 
-Al confirmar la migracion:
+Reglas actuales:
 
-- Guardar `fecha_nacimiento`, `pais_residencia` y `nacionalidad` en el cliente.
-- Calcular `edad` desde `fecha_nacimiento`.
-- Guardar `Fecha Bloqueo` como dato historico cuando exista.
-- Usar `Fecha Bloqueo` como fecha inicial de exclusividad cuando exista.
-- Calcular `fecha_vencimiento` a tres meses.
-- Crear schedule de vencimiento cuando la exclusividad quede activa.
-- No crear schedule si la exclusividad ya esta vencida al momento de importar.
-- Cambiar el bloqueo operativo de migracion a 48 horas desde la importacion.
+- Si el Excel trae `Fecha Bloqueo`, se usa como fecha inicial de exclusividad.
+- Si no trae `Fecha Bloqueo`, se usa la fecha de importacion.
+- Se calcula `fecha_vencimiento` tres meses despues.
+- Si la fecha de vencimiento ya paso, el cliente se importa sin exclusividad activa.
+- Si la exclusividad queda activa, se crea el schedule de vencimiento.
 
-## Orden recomendado
+### Fecha Bloqueo como dato historico
 
-1. Confirmar la ruta activa del endpoint de migracion en dev.
-2. Ajustar parser para leer las nuevas columnas.
-3. Ajustar tipos y preview del frontend.
-4. Agregar columnas editables en revision de migracion.
-5. Ajustar writer para guardar datos demograficos y calcular edad.
-6. Ajustar exclusividad de migracion con Fecha Bloqueo.
-7. Cambiar bloqueo operativo de migracion de 24 a 48 horas.
-8. Validar errores antes de confirmar.
-9. Probar con Excel de ejemplo.
+Si el Excel trae `Fecha Bloqueo`, se guarda como dato historico en:
 
-## Casos de prueba necesarios
+- Cliente.
+- Proceso.
+- Historial, cuando aplica.
 
-- Cliente importado con Fecha Bloqueo reciente.
-- Cliente importado con Fecha Bloqueo antigua y exclusividad ya vencida.
-- Cliente importado sin Fecha Bloqueo.
-- Unidad importada como disponible.
-- Unidad importada como bloqueada.
-- Cliente con fecha de nacimiento valida.
-- Cliente sin fecha de nacimiento.
-- Pais de residencia cargado desde Excel.
-- Nacionalidad cargada desde Excel.
-- Bloqueo operativo creado desde migracion con vencimiento a 48 horas desde la importacion.
-- Exclusividad calculada desde Fecha Bloqueo.
+Esta fecha historica no debe cambiar la duracion del bloqueo operativo activo.
+
+### Bloqueo operativo
+
+Si la unidad se importa como bloqueada, el bloqueo operativo se crea con la regla actual del sistema:
+
+- 48 horas desde el momento de importacion.
+
+Esto es independiente de la `Fecha Bloqueo` historica del Excel.
+
+## Lo que todavia debemos revisar
+
+### 1. Campos obligatorios por estatus
+
+Actualmente la migracion valida cliente cuando hay datos de cliente, pero falta confirmar si algunos estatus deben exigir fechas especificas.
+
+Ejemplo:
+
+- Si una unidad viene como bloqueada, confirmar si `Fecha Bloqueo` debe ser obligatoria o si puede usarse la fecha de importacion.
+- Si una unidad viene en separacion o contrato firmado, confirmar si debe exigirse algun dato adicional.
+
+Recomendacion: no hacer obligatorio `Fecha Bloqueo` para todos los casos hasta que JAM confirme la regla.
+
+### 2. Documento de identidad
+
+El cliente ya confirmo que el mismo campo debe servir para cedula o pasaporte.
+
+Regla definida:
+
+- Se mantiene un solo campo de documento.
+- Puede contener letras y numeros.
+- No puede contener guiones, espacios ni simbolos.
+- Las letras se guardan en mayuscula.
+
+Ya aplicado en migraciones:
+
+- El preview permite documento con letras y numeros.
+- El preview no permite guiones, espacios ni simbolos.
+- El backend valida lo mismo antes de confirmar.
+- La escritura final guarda las letras del documento en mayuscula.
+
+Pendiente de implementar despues:
+
+- Aplicar esta misma regla en todos los lugares donde se crea o edita cliente.
+- Ajustar mensajes visibles para que no diga solamente "cedula" cuando tambien puede ser pasaporte.
+
+### 3. Catalogos de pais y nacionalidad
+
+Pais de residencia y nacionalidad deben usar el catalogo estatico propio del sistema, el mismo que ya se usa en los formularios de clientes/captacion.
+
+Regla definida:
+
+- La IA puede ayudar a interpretar el valor que viene en el Excel.
+- La IA debe intentar relacionar nombres comunes o variaciones con el catalogo del sistema.
+- El resultado final siempre debe ser un valor existente en el catalogo estatico.
+- En el preview de migracion deben mostrarse como listado seleccionable.
+- Si el Excel trae un valor reconocido, se mostrara seleccionado.
+- Si el Excel trae un valor que no coincide con el catalogo, se debe corregir desde el listado antes de confirmar.
+- No se debe guardar texto libre para pais de residencia ni nacionalidad.
+
+Pendiente de revisar:
+
+- Afinar el mapeo de IA para casos comunes escritos diferente, por ejemplo `USA` a `Estados Unidos`.
+- Si la IA no puede reconocer el valor con seguridad, el campo quedara pendiente para corregirse manualmente en el preview.
+
+### 4. Copias `package/`
+
+Hay archivos duplicados dentro de `lambdas/jam-proyectos/package/` que muestran reglas antiguas.
+
+Pendiente:
+
+- Confirmar si se generan automaticamente.
+- Confirmar si se deben limpiar del repo o mantener actualizados.
+
+Recomendacion: no editar esas copias manualmente hasta confirmar el flujo de empaquetado/deploy.
+
+### 5. Prueba con Excel real
+
+Falta probar con un Excel que incluya combinaciones reales:
+
+- Cliente con dos nombres y dos apellidos.
+- Cliente sin cedula.
+- Cedula con letras o guiones.
+- Telefono con letras o simbolos.
+- Correo sin dominio valido.
+- Pais de residencia valido.
+- Nacionalidad valida.
+- Pais o nacionalidad escrito fuera del catalogo.
+- Fecha de nacimiento valida.
+- Fecha Bloqueo reciente.
+- Fecha Bloqueo antigua.
+- Unidad disponible.
+- Unidad bloqueada.
+- Unidad no disponible.
+
+## Casos esperados
+
+### Cliente valido
+
+Si el Excel trae:
+
+- Nombres y apellidos correctos.
+- Documento de identidad con letras y/o numeros, sin simbolos.
+- Telefono numerico.
+- Correo valido.
+- Pais y nacionalidad del catalogo.
+
+Entonces debe permitir confirmar y guardar el cliente normalizado.
+
+### Cliente sin documento
+
+Si el Excel trae cliente pero no trae documento de identidad:
+
+- Debe aparecer error en preview.
+- No debe permitir confirmar.
+- No debe existir boton para generar documento temporal.
+
+### Nombre con espacios
+
+Si el cliente tiene dos nombres o dos apellidos:
+
+- Debe permitir espacios.
+- Debe guardar en mayuscula.
+
+### Nombre con numeros o simbolos
+
+Si nombres o apellidos tienen numeros o simbolos:
+
+- Debe mostrar error.
+- No debe permitir confirmar.
+
+### Bloqueo historico
+
+Si viene `Fecha Bloqueo`:
+
+- Se guarda como historico.
+- Sirve para calcular exclusividad.
+- No cambia las 48 horas del bloqueo operativo creado al importar.
 
 ## Resumen
 
-La base de migracion existe, pero este cambio no esta completo.
+La migracion ya tiene la base completa y se reforzaron las reglas de datos de cliente.
 
-Ya se reconoce `Fecha Bloqueo`, pero falta usarla correctamente para exclusividad. Tambien falta cargar fecha de nacimiento, pais de residencia y nacionalidad desde Excel.
+Lo mas importante que queda por decidir antes de nuevos cambios es:
 
-La recomendacion es resolverlo como una sola mejora de migracion: cargar los nuevos campos, calcular la exclusividad desde la fecha historica cuando exista y mantener el bloqueo operativo separado con 48 horas desde la importacion.
+- Si `Fecha Bloqueo` sera obligatoria para algun estatus.
+- Como se nombrara visualmente el campo de cedula/pasaporte para que sea claro.
+- Si se hara mapeo automatico de paises/nacionalidades escritos distinto al catalogo.
+- Que hacer con las copias antiguas dentro de `package/`.

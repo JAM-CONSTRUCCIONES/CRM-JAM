@@ -15,16 +15,54 @@ import {
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
 import { getEtapas } from '../../services/proyectos.service';
 import type { Etapa } from '../../types';
-import { PAISES_OPTIONS, NACIONALIDADES_OPTIONS } from '../../constants/catalogosCliente';
-import { clienteFieldNormalizers, validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
+import {
+  PAISES_OPTIONS,
+  NACIONALIDADES_OPTIONS,
+  isNacionalidadValida,
+  isPaisValido,
+} from '../../constants/catalogosCliente';
+import { clienteFieldNormalizers } from '../../utils/clientesValidation';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 const ESTADOS_VALIDOS = ['disponible', 'bloqueada', 'no_disponible'];
+const DOCUMENTO_REGEX = /^[A-Z0-9]+$/;
+const NOMBRE_REGEX = /^[\p{L}\s]+$/u;
+const TELEFONO_REGEX = /^\d+$/;
+const EMAIL_REGEX = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+
 const fechaValida = (value?: string | null) => {
   if (!value) return true;
   return !Number.isNaN(Date.parse(value));
+};
+
+const cleanSpaces = (value?: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim();
+const normalizeDocumentoInput = (value?: unknown) => String(value ?? '').trim().toLocaleUpperCase('es-VE');
+
+const validarDatosClienteMigracion = (f: FilaMigracion) => {
+  const errores: string[] = [];
+  const documento = normalizeDocumentoInput(f.cedula);
+  const nombres = cleanSpaces(f.nombres_sugerido);
+  const apellidos = cleanSpaces(f.apellidos_sugerido);
+  const telefono = cleanSpaces(f.cliente_telefono);
+  const correo = cleanSpaces(f.cliente_correo).toLowerCase();
+
+  if (!documento) errores.push('documento de identidad obligatorio cuando hay cliente');
+  else if (!DOCUMENTO_REGEX.test(documento)) errores.push('documento solo debe contener letras y numeros');
+
+  if (!nombres) errores.push('nombres requeridos si hay documento');
+  else if (!NOMBRE_REGEX.test(nombres)) errores.push('nombres solo deben contener letras y espacios');
+
+  if (!apellidos) errores.push('apellidos requeridos si hay documento');
+  else if (!NOMBRE_REGEX.test(apellidos)) errores.push('apellidos solo deben contener letras y espacios');
+
+  if (telefono && !TELEFONO_REGEX.test(telefono)) errores.push('telefono solo debe contener numeros');
+  if (correo && !EMAIL_REGEX.test(correo)) errores.push('correo invalido con dominio requerido');
+  if (!isNacionalidadValida(f.nacionalidad)) errores.push('selecciona una nacionalidad valida');
+  if (!isPaisValido(f.pais_residencia)) errores.push('selecciona un pais de residencia valido');
+
+  return errores;
 };
 
 // ── Local-state input cells — only call parent on blur, not on every keystroke ──
@@ -130,23 +168,8 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
     ].some(value => String(value ?? '').trim());
 
     if (tieneDatosCliente) {
-      if (!f.cedula) errores.push('cédula obligatoria cuando hay cliente');
-      if (!f.nombres_sugerido) errores.push('nombres requeridos si hay cédula');
-      if (!f.apellidos_sugerido) errores.push('apellidos requeridos si hay cédula');
-      if (!f.inmobiliaria_nombre_sugerido) errores.push('inmobiliaria requerida si hay cédula');
-      try {
-        validateAndNormalizeClientePayload({
-          cedula: f.cedula ?? '',
-          nombres: f.nombres_sugerido ?? '',
-          apellidos: f.apellidos_sugerido ?? '',
-          correo: f.cliente_correo ?? '',
-          telefono: f.cliente_telefono ?? '',
-          nacionalidad: f.nacionalidad ?? '',
-          pais_residencia: f.pais_residencia ?? '',
-        });
-      } catch (err: any) {
-        errores.push(err?.message || 'Datos de contacto del cliente invalidos');
-      }
+      errores.push(...validarDatosClienteMigracion(f));
+      if (!f.inmobiliaria_nombre_sugerido) errores.push('inmobiliaria requerida si hay documento');
     }
     if (!fechaValida(f.fecha_nacimiento)) errores.push('fecha de nacimiento invalida');
     if (!fechaValida(f.fecha_bloqueo)) errores.push('Fecha Bloqueo invalida');
@@ -175,7 +198,17 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
         try { preview = await getPreview(job_id); break; } catch { /* sigue */ }
       }
       if (!preview) throw new Error('El procesamiento tardó demasiado. Intenta de nuevo.');
-      setFilas(preview.filas);
+      setFilas(preview.filas.map((fila: FilaMigracion) => {
+        const updated = {
+          ...fila,
+          cedula: fila.cedula ? normalizeDocumentoInput(fila.cedula) : fila.cedula,
+          nombres_sugerido: fila.nombres_sugerido ? clienteFieldNormalizers.nombre(fila.nombres_sugerido) : fila.nombres_sugerido,
+          apellidos_sugerido: fila.apellidos_sugerido ? clienteFieldNormalizers.nombre(fila.apellidos_sugerido) : fila.apellidos_sugerido,
+          cliente_correo: fila.cliente_correo ? clienteFieldNormalizers.correo(fila.cliente_correo) : fila.cliente_correo,
+        };
+        const { errores, advertencias } = validarFila(updated);
+        return { ...updated, errores, advertencias };
+      }));
       setPaso('revision');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al procesar el archivo');
@@ -195,7 +228,10 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       if (campo === 'cliente_correo') {
         valorNormalizado = clienteFieldNormalizers.correo(valor);
       }
-      if (campo === 'cedula' || campo === 'cliente_telefono') {
+      if (campo === 'cedula') {
+        valorNormalizado = normalizeDocumentoInput(valor);
+      }
+      if (campo === 'cliente_telefono') {
         valorNormalizado = String(valor ?? '').trim();
       }
       let updated = { ...f, [campo]: valorNormalizado };
@@ -360,12 +396,12 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       ),
     },
     {
-      title: 'Cédula', dataIndex: 'cedula', width: 140,
+      title: 'Documento', dataIndex: 'cedula', width: 140,
       render: (v: string | null, r: FilaMigracion) => (
-        <CeldaRequerida error={r.errores.some(e => e.includes('cédula'))}>
+        <CeldaRequerida error={r.errores.some(e => e.includes('documento') || e.includes('cédula'))}>
           <CeldaInputLocal
             value={v ?? ''}
-            placeholder="Solo números"
+            placeholder="Letras y números"
             onChange={val => actualizarFila(r.id_unidad, 'cedula', val)}
           />
         </CeldaRequerida>
@@ -508,7 +544,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                     <tr style={{ background: '#e6f4ff' }}>
                       {[
                         'unidad','Area','Metraje Terraza','Metraje Patio','No Cuartos','No. baños','Tipo','Piso','Parqueos',
-                        'NOMBRE CLIENTE','CEDULA','TELEFONO','CORREO',
+                        'NOMBRE CLIENTE','DOCUMENTO','TELEFONO','CORREO',
                         'FECHA NACIMIENTO','PAIS RESIDENCIA','NACIONALIDAD',
                         'Precios US$','RESERVA','SEPARACION','INICIAL',
                         'CUOTAS 24','Cuota Meses','CONTRA ENTREGA','ESTATUS','INMOBILIARIA',
@@ -520,7 +556,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                     <tr style={{ background: '#fafafa' }}>
                       {[
                         'B-A-101','76.34','12.5','8.0','3','2','D','1','1',
-                        'JOSE MIGUEL BARRERA','0912345678','0991234567','jose@email.com',
+                        'JOSE MIGUEL BARRERA','A1234567','0991234567','jose@email.com',
                         '1995-04-15','Republica Dominicana','Dominicana',
                         '75958.30','500','3297.91','11393.74',
                         '474.73','24','60766.64','CONTRATO FIRMADO','Plusval',
@@ -537,7 +573,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                   <Tag color="blue">Area — obligatorio</Tag>
                   <Tag color="blue">ESTATUS — obligatorio</Tag>
                   <Tag color="default">El resto es opcional</Tag>
-                  <Tag color="orange">Si hay cliente, NOMBRES, APELLIDOS, CEDULA e INMOBILIARIA son obligatorias</Tag>
+                  <Tag color="orange">Si hay cliente, NOMBRES, APELLIDOS, DOCUMENTO e INMOBILIARIA son obligatorias</Tag>
                 </div>
                 <div style={{ marginTop: 6, color: '#888', fontSize: 11 }}>
                   💡 Los nombres de columna no tienen que ser exactos — la IA intenta mapearlos automáticamente. Pero si coinciden, el resultado es más preciso.

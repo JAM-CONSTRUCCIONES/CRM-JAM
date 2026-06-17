@@ -20,6 +20,7 @@ usuarios_t   = dynamodb.Table(os.environ.get('USUARIOS_TABLE', ''))
 
 ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 
 
 def _clean_spaces(value):
@@ -170,7 +171,7 @@ def _validar_duplicados_confirmacion(proyecto_id, filas):
 def _validar_clientes_confirmacion(filas):
     errores = []
     for fila in filas:
-        cedula = str(fila.get('cedula') or '').strip()
+        cedula = str(fila.get('cedula') or '').strip().upper()
         nombres = _clean_spaces(fila.get('nombres_sugerido'))
         apellidos = _clean_spaces(fila.get('apellidos_sugerido'))
         telefono = _clean_spaces(fila.get('cliente_telefono'))
@@ -190,9 +191,9 @@ def _validar_clientes_confirmacion(filas):
         id_unidad = fila.get('id_unidad', '')
 
         if tiene_datos_cliente and not cedula:
-            errores.append(f'fila {fila_excel} unidad {id_unidad}: cedula obligatoria')
-        if cedula and not cedula.isdigit():
-            errores.append(f'fila {fila_excel} unidad {id_unidad}: cedula solo debe contener numeros')
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: documento de identidad obligatorio')
+        if cedula and not DOCUMENTO_RE.match(cedula):
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: documento solo debe contener letras y numeros')
         if tiene_datos_cliente and not nombres:
             errores.append(f'fila {fila_excel} unidad {id_unidad}: nombres requeridos')
         elif nombres and not _nombre_valido(nombres):

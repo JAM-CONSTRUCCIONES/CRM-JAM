@@ -11,6 +11,7 @@ scheduler_client = boto3.client('scheduler')
 
 MESES_EXCLUSIVIDAD = 3
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-z .-]+$')
 PAISES_VALIDOS = {
     'Alemania', 'Argentina', 'Australia', 'Belgica', 'Bolivia', 'Brasil', 'Canada',
@@ -55,11 +56,11 @@ def _normalizar_nombre(value):
 
 
 def _normalizar_cedula(value):
-    cedula = _clean_spaces(value)
+    cedula = _clean_spaces(value).upper()
     if not cedula:
         return ''
-    if not cedula.isdigit():
-        raise ValueError('La cedula solo debe contener numeros')
+    if not DOCUMENTO_RE.match(cedula):
+        raise ValueError('La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos')
     return cedula
 
 

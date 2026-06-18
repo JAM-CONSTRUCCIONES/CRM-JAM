@@ -212,7 +212,7 @@ const CapturaGlobalPage = () => {
             </div>
 
             <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}>
-              <Input inputMode="numeric" placeholder="12345678" />
+              <Input placeholder="12345678 o AB123456" />
             </Form.Item>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>

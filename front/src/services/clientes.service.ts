@@ -140,9 +140,9 @@ export const cambiarCedula = (
   cedulaAntigua: string,
   cedulaNueva: string
 ): Promise<{ message: string; execution_arn: string }> => {
-  const nueva = cedulaNueva.trim();
-  if (!/^\d+$/.test(nueva)) {
-    throw new Error('La cedula solo debe contener numeros');
+  const nueva = cedulaNueva.trim().toUpperCase();
+  if (!/^[A-Z0-9]+$/.test(nueva)) {
+    throw new Error('La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos');
   }
   return apiPost(`/admin/clientes/${encodeURIComponent(cedulaAntigua)}/cambiar-cedula`, {
     cedula_antigua: cedulaAntigua,

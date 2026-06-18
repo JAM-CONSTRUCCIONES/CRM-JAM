@@ -113,7 +113,9 @@ const ClientesPage = () => {
   const [clienteCedula, setClienteCedula] = useState<Cliente | null>(null);
   const [nuevaCedula, setNuevaCedula] = useState('');
   const [cambiandoCedula, setCambiandoCedula] = useState(false);
-  const nuevaCedulaInvalida = !!nuevaCedula.trim() && !/^\d+$/.test(nuevaCedula.trim());
+  const normalizarNuevaCedula = (value: string) => value.trim().toUpperCase();
+  const nuevaCedulaNormalizada = normalizarNuevaCedula(nuevaCedula);
+  const nuevaCedulaInvalida = !!nuevaCedulaNormalizada && !/^[A-Z0-9]+$/.test(nuevaCedulaNormalizada);
 
   // Modal eliminar cliente
   const [eliminarModal, setEliminarModal] = useState(false);
@@ -473,12 +475,12 @@ const ClientesPage = () => {
   const handleCambiarCedula = async () => {
     if (!clienteCedula || !nuevaCedula.trim()) return;
     if (nuevaCedulaInvalida) {
-      message.warning('La cedula solo debe contener numeros');
+      message.warning('La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos');
       return;
     }
     setCambiandoCedula(true);
     try {
-      await cambiarCedula(clienteCedula.cedula, nuevaCedula.trim());
+      await cambiarCedula(clienteCedula.cedula, nuevaCedulaNormalizada);
       message.success('Cambio de cédula iniciado. Actualizando datos en 5 segundos...');
       setCedulaModal(false);
       setClienteCedula(null);
@@ -1238,7 +1240,7 @@ const ClientesPage = () => {
               })}
             </Select>
           </Form.Item>
-          <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}><Input inputMode="numeric" placeholder="12345678" /></Form.Item>
+          <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}><Input placeholder="12345678 o AB123456" /></Form.Item>
           <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
           <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
           <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
@@ -1447,7 +1449,7 @@ const ClientesPage = () => {
         okText="Cambiar cédula"
         cancelText="Cancelar"
         confirmLoading={cambiandoCedula}
-        okButtonProps={{ disabled: !nuevaCedula.trim() || nuevaCedulaInvalida || nuevaCedula.trim() === clienteCedula?.cedula }}
+        okButtonProps={{ disabled: !nuevaCedulaNormalizada || nuevaCedulaInvalida || nuevaCedulaNormalizada === clienteCedula?.cedula }}
         width={460}
       >
         {clienteCedula && (
@@ -1470,17 +1472,16 @@ const ClientesPage = () => {
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Nueva cédula / pasaporte:</Text>
               <Input
                 autoFocus
-                placeholder="Ej: 12345678"
+                placeholder="Ej: 12345678 o AB123456"
                 value={nuevaCedula}
-                onChange={e => setNuevaCedula(e.target.value)}
+                onChange={e => setNuevaCedula(e.target.value.toUpperCase())}
                 onPressEnter={handleCambiarCedula}
                 status={nuevaCedulaInvalida ? 'error' : undefined}
-                inputMode="numeric"
               />
               {nuevaCedulaInvalida && (
-                <Text type="danger" style={{ fontSize: 12 }}>La cedula solo debe contener numeros</Text>
+                <Text type="danger" style={{ fontSize: 12 }}>La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos</Text>
               )}
-              {nuevaCedula.trim() === clienteCedula.cedula && (
+              {nuevaCedulaNormalizada === clienteCedula.cedula && (
                 <Text type="danger" style={{ fontSize: 12 }}>La nueva cédula debe ser diferente a la actual</Text>
               )}
             </div>

@@ -4,6 +4,7 @@ Paso 1: Validar que la transferencia es posible
 """
 import json
 import os
+import re
 import boto3
 from boto3.dynamodb.conditions import Key
 
@@ -535,9 +536,9 @@ def validar_cambio_cedula(event, context):
     Input: { cedula_antigua, cedula_nueva }
     """
     cedula_antigua = event['cedula_antigua']
-    cedula_nueva   = str(event['cedula_nueva']).strip()
-    if not cedula_nueva.isdigit():
-        return {'valido': False, 'error': 'La cédula nueva solo debe contener números'}
+    cedula_nueva   = str(event['cedula_nueva']).strip().upper()
+    if not re.match(r'^[A-Z0-9]+$', cedula_nueva):
+        return {'valido': False, 'error': 'La cedula/pasaporte nueva solo debe contener letras y numeros, sin guiones ni simbolos'}
 
     print(f"[VALIDAR_CEDULA] {cedula_antigua} → {cedula_nueva}")
 

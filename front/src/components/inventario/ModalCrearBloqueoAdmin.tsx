@@ -360,7 +360,7 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 />
                 
                 <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}>
-                  <Input inputMode="numeric" placeholder="12345678" />
+                  <Input placeholder="12345678 o AB123456" />
                 </Form.Item>
                 
                 <Row gutter={12}>

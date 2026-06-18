@@ -47,6 +47,20 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: los filtros de unidad, tipo y manzana/bloque ahora se comparan sin depender de mayusculas/minusculas, y el frontend envia los filtros sin espacios sobrantes.
 
+- [ ] Validar y normalizar datos al crear o editar unidades.
+
+  El formulario de unidad debe tener reglas de validacion similares a las aplicadas en clientes, para evitar datos incompletos, mal ubicados o con formato incorrecto.
+
+  Se debe validar:
+
+  - Campos numericos solo con numeros o decimales donde corresponda.
+  - Precios, metrajes, parqueos, habitaciones, banos y meses de cuota sin letras ni simbolos no permitidos.
+  - Campos de texto como unidad, tipo, bloque/manzana y etapa sin espacios sobrantes.
+  - Mensajes de error debajo del campo que esta fallando.
+  - Bloquear el guardado si hay campos invalidos.
+
+  Este cambio aplica al formulario de crear y editar unidades. No incluye limpieza masiva de unidades antiguas ya registradas.
+
 ### Clientes
 
 - [x] Validar y normalizar datos al crear o editar clientes.
@@ -57,12 +71,14 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   - El telefono debe guardarse sin simbolos.
   - El correo debe tener formato de correo valido y dominio con punto, por ejemplo ".com".
   - Nombre y apellido deben guardarse en mayuscula.
-  - La cedula solo debe aceptar numeros.
+  - La cedula/pasaporte solo debe aceptar letras y numeros, sin guiones ni simbolos.
   - No debe aceptarse que el telefono se coloque en el campo correo ni que el correo se coloque en el campo telefono.
 
   Este cambio aplica a la validacion del formulario y al guardado de datos. No incluye limpieza masiva de clientes antiguos, salvo los casos necesarios para probar la correccion.
 
-  Hecho: se agrego validacion y normalizacion en formularios de clientes, captacion publica/global, asignacion desde bloqueos y procesos. El frontend muestra el mensaje debajo de cada campo invalido y bloquea el guardado si nombres/apellidos tienen numeros o simbolos, si cedula o telefono tienen simbolos/letras, o si el correo no tiene formato valido con dominio con punto. El backend mantiene la validacion defensiva para rechazar datos invalidos y guarda nombres/apellidos en mayuscula.
+  Hecho: se agrego validacion y normalizacion en formularios de clientes, captacion publica/global, asignacion desde bloqueos y procesos. El frontend muestra el mensaje debajo de cada campo invalido y bloquea el guardado si nombres/apellidos tienen numeros o simbolos, si telefono tiene simbolos/letras, o si el correo no tiene formato valido con dominio con punto. El backend mantiene la validacion defensiva para rechazar datos invalidos y guarda nombres/apellidos en mayuscula.
+
+  Ajuste hecho: el campo cedula/pasaporte permite letras y numeros, guarda letras en mayuscula y rechaza guiones u otros simbolos con mensaje de error.
 
 - [x] Revisar el cliente de prueba dejado por el cliente.
 
@@ -209,24 +225,32 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: el envio de notificaciones ahora convierte los saltos de linea configurados en saltos visibles dentro del correo, manteniendo el formato de parrafos del mensaje.
 
+- [ ] Agregar modo visual oscuro.
+
+  Se agregara una opcion visual para usar el sistema en modo oscuro.
+
+  El modo oscuro debe aplicarse de forma general a la interfaz principal, manteniendo legibilidad en tablas, formularios, botones, modales, graficos y menus.
+
+  No cambia funcionalidades ni permisos del sistema. Es un ajuste visual de interfaz.
+
 
 ## Usuario inmobiliarias
 
 ### Dashboard
 
-- [ ] Agregar grafico basado en unidades bloqueadas, no disponibles y desvinculadas.
+- [ ] Ajustar grafico de inmobiliaria con unidades disponibles, bloqueadas y no disponibles.
 
-  El grafico debe considerar las unidades de la inmobiliaria que esten:
+  Para la estadistica del usuario inmobiliaria, el grafico debe considerar:
 
+  - Disponibles: unidades con estatus `disponible`.
   - Bloqueadas.
-  - No disponibles.
-  - Desvinculadas.
+  - No disponibles: unidades desde `reserva` en adelante, sin incluir procesos desvinculados.
 
-  Actualmente, cuando en procesos se marca una unidad como desvinculada, el sistema la vuelve a poner como disponible. Por eso no existe todavia una forma real de contar unidades desvinculadas en inventario.
+  Los procesos desvinculados no se contaran como unidades no disponibles, porque al desvincular un cliente/proceso la unidad vuelve a estar disponible para poder venderse nuevamente.
 
-  Se propone agregar una opcion o estado llamado "Desvinculada de JAM" para representar una desvinculacion real. La opcion actual de desvincular se mantiene como esta si solo libera la unidad.
+  No se creara un nuevo estado llamado "Desvinculada de JAM".
 
-  Este punto requiere confirmacion antes de implementarse, porque cambia la forma en que el inventario identifica una unidad desvinculada.
+  Los clientes/procesos desvinculados seguiran visibles como registros del proceso con estatus `desvinculado`, pero no cambiaran el conteo operativo de unidades disponibles/no disponibles.
 
 ### Proyecto
 
@@ -282,9 +306,9 @@ URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
 
   No incluye validar legalmente documentos por pais ni limpiar toda la data historica ya registrada.
 
-  Avance: las listas desplegables de estado civil, pais de residencia y nacionalidad ya fueron agregadas en los formularios de clientes/captacion. Las validaciones generales de telefono, correo, nombres y cedula numerica tambien estan aplicadas.
+  Avance: las listas desplegables de estado civil, pais de residencia y nacionalidad ya fueron agregadas en los formularios de clientes/captacion. Las validaciones generales de telefono, correo, nombres y cedula/pasaporte alfanumerico tambien estan aplicadas.
 
-  Pendiente de definicion: el texto menciona cedula/pasaporte alfanumerico, pero la regla actualmente implementada y usada por el sistema es cedula numerica. Si se requiere pasaporte con letras, se debe confirmar como ajuste adicional de la regla de identificacion.
+  Confirmado: el campo cedula/pasaporte debe aceptar letras y numeros, sin guiones ni simbolos. Las letras se guardaran en mayuscula.
 
 - [ ] Revisar cliente registrado por inmobiliaria que no aparece en administrativo.
 
@@ -297,12 +321,6 @@ URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
   La inmobiliaria debe recibir la notificacion "Cliente Captado" al registrar un cliente.
 
   Este envio depende de que el correo de la inmobiliaria este correctamente configurado y verificado.
-
-## Pendientes por confirmar antes de implementar
-
-- [ ] Confirmar si se implementa el nuevo estado "Desvinculada de JAM".
-- [ ] Confirmar nombres exactos de estatus usados en base de datos y pantalla.
-- [ ] Confirmar si se permitira pasaporte alfanumerico ademas de cedula numerica.
 
 ## Nota de alcance
 

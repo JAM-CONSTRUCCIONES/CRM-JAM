@@ -3,7 +3,7 @@ import { isNacionalidadValida, isPaisValido } from '../constants/catalogosClient
 const EMAIL_REGEX = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 const NAME_REGEX = /^[\p{L}\s]+$/u;
 const PHONE_REGEX = /^\d+$/;
-const CEDULA_REGEX = /^\d+$/;
+const CEDULA_REGEX = /^[A-Z0-9]+$/;
 
 const cleanSpaces = (value?: unknown) =>
   String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -21,13 +21,13 @@ export const normalizeClientPhone = (value?: unknown) =>
   cleanSpaces(value);
 
 export const normalizeClientCedula = (value?: unknown) =>
-  cleanSpaces(value);
+  cleanSpaces(value).toLocaleUpperCase('es-VE');
 
 const validateClientCedula = (value?: unknown) => {
   const cedula = normalizeClientCedula(value);
   if (!cedula) return;
   if (!CEDULA_REGEX.test(cedula)) {
-    throw new Error('La cedula solo debe contener numeros');
+    throw new Error('La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos');
   }
 };
 
@@ -71,7 +71,7 @@ export const clienteFieldNormalizers = {
 
 export const clienteFormRules = {
   cedula: [
-    { required: true, message: 'Ingresa la cedula' },
+    { required: true, message: 'Ingresa la cedula o pasaporte' },
     {
       validator: (_: unknown, value?: string) => {
         try {

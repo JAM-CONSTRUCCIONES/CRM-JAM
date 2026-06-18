@@ -47,7 +47,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: los filtros de unidad, tipo y manzana/bloque ahora se comparan sin depender de mayusculas/minusculas, y el frontend envia los filtros sin espacios sobrantes.
 
-- [ ] Validar y normalizar datos al crear o editar unidades.
+- [x] Validar y normalizar datos al crear o editar unidades.
 
   El formulario de unidad debe tener reglas de validacion similares a las aplicadas en clientes, para evitar datos incompletos, mal ubicados o con formato incorrecto.
 
@@ -60,6 +60,8 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
   - Bloquear el guardado si hay campos invalidos.
 
   Este cambio aplica al formulario de crear y editar unidades. No incluye limpieza masiva de unidades antiguas ya registradas.
+
+  Hecho: el formulario de crear/editar unidades muestra errores debajo de cada campo invalido, normaliza los campos de texto a mayuscula y sin espacios sobrantes, valida campos numericos y enteros donde corresponde, y bloquea el guardado si hay datos invalidos. El backend tambien valida y normaliza antes de guardar para evitar datos inconsistentes si se omite el formulario.
 
 ### Clientes
 
@@ -292,7 +294,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
 
-- [ ] Agregar listas desplegables y validaciones para evitar datos inconsistentes.
+- [x] Agregar listas desplegables y validaciones para evitar datos inconsistentes.
 
   Se agregaran listas desplegables para campos como estado civil, pais de residencia y pais de nacionalidad. Esto evita registros duplicados o inconsistentes como "USA" y "Estados Unidos".
 
@@ -311,6 +313,8 @@ URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
   Avance: las listas desplegables de estado civil, pais de residencia y nacionalidad ya fueron agregadas en los formularios de clientes/captacion. Las validaciones generales de telefono, correo, nombres y cedula/pasaporte alfanumerico tambien estan aplicadas.
 
   Confirmado: el campo cedula/pasaporte debe aceptar letras y numeros, sin guiones ni simbolos. Las letras se guardaran en mayuscula.
+
+  Hecho: este punto ya queda cubierto con las listas desplegables y validaciones aplicadas. Los demas puntos descritos no requieren cambios adicionales de sistema.
 
 - [ ] Revisar cliente registrado por inmobiliaria que no aparece en administrativo.
 

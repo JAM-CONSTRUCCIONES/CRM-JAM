@@ -3,6 +3,7 @@ import uuid
 import boto3
 import os
 import base64
+import re
 from decimal import Decimal
 from datetime import datetime, timezone
 from boto3.dynamodb.conditions import Key, Attr
@@ -13,6 +14,108 @@ from utils.helpers import now
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 _procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
 _usuarios_table_name = os.environ.get('USUARIOS_TABLE', '')
+
+_TEXT_ALLOWED_CHARS = set(' -./#')
+
+
+def _clean_text(value):
+    return re.sub(r'\s+', ' ', str(value or '')).strip().upper()
+
+
+def _validate_text(value, field_name, required=False):
+    text = _clean_text(value)
+    if not text:
+        if required:
+            raise ValueError(f'{field_name} es requerido')
+        return None
+    if not all(ch.isalnum() or ch in _TEXT_ALLOWED_CHARS for ch in text):
+        raise ValueError(f'{field_name} solo debe contener letras, numeros, espacios y caracteres permitidos')
+    return text
+
+
+def _validate_comment(value):
+    text = _clean_text(value)
+    if not text:
+        return None
+    if len(text) > 1000:
+        raise ValueError('comentario no debe superar 1000 caracteres')
+    return text
+
+
+def _parse_decimal(value, field_name, required=False):
+    if value in (None, ''):
+        if required:
+            raise ValueError(f'{field_name} es requerido')
+        return None
+    try:
+        number = Decimal(str(value))
+    except Exception:
+        raise ValueError(f'{field_name} debe ser numerico')
+    if not number.is_finite() or number < 0:
+        raise ValueError(f'{field_name} debe ser mayor o igual a 0')
+    return number
+
+
+def _parse_integer(value, field_name, required=False, min_value=0):
+    number = _parse_decimal(value, field_name, required)
+    if number is None:
+        return None
+    if number != number.to_integral_value() or number < min_value:
+        raise ValueError(f'{field_name} debe ser un entero mayor o igual a {min_value}')
+    return number
+
+
+def _normalizar_body_unidad(body, require_base=False):
+    data = {}
+
+    if require_base or 'id_unidad' in body:
+        id_unidad = _validate_text(body.get('id_unidad'), 'id_unidad', require_base or 'id_unidad' in body)
+        if id_unidad is not None:
+            data['id_unidad'] = id_unidad
+
+    if require_base or 'etapa_id' in body:
+        etapa_id = str(body.get('etapa_id') or '').strip()
+        if require_base and not etapa_id:
+            raise ValueError('etapa_id es requerido')
+        if etapa_id:
+            data['etapa_id'] = etapa_id
+
+    if require_base or 'metraje' in body:
+        data['metraje'] = _parse_decimal(body.get('metraje'), 'metraje', require_base)
+
+    if require_base or 'precio' in body:
+        data['precio'] = _parse_decimal(body.get('precio'), 'precio', require_base)
+
+    for campo in ('tipo', 'manzana', 'piso'):
+        if campo in body:
+            text = _validate_text(body.get(campo), campo)
+            if text is not None:
+                data[campo] = text
+
+    if 'comentario' in body:
+        comentario = _validate_comment(body.get('comentario'))
+        if comentario is not None:
+            data['comentario'] = comentario
+
+    for campo in ('metraje_terraza', 'metraje_patio', 'precio_reserva', 'precio_separacion',
+                  'precio_inicial', 'cuota_monto', 'contra_entrega'):
+        if campo in body:
+            number = _parse_decimal(body.get(campo), campo)
+            if number is not None:
+                data[campo] = number
+
+    for campo in ('parqueos', 'num_cuartos', 'num_banos'):
+        if campo in body:
+            number = _parse_integer(body.get(campo), campo)
+            if number is not None:
+                data[campo] = number
+
+    if 'cuota_meses' in body:
+        number = _parse_integer(body.get('cuota_meses'), 'cuota_meses', min_value=1)
+        if number is not None:
+            data['cuota_meses'] = number
+
+    return data
 
 
 def _normalizar_inmo_id(value):
@@ -220,13 +323,17 @@ def detalle(proyecto_id, unidad_id, rol, event=None):
 
 def crear(proyecto_id, event):
     body = json.loads(event.get('body') or '{}')
+    try:
+        body = _normalizar_body_unidad(body, require_base=True)
+    except ValueError as e:
+        return bad_request(str(e))
 
     id_unidad = (body.get('id_unidad') or '').strip()
     etapa_id = body.get('etapa_id')
     metraje = body.get('metraje')
     precio = body.get('precio')
 
-    if not all([id_unidad, etapa_id, metraje, precio]):
+    if not id_unidad or not etapa_id or metraje is None or precio is None:
         return bad_request('Campos requeridos: id_unidad, etapa_id, metraje, precio')
 
     # Validar que el proyecto existe y está activo (#6)
@@ -288,6 +395,10 @@ def crear(proyecto_id, event):
 
 def actualizar(proyecto_id, unidad_id, event):
     body = json.loads(event.get('body') or '{}')
+    try:
+        body = _normalizar_body_unidad(body)
+    except ValueError as e:
+        return bad_request(str(e))
 
     updates, values, names = [], {}, {}
 

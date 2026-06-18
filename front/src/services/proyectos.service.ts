@@ -3,6 +3,29 @@ import type { Proyecto, Unidad, Etapa } from '../types';
 
 const cleanFilter = (value?: string) => value?.trim();
 
+type UnidadPayload = Partial<Pick<
+  Unidad,
+  | 'id_unidad'
+  | 'etapa_id'
+  | 'metraje'
+  | 'metraje_terraza'
+  | 'metraje_patio'
+  | 'precio'
+  | 'precio_reserva'
+  | 'precio_separacion'
+  | 'precio_inicial'
+  | 'cuota_monto'
+  | 'cuota_meses'
+  | 'contra_entrega'
+  | 'tipo'
+  | 'manzana'
+  | 'piso'
+  | 'parqueos'
+  | 'num_cuartos'
+  | 'num_banos'
+  | 'comentario'
+>>;
+
 export const getProyectos = (): Promise<Proyecto[]> =>
   apiGet<Proyecto[]>('/proyectos');
 
@@ -66,14 +89,14 @@ export const getUnidad = (proyectoId: string, unidadId: string): Promise<Unidad>
 
 export const crearUnidad = (
   proyectoId: string,
-  data: { id_unidad: string; etapa_id: string; metraje: number; precio: number; tipo?: string; manzana?: string; piso?: string }
+  data: UnidadPayload & { id_unidad: string; etapa_id: string; metraje: number; precio: number }
 ): Promise<Unidad> =>
   apiPost<Unidad>(`/admin/proyectos/${proyectoId}/unidades`, data);
 
 export const actualizarUnidad = (
   proyectoId: string,
   unidadId: string,
-  data: { id_unidad?: string; etapa_id?: string; metraje?: number; precio?: number; tipo?: string; manzana?: string; piso?: string }
+  data: UnidadPayload
 ): Promise<void> =>
   apiPut(`/admin/proyectos/${proyectoId}/unidades/${unidadId}`, data);
 

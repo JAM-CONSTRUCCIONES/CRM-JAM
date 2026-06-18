@@ -13,25 +13,68 @@ scheduler_client = boto3.client('scheduler')
 clientes_table = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 procesos_table = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 inventario_table = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
+HISTORIAL_TABLE = os.environ.get('HISTORIAL_TABLE', '')
+historial_table = dynamodb.Table(HISTORIAL_TABLE) if HISTORIAL_TABLE else None
 SQS_URL = os.environ['SQS_URL']
 SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
 CRM_LAMBDA_ARN = os.environ.get('CRM_LAMBDA_ARN', '')
+BLOQUEOS_LAMBDA_ARN = os.environ.get('BLOQUEOS_LAMBDA_ARN', '')
 
 DIAS_SEPARACION = 30
+HORAS_BLOQUEO = 48
+HORAS_ALERTA_BLOQUEO = 43
 
 TRANSICIONES = {
     'captacion':       ['reserva', 'desvinculado'],
     'reserva':         ['separacion', 'desvinculado', 'captacion'],
-    'separacion':      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva'],
-    'inicial':         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion'],
+    'separacion':      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva', 'captacion'],
+    'inicial':         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion', 'reserva'],
     'pagos_atrasados': ['inicial', 'contra_entrega', 'desvinculado', 'separacion'],
-    'contra_entrega':  ['vendida', 'desvinculado', 'inicial'],
+    'contra_entrega':  ['vendida', 'desvinculado', 'inicial', 'pagos_atrasados'],
     'vendida':         ['contra_entrega'],
 }
 
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _schedule_name_bloqueo(unidad_id, suffix):
+    safe = unidad_id.replace('/', '-').replace('#', '-')
+    return f"bloqueo-{safe}-{suffix}"
+
+
+def _cancelar_schedules_bloqueo(unidad_id):
+    for suffix in ('alerta', 'liberacion'):
+        try:
+            scheduler_client.delete_schedule(Name=_schedule_name_bloqueo(unidad_id, suffix))
+        except Exception:
+            pass
+
+
+def _crear_schedules_bloqueo(unidad_id, proyecto_id, ts_liberacion_iso, ts_alerta_iso):
+    if not SCHEDULER_ROLE_ARN or not BLOQUEOS_LAMBDA_ARN:
+        return
+    payload_base = {'unidad_id': unidad_id, 'proyecto_id': proyecto_id}
+    for suffix, at_time, accion in (
+        ('alerta', ts_alerta_iso, 'alerta_vencimiento'),
+        ('liberacion', ts_liberacion_iso, 'liberar_automatico'),
+    ):
+        try:
+            scheduler_client.create_schedule(
+                Name=_schedule_name_bloqueo(unidad_id, suffix),
+                ScheduleExpression=f"at({at_time})",
+                ScheduleExpressionTimezone='UTC',
+                FlexibleTimeWindow={'Mode': 'OFF'},
+                Target={
+                    'Arn': BLOQUEOS_LAMBDA_ARN,
+                    'RoleArn': SCHEDULER_ROLE_ARN,
+                    'Input': json.dumps({**payload_base, 'accion': accion}),
+                },
+                ActionAfterCompletion='DELETE',
+            )
+        except Exception as e:
+            print(f'_crear_schedules_bloqueo error {suffix}: {type(e).__name__}: {e}')
 
 
 def _schedule_name_separacion(cedula, unidad_id):
@@ -371,6 +414,119 @@ def sched_eliminar_bloqueo(unidad_id):
             pass  # Ya expiró o no existe — no es crítico
 
 
+def _registrar_historial_bloqueo(proyecto_id, unidad_id, unidad_nombre, inmobiliaria_id, cedula, fecha_bloqueo, fecha_liberacion):
+    if not historial_table:
+        return
+    try:
+        historial_table.put_item(Item={
+            'pk': f'UNIDAD#{unidad_id}',
+            'sk': f'BLOQUEO#{fecha_bloqueo}',
+            'proyecto_id': proyecto_id,
+            'unidad_id': unidad_id,
+            'unidad_nombre': unidad_nombre,
+            'inmobiliaria_id': inmobiliaria_id,
+            'fecha_bloqueo': fecha_bloqueo,
+            'fecha_liberacion': fecha_liberacion,
+            'motivo_liberacion': None,
+            'cliente_cedula': cedula,
+            'origen': 'reversa_estatus',
+        })
+    except Exception as e:
+        print(f'_registrar_historial_bloqueo error: {type(e).__name__}: {e}')
+
+
+def _activar_bloqueo_desde_proceso(cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre):
+    ahora_dt = datetime.now(timezone.utc)
+    fecha_bloqueo = ahora_dt.isoformat()
+    fecha_liberacion = (ahora_dt + timedelta(hours=HORAS_BLOQUEO)).isoformat()
+    fecha_alerta = (ahora_dt + timedelta(hours=HORAS_ALERTA_BLOQUEO)).isoformat()
+    inmo_clean = inmobiliaria_id.replace('INMOBILIARIA#', '')
+
+    _cancelar_schedules_bloqueo(unidad_id)
+    inventario_table.update_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'},
+        UpdateExpression=(
+            'SET estado = :estado, bloqueado_por = :inmo, cliente_cedula = :cedula, '
+            'fecha_bloqueo = :fb, fecha_liberacion = :fl, actualizado_en = :ts'
+        ),
+        ExpressionAttributeValues={
+            ':estado': 'bloqueada',
+            ':inmo': inmo_clean,
+            ':cedula': cedula,
+            ':fb': fecha_bloqueo,
+            ':fl': fecha_liberacion,
+            ':ts': fecha_bloqueo,
+        },
+    )
+    _crear_schedules_bloqueo(unidad_id, proyecto_id, fecha_liberacion[:19], fecha_alerta[:19])
+    _registrar_historial_bloqueo(proyecto_id, unidad_id, unidad_nombre, inmo_clean, cedula, fecha_bloqueo, fecha_liberacion)
+
+
+def _marcar_unidad_no_disponible(proyecto_id, unidad_id):
+    _cancelar_schedules_bloqueo(unidad_id)
+    inventario_table.update_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'},
+        UpdateExpression=(
+            'SET estado = :estado, actualizado_en = :ts '
+            'REMOVE bloqueado_por, fecha_bloqueo, fecha_liberacion'
+        ),
+        ExpressionAttributeValues={
+            ':estado': 'no_disponible',
+            ':ts': datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+def _marcar_unidad_vendida(proyecto_id, unidad_id):
+    _cancelar_schedules_bloqueo(unidad_id)
+    inventario_table.update_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'},
+        UpdateExpression=(
+            'SET estado = :estado, actualizado_en = :ts '
+            'REMOVE bloqueado_por, fecha_bloqueo, fecha_liberacion'
+        ),
+        ExpressionAttributeValues={
+            ':estado': 'vendida',
+            ':ts': datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+def _liberar_unidad_por_desvinculacion(proyecto_id, unidad_id):
+    _cancelar_schedules_bloqueo(unidad_id)
+    inventario_table.update_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'},
+        UpdateExpression=(
+            'SET estado = :estado, actualizado_en = :ts '
+            'REMOVE bloqueado_por, cliente_cedula, fecha_bloqueo, fecha_liberacion'
+        ),
+        ExpressionAttributeValues={
+            ':estado': 'disponible',
+            ':ts': datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+def _limpiar_campos_separacion(pk, sk):
+    try:
+        procesos_table.update_item(
+            Key={'pk': pk, 'sk': sk},
+            UpdateExpression='REMOVE fecha_separacion, alerta_separacion_vencida',
+        )
+    except Exception:
+        pass
+
+
+def _limpiar_pago_confirmado(pk, sk):
+    try:
+        procesos_table.update_item(
+            Key={'pk': pk, 'sk': sk},
+            UpdateExpression='REMOVE pago_confirmado',
+        )
+    except Exception:
+        pass
+
+
 def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
     """PUT /admin/clientes/{cedula}/proyecto/{id}/unidad/{uid}/estatus"""
     body = json.loads(event.get('body') or '{}')
@@ -407,12 +563,12 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
 
     # Fix #5: validar que la unidad sigue disponible/bloqueada antes de reservar
     # y que si está bloqueada, es por la misma inmobiliaria
-    if nuevo_estatus == 'reserva':
+    if nuevo_estatus == 'reserva' and estatus_actual == 'captacion':
         unidad = inventario_table.get_item(
             Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'}
         ).get('Item', {})
         estado_unidad = unidad.get('estado')
-        if estado_unidad not in ('disponible', 'bloqueada'):
+        if estado_unidad not in ('disponible', 'bloqueada', 'no_disponible'):
             return conflict(
                 f"La unidad no está disponible para reservar (estado actual: {estado_unidad})"
             )
@@ -456,15 +612,21 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
 
     # Actualizar unidad en inventario y manejar schedules según estado destino
     if nuevo_estatus == 'reserva':
-        sched_eliminar_bloqueo(unidad_id)
-        _cancelar_alerta_separacion(cedula, unidad_id)  # por si retrocede desde separacion
-        _actualizar_unidad(proyecto_id, unidad_id, 'no_disponible')
-    elif nuevo_estatus == 'captacion':
-        # Retroceso: cancelar todo lo que pudo haberse creado
         _cancelar_alerta_separacion(cedula, unidad_id)
-        _actualizar_unidad(proyecto_id, unidad_id, 'no_disponible')
+        _limpiar_campos_separacion(pk, sk)
+        _limpiar_pago_confirmado(pk, sk)
+        _marcar_unidad_no_disponible(proyecto_id, unidad_id)
+    elif nuevo_estatus == 'captacion':
+        _cancelar_alerta_separacion(cedula, unidad_id)
+        _limpiar_campos_separacion(pk, sk)
+        _limpiar_pago_confirmado(pk, sk)
+        _activar_bloqueo_desde_proceso(
+            cedula, inmobiliaria_id, proyecto_id, unidad_id,
+            proceso.get('unidad_nombre', unidad_id)
+        )
     elif nuevo_estatus == 'separacion':
-        # Cancelar alerta previa (si retrocede desde inicial) y crear nueva
+        _limpiar_pago_confirmado(pk, sk)
+        _marcar_unidad_no_disponible(proyecto_id, unidad_id)
         _cancelar_alerta_separacion(cedula, unidad_id)
         procesos_table.update_item(
             Key={'pk': pk, 'sk': sk},
@@ -476,6 +638,7 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
             proceso.get('unidad_nombre', unidad_id)
         )
     elif nuevo_estatus == 'inicial':
+        _marcar_unidad_no_disponible(proyecto_id, unidad_id)
         _cancelar_alerta_separacion(cedula, unidad_id)
         procesos_table.update_item(
             Key={'pk': pk, 'sk': sk},
@@ -483,12 +646,16 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
             ExpressionAttributeValues={':v': True},
         )
     elif nuevo_estatus in ('pagos_atrasados', 'contra_entrega'):
-        pass
+        _cancelar_alerta_separacion(cedula, unidad_id)
+        _marcar_unidad_no_disponible(proyecto_id, unidad_id)
     elif nuevo_estatus == 'vendida':
-        _actualizar_unidad(proyecto_id, unidad_id, 'vendida')
+        _cancelar_alerta_separacion(cedula, unidad_id)
+        _marcar_unidad_vendida(proyecto_id, unidad_id)
     elif nuevo_estatus == 'desvinculado':
         _cancelar_alerta_separacion(cedula, unidad_id)
-        _actualizar_unidad(proyecto_id, unidad_id, 'disponible')
+        _limpiar_campos_separacion(pk, sk)
+        _limpiar_pago_confirmado(pk, sk)
+        _liberar_unidad_por_desvinculacion(proyecto_id, unidad_id)
 
     # Publicar a SQS para TK-08
     cliente = clientes_table.get_item(

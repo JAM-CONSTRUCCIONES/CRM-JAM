@@ -12,10 +12,10 @@ export type ModoNotificacion = false | 'admin' | 'todos';
 const TRANSICIONES: Record<string, string[]> = {
   captacion:       ['reserva', 'desvinculado'],
   reserva:         ['separacion', 'desvinculado', 'captacion'],
-  separacion:      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva'],
-  inicial:         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion'],
+  separacion:      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva', 'captacion'],
+  inicial:         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion', 'reserva'],
   pagos_atrasados: ['inicial', 'contra_entrega', 'desvinculado', 'separacion'],
-  contra_entrega:  ['vendida', 'desvinculado', 'inicial'],
+  contra_entrega:  ['vendida', 'desvinculado', 'inicial', 'pagos_atrasados'],
   vendida:         ['contra_entrega'],
 };
 

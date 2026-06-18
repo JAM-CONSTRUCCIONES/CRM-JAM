@@ -531,15 +531,18 @@ export class JamStack extends cdk.Stack {
         CLIENTES_TABLE: clientesTable.tableName,
         PROCESOS_TABLE: procesosTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,
+        HISTORIAL_TABLE: historialTable.tableName,
         SQS_URL: notificacionesQueue.queueUrl,
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         CRM_LAMBDA_ARN: crmLambdaArn,
+        BLOQUEOS_LAMBDA_ARN: bloqueosLambdaArn,
       },
     });
 
     clientesTable.grantReadData(crmLambda);
     procesosTable.grantReadWriteData(crmLambda);
     inventarioTable.grantReadWriteData(crmLambda);
+    historialTable.grantReadWriteData(crmLambda);
     notificacionesQueue.grantSendMessages(crmLambda);
 
     crmLambda.addToRolePolicy(new iam.PolicyStatement({

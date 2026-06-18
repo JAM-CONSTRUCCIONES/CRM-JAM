@@ -496,7 +496,7 @@ const ProcesosPage = () => {
 
   const renderTarjetaProceso = (p: ProcesoEnriquecido) => {
     const { vencida, proxima, dias } = alertaInfo(p);
-    const puedeAvanzar = !esInmobiliaria && p.estado !== 'vendida' && p.estado !== 'desvinculado';
+    const puedeAvanzar = !esInmobiliaria && p.estado !== 'desvinculado';
     const esBloqueada = isUnidadBloqueada(p);
     
     // Calcular tiempo restante si está bloqueada
@@ -596,7 +596,7 @@ const ProcesosPage = () => {
 
   const renderFilaProceso = (p: ProcesoEnriquecido) => {
     const { vencida, proxima } = alertaInfo(p);
-    const puedeAvanzar = !esInmobiliaria && p.estado !== 'vendida' && p.estado !== 'desvinculado';
+    const puedeAvanzar = !esInmobiliaria && p.estado !== 'desvinculado';
     const esBloqueada = isUnidadBloqueada(p);
     
     // Calcular tiempo restante si está bloqueada

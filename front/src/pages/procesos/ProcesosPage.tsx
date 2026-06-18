@@ -12,7 +12,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { listarTodosProcesos, cambiarEstatus, getMisProcesos, type ProcesoEnriquecido } from '../../services/crm.service';
-import { getProyectos, getUnidades, getEtapas } from '../../services/proyectos.service';
+import { getProyectos, getUnidad, getEtapas } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import { extenderBloqueo, getBloquesActivos, bloquearUnidad, liberarBloqueo, getHistorialBloqueos } from '../../services/bloqueos.service';
 import { getClientesAdmin } from '../../services/clientes.service';
@@ -80,14 +80,13 @@ const ProcesosPage = () => {
     setLoadingUnidad(true);
     setDrawerProyectoId(proyectoId);
     try {
-      const [items, etapas] = await Promise.all([
-        getUnidades(proyectoId, { limit: 1000 }),
+      const [unidad, etapas] = await Promise.all([
+        getUnidad(proyectoId, unidadId),
         getEtapas(proyectoId).catch(() => [] as Etapa[]),
       ]);
-      const found = items.find(u => u.unidad_id === unidadId || u.id_unidad === unidadId);
-      setUnidadDrawer(found ?? null);
+      setUnidadDrawer(unidad ?? null);
       setEtapasDrawer(etapas);
-      if (!found) message.warning('No se encontraron detalles de la unidad');
+      if (!unidad) message.warning('No se encontraron detalles de la unidad');
     } catch {
       message.error('Error al cargar detalles de la unidad');
     } finally {
@@ -1244,7 +1243,7 @@ const ProcesosPage = () => {
             </Descriptions>
 
             {/* Comentario */}
-            {unidadDrawer.comentario && (
+            {!esInmobiliaria && unidadDrawer.comentario && (
               <Descriptions title="Notas" bordered size="small" column={1}>
                 <Descriptions.Item label="Comentario">{unidadDrawer.comentario}</Descriptions.Item>
               </Descriptions>

@@ -49,7 +49,7 @@ def handler(event, context):
             return unidades.listar(proyecto_id, event, rol)
 
         if method == 'GET' and unidad_id:
-            return unidades.detalle(proyecto_id, unidad_id, rol)
+            return unidades.detalle(proyecto_id, unidad_id, rol, event)
 
         # ===== ADMIN: guard =====
         if is_admin and not require_admin(event):

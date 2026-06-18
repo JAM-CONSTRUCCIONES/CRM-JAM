@@ -7,11 +7,66 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
-from utils.response import ok, created, bad_request, not_found, conflict
+from utils.response import ok, created, bad_request, not_found, conflict, forbidden
 from utils.helpers import now
 
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 _procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
+_usuarios_table_name = os.environ.get('USUARIOS_TABLE', '')
+
+
+def _normalizar_inmo_id(value):
+    return str(value or '').replace('INMOBILIARIA#', '').strip()
+
+
+def _get_claims(event):
+    return (event or {}).get('requestContext', {}).get('authorizer', {}).get('claims', {})
+
+
+def _get_inmobiliaria_id_event(event):
+    claims = _get_claims(event)
+    if claims.get('custom:inmobiliaria_id'):
+        return _normalizar_inmo_id(claims.get('custom:inmobiliaria_id'))
+
+    sub = claims.get('sub')
+    if not sub or not _usuarios_table_name:
+        return ''
+    try:
+        usuarios = boto3.resource('dynamodb').Table(_usuarios_table_name)
+        usuario = usuarios.get_item(
+            Key={'pk': f'USUARIO#{sub}', 'sk': 'METADATA'}
+        ).get('Item', {})
+        return _normalizar_inmo_id(usuario.get('inmobiliaria_id') or sub)
+    except Exception as e:
+        print(f'Error resolviendo inmobiliaria del usuario {sub}: {e}')
+        return _normalizar_inmo_id(sub)
+
+
+def _inmobiliaria_tiene_proceso_unidad(proyecto_id, unidad_id, rol, event):
+    if rol != 'inmobiliaria':
+        return True
+    if not _procesos_table_name:
+        return False
+
+    inmo_id = _get_inmobiliaria_id_event(event)
+    if not inmo_id:
+        return False
+    inmo_variants = {inmo_id, f'INMOBILIARIA#{inmo_id}'}
+
+    procesos = boto3.resource('dynamodb').Table(_procesos_table_name)
+    try:
+        result = procesos.query(
+            IndexName='gsi-proyecto-procesos',
+            KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
+            FilterExpression=Attr('unidad_id').eq(unidad_id),
+        )
+        for proceso in result.get('Items', []):
+            if _normalizar_inmo_id(proceso.get('inmobiliaria_id')) in inmo_variants:
+                return True
+    except Exception as e:
+        print(f'Error verificando proceso relacionado para unidad {unidad_id}: {e}')
+        return False
+    return False
 
 
 def _case_variants(value):
@@ -144,7 +199,7 @@ def listar(proyecto_id, event, rol):
     return ok(response_data)
 
 
-def detalle(proyecto_id, unidad_id, rol):
+def detalle(proyecto_id, unidad_id, rol, event=None):
     result = inventario.get_item(
         Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'}
     )
@@ -153,6 +208,8 @@ def detalle(proyecto_id, unidad_id, rol):
         return not_found('Unidad no encontrada')
 
     if rol == 'inmobiliaria':
+        if not _inmobiliaria_tiene_proceso_unidad(proyecto_id, unidad_id, rol, event):
+            return forbidden('No tienes permisos para ver esta unidad')
         item.pop('bloqueado_por', None)
         item.pop('cliente_id', None)
         item.pop('cliente_cedula', None)

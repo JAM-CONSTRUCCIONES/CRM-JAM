@@ -280,11 +280,13 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
 ### Proceso de venta
 
-- [ ] Corregir visibilidad y permisos del icono de informacion.
+- [x] Corregir visibilidad y permisos del icono de informacion.
 
   La inmobiliaria podra ver informacion solo de unidades con las cuales tiene procesos relacionados.
 
   Al seleccionar el icono de informacion, se deben mostrar los datos de la unidad. No se debe mostrar el comentario interno.
+
+  Hecho: el icono de informacion en Procesos carga el detalle directo de la unidad asociada. Para usuarios inmobiliaria, el backend valida que exista un proceso relacionado con esa inmobiliaria antes de devolver el detalle y oculta informacion interna como comentario, cliente y datos internos de bloqueo.
 
 ## Captacion / Registro de interes
 

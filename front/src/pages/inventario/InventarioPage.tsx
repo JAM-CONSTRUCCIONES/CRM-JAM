@@ -430,6 +430,7 @@ const InventarioPage = () => {
                 inv.cargarUnidades(undefined, { estado: nuevoValor });
               }}>
               {Object.entries(ESTADO_UNIDAD_CONFIG)
+                .filter(([k]) => k !== 'desvinculada')
                 .filter(([k]) => !isInmobiliariaEffective || k === 'disponible' || k === 'bloqueada')
                 .map(([k, v]) => (
                   <Option key={k} value={k}>

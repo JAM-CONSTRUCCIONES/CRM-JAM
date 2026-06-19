@@ -32,14 +32,14 @@ const SummaryTable = ({
 }) => (
   <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
     <thead>
-      <tr style={{ background: '#BDD7EE' }}>
+      <tr style={{ background: 'var(--summary-head-bg)' }}>
         <th style={th}>{col1}</th>
         <th style={{ ...th, textAlign: 'right' }}>{col2}</th>
       </tr>
     </thead>
     <tbody>
       {rows.map((r, i) => (
-        <tr key={i} style={{ background: r.bold ? '#BDD7EE' : i % 2 === 0 ? '#fff' : '#f5f5f5' }}>
+        <tr key={i} style={{ background: r.bold ? 'var(--summary-head-bg)' : i % 2 === 0 ? 'var(--summary-row-bg)' : 'var(--summary-row-alt-bg)' }}>
           <td style={{ ...td, fontWeight: r.bold ? 700 : 400 }}>{r.label}</td>
           <td style={{ ...td, textAlign: 'right', fontWeight: r.bold ? 700 : 400 }}>{r.value}</td>
         </tr>
@@ -50,13 +50,31 @@ const SummaryTable = ({
 
 const th: React.CSSProperties = {
   padding: '5px 10px', textAlign: 'left', fontWeight: 600,
-  border: '1px solid #9DC3E6', fontSize: 13,
+  border: '1px solid var(--summary-border)', fontSize: 13,
+  color: 'var(--text-main)',
 };
 const td: React.CSSProperties = {
-  padding: '4px 10px', border: '1px solid #ddd',
+  padding: '4px 10px', border: '1px solid var(--summary-border)',
+  color: 'var(--text-main)',
 };
 
 // ── Página principal ──────────────────────────────────────────────────────────
+const DashboardSection = ({
+  title, description, children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) => (
+  <section style={{ marginBottom: 28 }}>
+    <div style={{ marginBottom: 12 }}>
+      <Title level={5} style={{ margin: 0 }}>{title}</Title>
+      {description && <Text type="secondary" style={{ fontSize: 13 }}>{description}</Text>}
+    </div>
+    {children}
+  </section>
+);
+
 const DashboardPage = () => {
   const { usuario } = useAuth();
   const isAdmin = usuario?.rol === 'admin';
@@ -161,22 +179,36 @@ const DashboardContent = ({
           ventas_por_piso, ventas_por_metraje, demograficos } = data;
 
   // ── 1. Estatus de unidades (torta) ────────────────────────────────────────
-  const estatusData = [
-    { name: 'BLOQUEADO',       value: unidad_stats.bloqueada,      color: BLUE   },
-    { name: 'DISPONIBLE',      value: unidad_stats.disponible,     color: ORANGE },
-    { name: 'NO DISPONIBLE',   value: unidad_stats.no_disponible,  color: GREEN  },
-    { name: 'VENDIDA',         value: unidad_stats.vendida,        color: PURPLE },
-    { name: 'DESVINCULADA',    value: unidad_stats.desvinculada,   color: RED    },
-  ].filter(d => d.value > 0);
+  const estatusBase = isInterno
+    ? [
+        { name: 'BLOQUEADO', value: unidad_stats.bloqueada, color: BLUE },
+        { name: 'DISPONIBLE', value: unidad_stats.disponible, color: ORANGE },
+        { name: 'NO DISPONIBLE', value: unidad_stats.no_disponible, color: GREEN },
+        { name: 'VENDIDA', value: unidad_stats.vendida, color: PURPLE },
+        { name: 'DESVINCULADA', value: unidad_stats.desvinculada, color: RED },
+      ]
+    : [
+        { name: 'BLOQUEADAS', value: unidad_stats.bloqueada, color: BLUE },
+        { name: 'NO DISPONIBLES', value: unidad_stats.no_disponible, color: GREEN },
+        { name: 'DESVINCULADAS', value: unidad_stats.desvinculada, color: RED },
+      ];
+  const estatusData = estatusBase.filter(d => d.value > 0);
 
-  const estatusRows: SummaryRow[] = [
-    { label: 'BLOQUEADO',     value: unidad_stats.bloqueada     },
-    { label: 'DISPONIBLE',    value: unidad_stats.disponible    },
-    { label: 'NO DISPONIBLE', value: unidad_stats.no_disponible },
-    ...(unidad_stats.vendida > 0 ? [{ label: 'VENDIDA', value: unidad_stats.vendida }] : []),
-    ...(unidad_stats.desvinculada > 0 ? [{ label: 'DESVINCULADA', value: unidad_stats.desvinculada }] : []),
-    { label: 'Total general', value: unidad_stats.total, bold: true },
-  ];
+  const estatusRows: SummaryRow[] = isInterno
+    ? [
+        { label: 'BLOQUEADO', value: unidad_stats.bloqueada },
+        { label: 'DISPONIBLE', value: unidad_stats.disponible },
+        { label: 'NO DISPONIBLE', value: unidad_stats.no_disponible },
+        ...(unidad_stats.vendida > 0 ? [{ label: 'VENDIDA', value: unidad_stats.vendida }] : []),
+        ...(unidad_stats.desvinculada > 0 ? [{ label: 'DESVINCULADA', value: unidad_stats.desvinculada }] : []),
+        { label: 'Total general', value: unidad_stats.total, bold: true },
+      ]
+    : [
+        { label: 'BLOQUEADAS', value: unidad_stats.bloqueada },
+        { label: 'NO DISPONIBLES', value: unidad_stats.no_disponible },
+        { label: 'DESVINCULADAS', value: unidad_stats.desvinculada },
+        { label: 'Total general', value: unidad_stats.total, bold: true },
+      ];
 
   // ── 2. Ventas por metraje (barras verticales) ─────────────────────────────
   const ventasMetraje = Object.entries(ventas_por_metraje ?? {})
@@ -248,16 +280,20 @@ const DashboardContent = ({
   ];
 
   const chartCard: React.CSSProperties = {
-    background: '#fff', border: '1px solid #d9d9d9',
+    background: 'var(--chart-card-bg)', border: '1px solid var(--app-border)',
     borderRadius: 4, padding: '16px 16px 12px', marginBottom: 20,
   };
   const chartTitle: React.CSSProperties = {
     textAlign: 'center', fontWeight: 600, fontSize: 14,
-    letterSpacing: 1, marginBottom: 12, color: '#222',
+    letterSpacing: 1, marginBottom: 12, color: 'var(--chart-title)',
   };
 
   return (
-    <Row gutter={[24, 0]}>
+    <DashboardSection
+      title="Analitica del proyecto"
+      description="Graficos y tablas de resumen para validar el comportamiento comercial."
+    >
+    <Row gutter={[20, 20]}>
       <Col xs={24} lg={12}>
 
         {/* ── Torta: Estatus ── */}
@@ -272,7 +308,7 @@ const DashboardContent = ({
                 <Legend
                   layout="vertical" align="right" verticalAlign="middle"
                   formatter={(value) => (
-                    <span style={{ fontSize: 12, color: '#333' }}>{value}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-main)' }}>{value}</span>
                   )}
                 />
                 <RTooltip />
@@ -317,7 +353,7 @@ const DashboardContent = ({
                   <Legend
                     layout="vertical" align="right" verticalAlign="middle"
                     formatter={(value) => (
-                      <span style={{ fontSize: 12, color: '#333', maxWidth: 120, display: 'inline-block', whiteSpace: 'normal' }}>{value}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-main)', maxWidth: 120, display: 'inline-block', whiteSpace: 'normal' }}>{value}</span>
                     )}
                   />
                   <RTooltip />
@@ -396,10 +432,14 @@ const DashboardContent = ({
         )}
 
         {/* ── Demograficos ── */}
-        {isInterno && demograficos && <DemograficosSection demograficos={demograficos} />}
-
       </Col>
+      {isInterno && demograficos && (
+        <Col xs={24}>
+          <DemograficosSection demograficos={demograficos} />
+        </Col>
+      )}
     </Row>
+    </DashboardSection>
   );
 };
 
@@ -410,16 +450,16 @@ const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<Analy
   const { rangos_edad, pais_residencia, nacionalidad } = demograficos;
 
   const chartCard: React.CSSProperties = {
-    background: '#fff', border: '1px solid #d9d9d9',
+    background: 'var(--chart-card-bg)', border: '1px solid var(--app-border)',
     borderRadius: 4, padding: '16px 16px 12px', marginBottom: 20,
   };
   const chartTitle: React.CSSProperties = {
     textAlign: 'center', fontWeight: 600, fontSize: 14,
-    letterSpacing: 1, marginBottom: 12, color: '#222',
+    letterSpacing: 1, marginBottom: 12, color: 'var(--chart-title)',
   };
 
   // Rangos de edad — barras verticales, ordenados naturalmente
-  const ORDEN_EDAD = ['<25','25-34','35-44','45-54','55+'];
+  const ORDEN_EDAD = ['<25','25-34','35-44','45-54','55+','Sin edad'];
   const edadData = ORDEN_EDAD
     .filter(k => (rangos_edad?.[k] ?? 0) > 0)
     .map(k => ({ rango: k, Total: rangos_edad[k] }));
@@ -438,7 +478,7 @@ const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<Analy
   const residenciaOtros = residenciaEntries.slice(TOP).reduce((s, [, v]) => s + v, 0);
   const residenciaData = [
     ...residenciaTop.map(([pais, v], i) => ({ name: pais, value: v, color: COLORES_DEMO[i] })),
-    ...(residenciaOtros > 0 ? [{ name: 'Otros', value: residenciaOtros, color: '#ccc' }] : []),
+    ...(residenciaOtros > 0 ? [{ name: 'Otros', value: residenciaOtros, color: '#94A3B8' }] : []),
   ];
   const residenciaRows: SummaryRow[] = [
     ...residenciaEntries.map(([l, v]) => ({ label: l, value: v })),
@@ -453,7 +493,7 @@ const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<Analy
   const nacionalidadOtros = nacionalidadEntries.slice(TOP).reduce((s, [, v]) => s + v, 0);
   const nacionalidadData = [
     ...nacionalidadTop.map(([nac, v], i) => ({ name: nac, value: v, color: COLORES_DEMO[i] })),
-    ...(nacionalidadOtros > 0 ? [{ name: 'Otros', value: nacionalidadOtros, color: '#ccc' }] : []),
+    ...(nacionalidadOtros > 0 ? [{ name: 'Otros', value: nacionalidadOtros, color: '#94A3B8' }] : []),
   ];
   const nacionalidadRows: SummaryRow[] = [
     ...nacionalidadEntries.map(([l, v]) => ({ label: l, value: v })),
@@ -465,7 +505,7 @@ const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<Analy
       {/* Rangos de edad */}
       {edadData.length > 0 && (
         <div style={chartCard}>
-          <div style={chartTitle}>RANGO DE EDAD DE COMPRADORES</div>
+          <div style={chartTitle}>RANGO DE EDAD DE CLIENTES</div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={edadData} margin={{ left: 0, right: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -473,7 +513,7 @@ const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<Analy
               <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
               <RTooltip formatter={(v: number) => [`${v} clientes (${totalEdad > 0 ? ((v/totalEdad)*100).toFixed(1) : 0}%)`, 'Total']} />
               <Bar dataKey="Total" fill={ORANGE} barSize={36} radius={[3, 3, 0, 0]}
-                label={{ position: 'top', fontSize: 11, fill: '#555' }} />
+                label={{ position: 'top', fontSize: 11, fill: 'var(--text-secondary)' }} />
             </BarChart>
           </ResponsiveContainer>
           <div style={{ marginTop: 12 }}>
@@ -496,7 +536,7 @@ const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<Analy
               </Pie>
               <Legend
                 layout="vertical" align="right" verticalAlign="middle"
-                formatter={(value) => <span style={{ fontSize: 11, color: '#333' }}>{value}</span>}
+                formatter={(value) => <span style={{ fontSize: 11, color: 'var(--text-main)' }}>{value}</span>}
               />
               <RTooltip />
             </PieChart>
@@ -516,7 +556,7 @@ const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<Analy
               </Pie>
               <Legend
                 layout="vertical" align="right" verticalAlign="middle"
-                formatter={(value) => <span style={{ fontSize: 11, color: '#333' }}>{value}</span>}
+                formatter={(value) => <span style={{ fontSize: 11, color: 'var(--text-main)' }}>{value}</span>}
               />
               <RTooltip />
             </PieChart>

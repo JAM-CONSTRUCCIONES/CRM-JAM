@@ -68,8 +68,8 @@ const ModalBloqueo = ({ open, unidad, clienteEncontrado, buscandoCliente, guarda
                   onClick={() => handleBloquear(true)}
                   disabled={guardando}
                   style={{
-                    padding: '5px 16px', borderRadius: 6, border: '1px solid #d9d9d9',
-                    background: '#fff', cursor: guardando ? 'not-allowed' : 'pointer',
+                    padding: '5px 16px', borderRadius: 6, border: '1px solid var(--app-border)',
+                    background: 'var(--panel-bg)', color: 'var(--text-main)', cursor: guardando ? 'not-allowed' : 'pointer',
                     fontSize: 14, opacity: guardando ? 0.6 : 1,
                   }}
                 >
@@ -97,7 +97,7 @@ const ModalBloqueo = ({ open, unidad, clienteEncontrado, buscandoCliente, guarda
       {/* Info de la unidad */}
       {unidad && (
         <div style={{
-          background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8,
+          background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8,
           padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <LockOutlined style={{ color: '#faad14', fontSize: 16 }} />
@@ -126,7 +126,7 @@ const ModalBloqueo = ({ open, unidad, clienteEncontrado, buscandoCliente, guarda
         {/* Card cliente encontrado */}
         {clienteEncontrado && (
           <div style={{
-            background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8,
+            background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8,
             padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10,
           }}>
             <CheckCircleFilled style={{ color: '#52c41a', fontSize: 18 }} />

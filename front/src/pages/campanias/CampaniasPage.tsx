@@ -425,7 +425,7 @@ export default function CampaniasPage() {
                         <Card title="Vista previa">
                           <Title level={5}>{asuntoPreview || 'Sin asunto'}</Title>
                           <div
-                            style={{ border: '1px solid #eee', padding: 12, minHeight: 120, background: '#fff' }}
+                            style={{ border: '1px solid var(--app-border)', padding: 12, minHeight: 120, background: 'var(--panel-soft-bg)', color: 'var(--text-main)', borderRadius: 6 }}
                             dangerouslySetInnerHTML={{ __html: mensajeToHtml(mensajePreview) }}
                           />
                         </Card>

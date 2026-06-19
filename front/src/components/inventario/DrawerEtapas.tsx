@@ -32,8 +32,8 @@ const DrawerEtapas = ({ open, etapas, etapaEditando, onClose, onGuardar, onElimi
     >
       {/* Formulario crear/editar */}
       <div style={{
-        background: etapaEditando ? '#fffbe6' : '#f6ffed',
-        border: `1px solid ${etapaEditando ? '#ffe58f' : '#b7eb8f'}`,
+        background: etapaEditando ? 'var(--warning-soft-bg)' : 'var(--panel-soft-bg)',
+        border: `1px solid ${etapaEditando ? 'var(--warning-soft-border)' : '#52c41a'}`,
         borderRadius: 8, padding: '14px 16px', marginBottom: 24,
       }}>
         <Text strong style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>
@@ -69,8 +69,8 @@ const DrawerEtapas = ({ open, etapas, etapaEditando, onClose, onGuardar, onElimi
             key={e.etapa_id}
             style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '10px 14px', background: '#fafafa',
-              border: `1px solid ${etapaEditando?.etapa_id === e.etapa_id ? '#faad14' : '#f0f0f0'}`,
+              padding: '10px 14px', background: 'var(--panel-soft-bg)',
+              border: `1px solid ${etapaEditando?.etapa_id === e.etapa_id ? '#faad14' : 'var(--app-border)'}`,
               borderRadius: 8, transition: 'border-color 0.2s',
             }}
           >

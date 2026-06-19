@@ -40,7 +40,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPubli
 
   return (
     <div style={{
-      background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0',
+      background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)',
       boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, overflow: 'hidden',
     }}>
       {/* Color bar by estado */}
@@ -92,7 +92,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPubli
         </div>
 
         {/* Precio */}
-        <div style={{ background: '#fafafa', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+        <div style={{ background: 'var(--panel-soft-bg)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
           <Text strong style={{ fontSize: 15 }}>{fmt$(u.precio)}</Text>
           {(u.precio_reserva || u.precio_separacion || u.precio_inicial || u.cuota_monto || u.contra_entrega) && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', marginTop: 4 }}>
@@ -119,7 +119,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPubli
 
         {/* Comentario */}
         {u.comentario && isAdmin && (
-          <div style={{ background: '#fffbe6', borderRadius: 6, padding: '4px 8px', marginBottom: 8 }}>
+          <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 6, padding: '4px 8px', marginBottom: 8 }}>
             <Text type="secondary" style={{ fontSize: 11 }}><MessageOutlined style={{ marginRight: 4, color: '#faad14' }} />{u.comentario}</Text>
           </div>
         )}
@@ -151,8 +151,8 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
 
   // Móvil → cards
   if (!md) {
-    if (loading) return <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>;
-    if (!unidades.length) return <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin unidades</div>;
+    if (loading) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>;
+    if (!unidades.length) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sin unidades</div>;
     return (
       <div>
         {unidades.map(u => (
@@ -179,7 +179,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
       title: 'Metraje', key: 'metraje',
       render: (_: any, u: Unidad) => (
         <Space direction="vertical" size={0}>
-          <Text>{parseFloat(String(u.metraje)) || 0} m² <span style={{ color: '#aaa', fontSize: 11 }}>apto.</span></Text>
+          <Text>{parseFloat(String(u.metraje)) || 0} m² <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>apto.</span></Text>
           {u.metraje_terraza ? <Text type="secondary" style={{ fontSize: 11 }}>+{parseFloat(String(u.metraje_terraza))} m² terraza</Text> : null}
           {u.metraje_patio ? <Text type="secondary" style={{ fontSize: 11 }}>+{parseFloat(String(u.metraje_patio))} m² patio</Text> : null}
         </Space>

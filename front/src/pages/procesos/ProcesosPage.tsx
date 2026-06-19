@@ -542,16 +542,16 @@ const ProcesosPage = () => {
       ] : []),
     ];
     return (
-      <div key={`${p.pk}#${p.sk}`} style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: 10, padding: '14px 16px' }}>
+      <div key={`${p.pk}#${p.sk}`} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: 10, padding: '14px 16px' }}>
         {vencida && (
-          <div style={{ background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#cf1322', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--danger-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#ff7875', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 14 }}>⚠️</span>
             <span style={{ flex: 1 }}>Separación vencida (30 días)</span>
             {puedeAvanzar && <Button size="small" type="link" danger style={{ padding: 0, height: 'auto', fontSize: 11 }} onClick={() => setEstatusModal(p)}>Cambiar estatus</Button>}
           </div>
         )}
         {proxima && (
-          <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 14 }}>⏰</span>
             <span>Vence en {30 - dias!} día{30 - dias! !== 1 ? 's' : ''}</span>
           </div>
@@ -611,9 +611,9 @@ const ProcesosPage = () => {
       <div key={`${p.pk}#${p.sk}`} style={{
         display: 'grid',
         gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
-        alignItems: 'center', padding: '12px 14px', background: '#fff', borderRadius: 8, marginBottom: 4,
-        borderTop: '1px solid #f0f0f0', borderRight: '1px solid #f0f0f0', borderBottom: '1px solid #f0f0f0',
-        borderLeft: vencida ? '3px solid #ff4d4f' : proxima ? '3px solid #faad14' : '1px solid #f0f0f0',
+        alignItems: 'center', padding: '12px 14px', background: 'var(--panel-bg)', borderRadius: 8, marginBottom: 4,
+        borderTop: '1px solid var(--app-border)', borderRight: '1px solid var(--app-border)', borderBottom: '1px solid var(--app-border)',
+        borderLeft: vencida ? '3px solid #ff4d4f' : proxima ? '3px solid #faad14' : '1px solid var(--app-border)',
       }}>
         <Tag color="geekblue" style={{ margin: 0 }}>{p.unidad_nombre || p.unidad_id}</Tag>
         <div>
@@ -674,7 +674,7 @@ const ProcesosPage = () => {
     ];
     if (isMobile) {
       return (
-        <div key={b.unidad_id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: 10, padding: '14px 16px' }}>
+        <div key={b.unidad_id} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: 10, padding: '14px 16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
@@ -704,8 +704,8 @@ const ProcesosPage = () => {
       <div key={b.unidad_id} style={{
         display: 'grid',
         gridTemplateColumns: '1.2fr 2fr 1.6fr 1.2fr 80px',
-        alignItems: 'center', padding: '12px 14px', background: '#fff', borderRadius: 8, marginBottom: 4,
-        border: '1px solid #f0f0f0',
+        alignItems: 'center', padding: '12px 14px', background: 'var(--panel-bg)', borderRadius: 8, marginBottom: 4,
+        border: '1px solid var(--app-border)',
       }}>
         <Tag color="geekblue" style={{ margin: 0 }}>{b.id_unidad || b.unidad_id}</Tag>
         <div>
@@ -740,8 +740,8 @@ const ProcesosPage = () => {
         <div style={{
           display: 'grid',
           gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
-          padding: '8px 14px', background: '#fafafa', borderRadius: 8,
-          marginBottom: 4, fontSize: 11, color: '#8c8c8c', fontWeight: 600, letterSpacing: 0.5,
+          padding: '8px 14px', background: 'var(--panel-soft-bg)', borderRadius: 8,
+          marginBottom: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5,
         }}>
           <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
           {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
@@ -752,7 +752,7 @@ const ProcesosPage = () => {
       {/* Procesos activos */}
       {isMobile ? procesosActivos.map(renderTarjetaProceso) : procesosActivos.map(renderFilaProceso)}
       {procesosActivos.length === 0 && bloqueosFiltrados.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
           <UserOutlined style={{ fontSize: 40, marginBottom: 12 }} />
           <div>No hay procesos activos</div>
         </div>
@@ -766,8 +766,8 @@ const ProcesosPage = () => {
         <div style={{
           display: 'grid',
           gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
-          padding: '8px 14px', background: '#fafafa', borderRadius: 8,
-          marginBottom: 4, fontSize: 11, color: '#8c8c8c', fontWeight: 600, letterSpacing: 0.5,
+          padding: '8px 14px', background: 'var(--panel-soft-bg)', borderRadius: 8,
+          marginBottom: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5,
         }}>
           <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
           {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
@@ -775,7 +775,7 @@ const ProcesosPage = () => {
       )}
       {isMobile ? procesosCerrados.map(renderTarjetaProceso) : procesosCerrados.map(renderFilaProceso)}
       {procesosCerrados.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: 60, color: '#aaa' }}>
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
           <UserOutlined style={{ fontSize: 40, marginBottom: 12 }} />
           <div>No hay procesos cerrados</div>
         </div>
@@ -824,8 +824,8 @@ const ProcesosPage = () => {
                   borderRadius: 16, 
                   overflow: 'hidden', 
                   cursor: 'pointer', 
-                  background: '#fff', 
-                  border: '1px solid #f0f0f0', 
+                  background: 'var(--panel-bg)', 
+                  border: '1px solid var(--app-border)', 
                   boxShadow: '0 2px 8px rgba(0,0,0,0.06)', 
                   transition: 'box-shadow 0.2s, transform 0.2s' 
                 }}
@@ -1004,10 +1004,10 @@ const ProcesosPage = () => {
         onOk={() => formExtenderProceso.submit()} okText="Aplicar" cancelText="Cancelar"
         confirmLoading={guardandoExtenderProceso}>
         {extenderProcesoModal && (
-          <div style={{ background: '#f0f5ff', border: '1px solid #adc6ff', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+          <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
             <Text strong>{extenderProcesoModal.unidad_nombre || extenderProcesoModal.unidad_id}</Text>
             {extenderProcesoModal.fecha_liberacion_unidad && (
-              <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                 Vence: {dayjs(extenderProcesoModal.fecha_liberacion_unidad).format('DD/MM/YYYY HH:mm')}
               </div>
             )}
@@ -1030,9 +1030,9 @@ const ProcesosPage = () => {
         onOk={() => formExtenderBloqueo.submit()} okText="Aplicar" cancelText="Cancelar"
         confirmLoading={guardandoExtenderBloqueo}>
         {extenderBloqueoModal && (
-          <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
+          <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
             <Text strong>{extenderBloqueoModal.id_unidad || extenderBloqueoModal.unidad_id}</Text>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
               Vence: {dayjs(extenderBloqueoModal.fecha_liberacion).format('DD/MM/YYYY HH:mm')}
             </div>
           </div>
@@ -1060,7 +1060,7 @@ const ProcesosPage = () => {
         }}
         okText="Asignar" cancelText="Cancelar" confirmLoading={guardandoAsignar} width={560}>
         {asignarModal && (
-          <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
             <div>
               <Text type="secondary" style={{ fontSize: 11 }}>UNIDAD</Text>
               <div><Text strong>{asignarModal.id_unidad || asignarModal.unidad_id}</Text></div>
@@ -1086,7 +1086,7 @@ const ProcesosPage = () => {
               onChange={handleSeleccionarCliente}
               options={clientesInmo.map(c => ({ value: c.cedula, label: `${c.nombres} ${c.apellidos} — ${c.cedula}` }))} />
             {clienteSeleccionado && (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8 }}>
+              <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8 }}>
                 <Text strong>{clienteSeleccionado.nombres} {clienteSeleccionado.apellidos}</Text>
                 <br />
                 <Text type="secondary" style={{ fontSize: 12 }}>

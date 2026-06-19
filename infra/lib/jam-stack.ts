@@ -531,6 +531,7 @@ export class JamStack extends cdk.Stack {
         CLIENTES_TABLE: clientesTable.tableName,
         PROCESOS_TABLE: procesosTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,
+        USUARIOS_TABLE: usuariosTable.tableName,
         HISTORIAL_TABLE: historialTable.tableName,
         SQS_URL: notificacionesQueue.queueUrl,
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
@@ -540,6 +541,7 @@ export class JamStack extends cdk.Stack {
     });
 
     clientesTable.grantReadData(crmLambda);
+    usuariosTable.grantReadData(crmLambda);
     procesosTable.grantReadWriteData(crmLambda);
     inventarioTable.grantReadWriteData(crmLambda);
     historialTable.grantReadWriteData(crmLambda);

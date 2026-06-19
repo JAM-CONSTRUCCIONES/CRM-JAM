@@ -310,8 +310,8 @@ const BloqueosPage = () => {
             label: `Activos (${bloqueos.filter(b => !proyectoFiltro || b.proyecto_id === proyectoFiltro || b.proyecto_id?.replace('PROYECTO#','') === proyectoFiltro).length})`,
             children: isMobile ? (
               <div>
-                {loading && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>}
-                {!loading && bloqueos.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No hay bloqueos activos</div>}
+                {loading && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>}
+                {!loading && bloqueos.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No hay bloqueos activos</div>}
                 {bloqueos.filter(b => !proyectoFiltro || b.proyecto_id === proyectoFiltro || b.proyecto_id?.replace('PROYECTO#','') === proyectoFiltro).map(b => {
                   const tiempoOk = b.tiempo_restante ?? 0;
                   const color = tiempoOk <= 0 ? '#ff4d4f' : tiempoOk < 5 * 3600 ? '#faad14' : '#52c41a';
@@ -321,7 +321,7 @@ const BloqueosPage = () => {
                     { key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true, onClick: () => Modal.confirm({ title: '¿Liberar este bloqueo?', content: 'La unidad volverá a estar disponible.', okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true }, onOk: () => handleLiberar(b) }) },
                   ];
                   return (
-                    <div key={b.unidad_id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px' }}>
+                    <div key={b.unidad_id} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                         <div>
                           <Text strong style={{ fontSize: 15 }}>{[b.torre_nombre, b.id_unidad || b.unidad_id].filter(Boolean).join(' · ')}</Text>
@@ -413,7 +413,7 @@ const BloqueosPage = () => {
       >
         {bloqueoSeleccionado && (
           <div style={{
-            background: '#f0f5ff', border: '1px solid #adc6ff', borderRadius: 8,
+            background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8,
             padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
@@ -459,7 +459,7 @@ const BloqueosPage = () => {
               placeholder="Ej: 0.1 (6 min), 1 (1 hora), 24 (1 día)"
             />
           </Form.Item>
-          <div style={{ marginBottom: 16, padding: 8, background: '#f6f6f6', borderRadius: 4, fontSize: 12 }}>
+          <div style={{ marginBottom: 16, padding: 8, background: 'var(--panel-soft-bg)', borderRadius: 4, fontSize: 12 }}>
             <Text type="secondary">
               💡 <strong>Ejemplos:</strong><br/>
               • 0.1 horas = 6 minutos (para probar notificaciones)<br/>
@@ -492,7 +492,7 @@ const BloqueosPage = () => {
       >
         {bloqueoSinCliente && (
           <div style={{
-            background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8,
+            background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8,
             padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
@@ -533,7 +533,7 @@ const BloqueosPage = () => {
               }))}
             />
             {clienteSeleccionado && (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8 }}>
+              <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8 }}>
                 <Text strong>{clienteSeleccionado.nombres} {clienteSeleccionado.apellidos}</Text>
                 <br />
                 <Text type="secondary" style={{ fontSize: 12 }}>

@@ -425,6 +425,39 @@ const CSS = `
 .jam-footer-brand{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:7px;color:#bbb;font-size:11.5px;font-weight:500;}
 .jam-footer-logo{width:20px;height:20px;border-radius:6px;overflow:hidden;background:#fff;border:1px solid #e8edf3;flex-shrink:0;}
 .jam-footer-logo{width:20px;height:20px;object-fit:contain;display:block;}
+:root[data-theme='dark'] .jam-window,
+:root[data-theme='dark'] .jam-header,
+:root[data-theme='dark'] .jam-body,
+:root[data-theme='dark'] .jam-footer{background:var(--panel-bg);border-color:var(--app-border);}
+:root[data-theme='dark'] .jam-header-name,
+:root[data-theme='dark'] .jam-slide-title,
+:root[data-theme='dark'] .jam-faq-text,
+:root[data-theme='dark'] .jam-input{color:var(--text-main);}
+:root[data-theme='dark'] .jam-header-status,
+:root[data-theme='dark'] .jam-faq-intro,
+:root[data-theme='dark'] .jam-slide-count,
+:root[data-theme='dark'] .jam-footer-brand,
+:root[data-theme='dark'] .jam-msg.bot .jam-time{color:var(--text-secondary);}
+:root[data-theme='dark'] .jam-header-avatar,
+:root[data-theme='dark'] .jam-header-logo,
+:root[data-theme='dark'] .jam-tab,
+:root[data-theme='dark'] .jam-close,
+:root[data-theme='dark'] .jam-faq-intro,
+:root[data-theme='dark'] .jam-faq-tab,
+:root[data-theme='dark'] .jam-faq-icon,
+:root[data-theme='dark'] .jam-faq-card,
+:root[data-theme='dark'] .jam-slider-btn,
+:root[data-theme='dark'] .jam-avatar-mini,
+:root[data-theme='dark'] .jam-msg.bot .jam-bubble,
+:root[data-theme='dark'] .jam-typing-bubble,
+:root[data-theme='dark'] .jam-input-row,
+:root[data-theme='dark'] .jam-footer-logo{background:var(--panel-soft-bg);border-color:var(--app-border);}
+:root[data-theme='dark'] .jam-faq-card:hover,
+:root[data-theme='dark'] .jam-tab:hover,
+:root[data-theme='dark'] .jam-faq-tab:hover{background:var(--nav-hover-bg);}
+:root[data-theme='dark'] .jam-day::before,
+:root[data-theme='dark'] .jam-day::after{background:var(--app-border);}
+:root[data-theme='dark'] .jam-input-row:focus-within{background:var(--panel-bg);}
 @keyframes jamFadeIn{from{opacity:0}to{opacity:1}}
 @keyframes jamOpenWindow{from{opacity:0;transform:translate(-50%,-50%) translateY(20px) scale(.92)}to{opacity:1;transform:translate(-50%,-50%) translateY(0) scale(1)}}
 @keyframes jamMsgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}

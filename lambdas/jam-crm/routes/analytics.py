@@ -7,18 +7,83 @@ import boto3
 from datetime import datetime, timezone
 from boto3.dynamodb.conditions import Key, Attr
 from utils.response import ok, bad_request
+from utils.auth import get_claims, get_rol
 
 dynamodb = boto3.resource('dynamodb')
 procesos_table = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 clientes_table = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 inventario_table = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
+_usuarios_table_name = os.environ.get('USUARIOS_TABLE', '')
 
+ESTADOS_COMERCIALES = {'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida'}
 ESTADOS_VENTA = {'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida'}
+
+
+def _normalizar_inmo_id(value):
+    return str(value or '').replace('INMOBILIARIA#', '').strip()
+
+
+def _get_inmobiliaria_id_event(event):
+    claims = get_claims(event)
+    if claims.get('custom:inmobiliaria_id'):
+        return _normalizar_inmo_id(claims.get('custom:inmobiliaria_id'))
+
+    sub = claims.get('sub', '')
+    if not sub:
+        return ''
+    try:
+        usuarios_table = dynamodb.Table(_usuarios_table_name)
+        usuario = usuarios_table.get_item(
+            Key={'pk': f'USUARIO#{sub}', 'sk': 'METADATA'}
+        ).get('Item', {})
+        return _normalizar_inmo_id(usuario.get('inmobiliaria_id') or sub)
+    except Exception:
+        return _normalizar_inmo_id(sub)
+
+
+def _filtrar_por_inmobiliaria(items, inmobiliaria_id):
+    inmo_id = _normalizar_inmo_id(inmobiliaria_id)
+    return [i for i in items if _normalizar_inmo_id(i.get('inmobiliaria_id')) == inmo_id]
+
+
+def _calcular_unidad_stats_inmobiliaria(unidades, procesos, inmobiliaria_id):
+    inmo_id = _normalizar_inmo_id(inmobiliaria_id)
+    bloqueadas = set()
+    no_disponibles = set()
+    desvinculadas = set()
+
+    for unidad in unidades:
+        if unidad.get('estado') == 'bloqueada' and _normalizar_inmo_id(unidad.get('bloqueado_por')) == inmo_id:
+            uid = unidad.get('unidad_id') or unidad.get('sk', '').replace('UNIDAD#', '')
+            if uid:
+                bloqueadas.add(uid)
+
+    for proceso in procesos:
+        uid = proceso.get('unidad_id')
+        if not uid:
+            continue
+        estado = proceso.get('estado', 'captacion')
+        if estado in ESTADOS_COMERCIALES:
+            no_disponibles.add(uid)
+        elif estado == 'desvinculado':
+            desvinculadas.add(uid)
+
+    return {
+        'disponible': 0,
+        'bloqueada': len(bloqueadas),
+        'no_disponible': len(no_disponibles),
+        'vendida': 0,
+        'desvinculada': len(desvinculadas),
+        'total': len(bloqueadas) + len(no_disponibles) + len(desvinculadas),
+    }
 
 
 def _parse_dt(ts: str):
     try:
-        return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
     except Exception:
         return None
 
@@ -44,6 +109,9 @@ def get_analytics(event):
     if not proyecto_id:
         return bad_request('proyecto_id es requerido')
 
+    es_inmobiliaria = get_rol(event) == 'inmobiliaria'
+    inmobiliaria_id = _get_inmobiliaria_id_event(event) if es_inmobiliaria else ''
+
     # ── 1. Cargar todos los procesos del proyecto ──────────────────────────
     procesos = _scan_all(
         procesos_table,
@@ -64,6 +132,10 @@ def get_analytics(event):
         key_cond=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
     )
 
+    if es_inmobiliaria:
+        procesos = _filtrar_por_inmobiliaria(procesos, inmobiliaria_id)
+        clientes = _filtrar_por_inmobiliaria(clientes, inmobiliaria_id)
+
     # ── Métricas de unidades ───────────────────────────────────────────────
     unidad_stats = {'disponible': 0, 'bloqueada': 0, 'no_disponible': 0, 'vendida': 0, 'desvinculada': 0, 'total': 0}
     # Índice unidad_id → datos de unidad (para cruzar con procesos)
@@ -80,9 +152,12 @@ def get_analytics(event):
                 'metraje': u.get('metraje'),
             }
 
+    if es_inmobiliaria:
+        unidad_stats = _calcular_unidad_stats_inmobiliaria(unidades, procesos, inmobiliaria_id)
+
     # ── Métricas de clientes ───────────────────────────────────────────────
     cliente_stats = {'total': len(clientes), 'exclusividad_activa': 0, 'exclusividad_vencida': 0}
-    demograficos = {'edades': [], 'estado_civil': {}, 'pais_residencia': {}, 'nacionalidad': {}}
+    demograficos = {'edades': [], 'sin_edad': 0, 'estado_civil': {}, 'pais_residencia': {}, 'nacionalidad': {}}
 
     for c in clientes:
         if c.get('exclusividad_activa'):
@@ -96,15 +171,17 @@ def get_analytics(event):
                 edad = int(c['edad'])
             except (ValueError, TypeError):
                 edad = None
-        if edad is not None:
+        if edad is not None and edad > 0:
             demograficos['edades'].append(edad)
+        else:
+            demograficos['sin_edad'] += 1
         for campo in ('estado_civil', 'pais_residencia', 'nacionalidad'):
             val = (c.get(campo) or '').strip()
             if val:
                 demograficos[campo][val] = demograficos[campo].get(val, 0) + 1
 
     # Rangos de edad
-    rangos_edad = {'<25': 0, '25-34': 0, '35-44': 0, '45-54': 0, '55+': 0}
+    rangos_edad = {'<25': 0, '25-34': 0, '35-44': 0, '45-54': 0, '55+': 0, 'Sin edad': demograficos['sin_edad']}
     for edad in demograficos['edades']:
         if edad < 25:
             rangos_edad['<25'] += 1

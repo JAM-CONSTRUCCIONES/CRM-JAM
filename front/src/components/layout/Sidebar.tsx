@@ -1,14 +1,16 @@
-import { Avatar, Typography, Tooltip, message } from 'antd';
+import { Avatar, Switch, Typography, Tooltip, message } from 'antd';
 import {
   AppstoreOutlined, TeamOutlined, DashboardOutlined,
   BankOutlined, UserOutlined, PoweroffOutlined,
   ApartmentOutlined, LinkOutlined, ImportOutlined,
   MessageOutlined, SettingOutlined, MailOutlined,
+  MoonOutlined, SunOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { useState } from 'react';
 import ChatbotWidget from '../common/ChatbotWidget';
+import { useThemeMode } from '../../context/ThemeContext';
 
 const { Text } = Typography;
 
@@ -38,6 +40,7 @@ const Sidebar = ({ onSelect }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { usuario, logout } = useAuth();
+  const { isDark, toggleMode } = useThemeMode();
   const rol = usuario?.rol;
   const [chatOpen, setChatOpen] = useState(false);
 
@@ -75,7 +78,7 @@ const Sidebar = ({ onSelect }: Props) => {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: '100%',
-      padding: '20px 16px', background: '#fff',
+      padding: '20px 16px', background: 'var(--sidebar-bg)',
     }}>
       {/* Logo */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: 28 }}>
@@ -84,7 +87,7 @@ const Sidebar = ({ onSelect }: Props) => {
           alt="JAM Construcciones"
           style={{ width: 100, height: 100, objectFit: 'contain' }}
         />
-        <Text strong style={{ color: '#111', fontSize: 14, marginTop: 8 }}>JAM Construcciones</Text>
+        <Text strong style={{ color: 'var(--text-main)', fontSize: 14, marginTop: 8 }}>JAM Construcciones</Text>
       </div>
 
       {/* Nav */}
@@ -93,7 +96,7 @@ const Sidebar = ({ onSelect }: Props) => {
           <div key={si} style={{ marginBottom: 16 }}>
             {section.title && (
               <Text style={{
-                fontSize: 10, color: '#666', fontWeight: 600,
+                fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600,
                 letterSpacing: 1.2, padding: '0 8px 6px',
                 display: 'block', textTransform: 'uppercase',
               }}>
@@ -110,19 +113,19 @@ const Sidebar = ({ onSelect }: Props) => {
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
                     marginBottom: 4,
-                    background: active ? '#1677ff' : 'transparent',
-                    color: active ? '#fff' : '#555',
+                    background: active ? 'var(--action-bg)' : 'transparent',
+                    color: active ? '#fff' : 'var(--text-secondary)',
                     fontWeight: active ? 600 : 400,
                     fontSize: 14,
                     transition: 'all 0.15s',
                   }}
                   onMouseEnter={e => {
-                    if (!active) (e.currentTarget as HTMLDivElement).style.background = '#f0f5ff';
-                    if (!active) (e.currentTarget as HTMLDivElement).style.color = '#1677ff';
+                    if (!active) (e.currentTarget as HTMLDivElement).style.background = 'var(--nav-hover-bg)';
+                    if (!active) (e.currentTarget as HTMLDivElement).style.color = 'var(--action-bg)';
                   }}
                   onMouseLeave={e => {
                     if (!active) (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-                    if (!active) (e.currentTarget as HTMLDivElement).style.color = '#555';
+                    if (!active) (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
                   }}
                 >
                   <span style={{ fontSize: 17, display: 'flex', alignItems: 'center' }}>{item.icon}</span>
@@ -147,12 +150,12 @@ const Sidebar = ({ onSelect }: Props) => {
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-              color: '#1677ff', fontSize: 14, marginBottom: 8,
-              background: '#f0f5ff', border: '1px dashed #adc6ff',
+              color: 'var(--action-bg)', fontSize: 14, marginBottom: 8,
+              background: 'var(--nav-hover-bg)', border: '1px dashed var(--action-border)',
               transition: 'all 0.15s',
             }}
-            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = '#e6f0ff'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = '#f0f5ff'; }}
+            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'var(--action-soft-hover)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'var(--nav-hover-bg)'; }}
           >
             <LinkOutlined style={{ fontSize: 15 }} />
             <span style={{ fontWeight: 500 }}>Copiar enlace de registro</span>
@@ -160,13 +163,29 @@ const Sidebar = ({ onSelect }: Props) => {
         </Tooltip>
       )}
 
+      {/* Theme toggle */}
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          padding: '10px 14px', borderRadius: 10,
+          color: 'var(--text-secondary)', fontSize: 14, marginBottom: 8,
+          background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)',
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isDark ? <MoonOutlined /> : <SunOutlined />}
+          {isDark ? 'Modo oscuro' : 'Modo claro'}
+        </span>
+        <Switch size="small" checked={isDark} onChange={toggleMode} />
+      </div>
+
       {/* Logout */}
       <div
         onClick={logout}
         style={{
           display: 'flex', alignItems: 'center', gap: 12,
           padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-          color: '#888', fontSize: 14, marginBottom: 12,
+          color: 'var(--text-muted)', fontSize: 14, marginBottom: 12,
           transition: 'all 0.15s',
         }}
         onMouseEnter={e => {
@@ -174,7 +193,7 @@ const Sidebar = ({ onSelect }: Props) => {
           (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,77,79,0.1)';
         }}
         onMouseLeave={e => {
-          (e.currentTarget as HTMLDivElement).style.color = '#888';
+          (e.currentTarget as HTMLDivElement).style.color = 'var(--text-muted)';
           (e.currentTarget as HTMLDivElement).style.background = 'transparent';
         }}
       >
@@ -183,25 +202,25 @@ const Sidebar = ({ onSelect }: Props) => {
       </div>
 
       {/* Divider */}
-      <div style={{ borderTop: '1px solid #f0f0f0', marginBottom: 12 }} />
+      <div style={{ borderTop: '1px solid var(--app-border)', marginBottom: 12 }} />
 
       {/* User profile */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '10px 12px', borderRadius: 10,
-        background: '#f5f5f5', border: '1px solid #f0f0f0',
+        background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)',
       }}>
-        <Avatar size={34} style={{ background: '#1677ff', flexShrink: 0, fontWeight: 700 }}>
+        <Avatar size={34} style={{ background: 'var(--action-bg)', flexShrink: 0, fontWeight: 700 }}>
           {usuario?.nombre?.charAt(0).toUpperCase() ?? 'U'}
         </Avatar>
         <div style={{ minWidth: 0 }}>
           <Text strong style={{
-            fontSize: 13, color: '#111', display: 'block',
+            fontSize: 13, color: 'var(--text-main)', display: 'block',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {usuario?.nombre ?? '—'}
           </Text>
-          <Text style={{ fontSize: 11, color: '#aaa' }}>
+          <Text style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             {ROL_LABEL[rol ?? ''] ?? rol}
           </Text>
         </div>
@@ -217,21 +236,21 @@ const Sidebar = ({ onSelect }: Props) => {
           padding: '10px 12px',
           borderRadius: 10,
           cursor: 'pointer',
-          background: '#1677ff',
+          background: 'var(--action-bg)',
           color: '#fff',
           fontSize: 13,
           fontWeight: 600,
           marginTop: 12,
           transition: 'all 0.2s',
-          boxShadow: '0 2px 8px rgba(22,119,255,0.28)',
+          boxShadow: 'var(--action-shadow)',
         }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLDivElement).style.background = '#0958d9';
-          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 14px rgba(22,119,255,0.38)';
+          (e.currentTarget as HTMLDivElement).style.background = 'var(--action-hover)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--action-shadow-hover)';
         }}
         onMouseLeave={e => {
-          (e.currentTarget as HTMLDivElement).style.background = '#1677ff';
-          (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(22,119,255,0.28)';
+          (e.currentTarget as HTMLDivElement).style.background = 'var(--action-bg)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--action-shadow)';
         }}
       >
         <MessageOutlined style={{ fontSize: 16 }} />

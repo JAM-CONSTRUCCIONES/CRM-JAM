@@ -44,11 +44,18 @@ const ESTATUS_CLIENTE_OPTIONS = [
 ];
 
 // Función para calcular días restantes de exclusividad
-const calcularDiasRestantes = (fechaVencimiento: string): number => {
+const fechaValida = (fecha?: string | null): boolean => !!fecha && dayjs(fecha).isValid();
+
+const formatFecha = (fecha?: string | null, formato = 'DD/MM/YYYY'): string =>
+  fechaValida(fecha) ? dayjs(fecha).format(formato) : 'Sin fecha';
+
+const calcularDiasRestantes = (fechaVencimiento?: string | null): number => {
+  if (!fechaValida(fechaVencimiento)) return 0;
   const ahora = new Date();
-  const vencimiento = new Date(fechaVencimiento);
+  const vencimiento = new Date(fechaVencimiento as string);
   const diff = vencimiento.getTime() - ahora.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  const dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
+  return Number.isFinite(dias) ? dias : 0;
 };
 
 // Función para obtener color según días restantes
@@ -629,7 +636,7 @@ const ClientesPage = () => {
       title: 'Inmobiliaria', key: 'inmo',
       render: (_: unknown, r: ClienteProyecto) => inmoNombre(r.inmobiliaria_id),
     }] : []),
-    { title: 'Captado', dataIndex: 'fecha_captacion', key: 'fc', render: (v: string) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
+    { title: 'Captado', dataIndex: 'fecha_captacion', key: 'fc', render: (v: string) => formatFecha(v) },
     {
       title: '', key: 'acciones', width: 92,
       render: (_: unknown, r: ClienteProyecto) => (
@@ -781,8 +788,8 @@ const ClientesPage = () => {
                   borderRadius: 16,
                   overflow: 'hidden',
                   cursor: 'pointer',
-                  background: '#fff',
-                  border: '1px solid #f0f0f0',
+                  background: 'var(--panel-bg)',
+                  border: '1px solid var(--app-border)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                   transition: 'box-shadow 0.2s, transform 0.2s',
                 }}
@@ -851,11 +858,11 @@ const ClientesPage = () => {
         <>
           {isMobile ? (
             <div>
-              {loading && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>}
-              {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin clientes</div>}
+              {loading && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>}
+              {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sin clientes</div>}
               {clientesFiltrados.map(r => (
                 <div key={`${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} onClick={() => abrirDetalleCedula(r.cedula)}
-                  style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
+                  style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.16)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <Text strong style={{ fontSize: 15 }}>{r.nombres} {r.apellidos}</Text>
@@ -891,11 +898,11 @@ const ClientesPage = () => {
       {vista === 'clientes' && !isAdmin && (
         isMobile ? (
           <div>
-            {loading && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>}
-            {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin clientes</div>}
+            {loading && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>}
+            {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sin clientes</div>}
             {clientesFiltrados.map(r => (
               <div key={`${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} onClick={() => abrirDrawerInmo(r)}
-                style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
+                style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.16)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <Text strong style={{ fontSize: 15 }}>{r.nombres} {r.apellidos}</Text>
@@ -906,7 +913,7 @@ const ClientesPage = () => {
                 <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {r.unidad_nombre || r.unidad_id ? <Tag color="geekblue">{r.unidad_nombre || r.unidad_id}</Tag> : <Tag>Sin unidad</Tag>}
                   <Text type="secondary" style={{ fontSize: 12 }}>{proyectoNombre(r.proyecto_id)}</Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>· Captado {dayjs(r.fecha_captacion).format('DD/MM/YYYY')}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>· Captado {formatFecha(r.fecha_captacion)}</Text>
                 </div>
               </div>
             ))}
@@ -946,7 +953,7 @@ const ClientesPage = () => {
                     <Button size="small" danger icon={<DeleteOutlined />} onClick={() => abrirEliminar(reg)}>Eliminar</Button>
                   </Space>
                 </div>
-                <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
+                <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                     <div>
                       <Text type="secondary" style={{ fontSize: 11 }}>CÉDULA</Text>
@@ -990,21 +997,21 @@ const ClientesPage = () => {
                     )}
                   </div>
                 </div>
-                <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
+                <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
                   <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>Datos completos</Title>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                     <DetalleCampo label="Nombres" value={reg.nombres} strong />
                     <DetalleCampo label="Apellidos" value={reg.apellidos} strong />
                     <DetalleCampo label="Documento" value={reg.cedula} strong />
                     <DetalleCampo label="Correo" value={reg.correo} />
-                    <DetalleCampo label="Telefono" value={reg.telefono} />
-                    <DetalleCampo label="Fecha nacimiento" value={reg.fecha_nacimiento ? dayjs(reg.fecha_nacimiento).format('DD/MM/YYYY') : null} />
-                    <DetalleCampo label="Edad" value={reg.edad ? `${reg.edad} anos` : null} />
+                    <DetalleCampo label="Teléfono" value={reg.telefono} />
+                    <DetalleCampo label="Fecha nacimiento" value={reg.fecha_nacimiento ? formatFecha(reg.fecha_nacimiento) : null} />
+                    <DetalleCampo label="Edad" value={reg.edad ? `${reg.edad} años` : null} />
                     <DetalleCampo label="Estado civil" value={reg.estado_civil?.replace('_', ' ')} />
                     <DetalleCampo label="Nacionalidad" value={reg.nacionalidad} />
-                    <DetalleCampo label="Pais residencia" value={reg.pais_residencia} />
-                    <DetalleCampo label="Fecha captacion" value={reg.fecha_captacion ? dayjs(reg.fecha_captacion).format('DD/MM/YYYY') : null} />
-                    <DetalleCampo label="Vencimiento exclusividad" value={reg.fecha_vencimiento ? dayjs(reg.fecha_vencimiento).format('DD/MM/YYYY') : null} />
+                    <DetalleCampo label="País residencia" value={reg.pais_residencia} />
+                    <DetalleCampo label="Fecha captación" value={reg.fecha_captacion ? formatFecha(reg.fecha_captacion) : null} />
+                    <DetalleCampo label="Vencimiento exclusividad" value={reg.fecha_vencimiento ? formatFecha(reg.fecha_vencimiento) : null} />
                   </div>
                 </div>
                 <Title level={5} style={{ marginBottom: 12 }}>Registros por proyecto</Title>
@@ -1012,13 +1019,13 @@ const ClientesPage = () => {
             )}
 
             {/* Card por registro (proyecto + inmobiliaria) */}
-            <div style={{ padding: '12px 14px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 8 }}>
+            <div style={{ padding: '12px 14px', background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <div style={{ flex: 1 }}>
                   <Text strong>{proyectoNombre(reg.proyecto_id)}</Text>
                   <br />
                   <Space size={4} style={{ marginTop: 4 }}>
-                    <BankOutlined style={{ fontSize: 12, color: '#888' }} />
+                    <BankOutlined style={{ fontSize: 12, color: 'var(--text-muted)' }} />
                     <Text type="secondary" style={{ fontSize: 12 }}>{inmoNombre(reg.inmobiliaria_id)}</Text>
                   </Space>
                 </div>
@@ -1042,7 +1049,7 @@ const ClientesPage = () => {
                             />
                           </div>
                           <Text type="secondary" style={{ fontSize: 10, display: 'block', marginTop: 2 }}>
-                            Vence: {dayjs(reg.fecha_vencimiento).format('DD/MM/YY')}
+                            Vence: {formatFecha(reg.fecha_vencimiento, 'DD/MM/YY')}
                           </Text>
                         </div>
                       );
@@ -1074,13 +1081,13 @@ const ClientesPage = () => {
                   return (
                     <div key={p.sk} style={{ marginBottom: 6 }}>
                       {alertaVencida && (
-                        <div style={{ background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#cf1322', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--danger-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#EF4444', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 14 }}>⚠️</span>
                           <span style={{ flex: 1 }}>Separación vencida (30 días)</span>
                         </div>
                       )}
                       {proximoVencer && (
-                        <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 14 }}>⏰</span>
                           <span>Vence en {30 - diasEnSeparacion!} día{30 - diasEnSeparacion! !== 1 ? 's' : ''}</span>
                         </div>
@@ -1104,8 +1111,6 @@ const ClientesPage = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Space size={4}></Space>
                         <Space size={0}>
-                          <Button size="small" type="link" icon={<SwapOutlined />}
-                            onClick={() => { setEstatusModal(p); setEstatusCliente(reg); }}>Estatus</Button>
                           <Button size="small" type="link" icon={<HistoryOutlined />}
                             onClick={() => { setHistorialProceso(p); setHistorialNombre(`${reg.nombres} ${reg.apellidos}`); }}>Historial</Button>
                           <Button size="small" type="link" icon={<BankOutlined />}
@@ -1132,7 +1137,7 @@ const ClientesPage = () => {
       >
         {drawerCliente && (
           <div>
-            <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+            <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                 <div>
                   <Text type="secondary" style={{ fontSize: 11 }}>CÉDULA</Text>
@@ -1176,7 +1181,7 @@ const ClientesPage = () => {
                               />
                             </div>
                             <Text type="secondary" style={{ fontSize: 11 }}>
-                              Vence: {dayjs(drawerCliente.fecha_vencimiento).format('DD/MM/YYYY')}
+                              Vence: {formatFecha(drawerCliente.fecha_vencimiento)}
                             </Text>
                           </>
                         );
@@ -1188,28 +1193,28 @@ const ClientesPage = () => {
                 </div>
               </div>
             </div>
-            <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+            <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
               <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>Datos completos</Title>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                 <DetalleCampo label="Nombres" value={drawerCliente.nombres} strong />
                 <DetalleCampo label="Apellidos" value={drawerCliente.apellidos} strong />
                 <DetalleCampo label="Documento" value={drawerCliente.cedula} strong />
                 <DetalleCampo label="Correo" value={drawerCliente.correo} />
-                <DetalleCampo label="Telefono" value={drawerCliente.telefono} />
-                <DetalleCampo label="Fecha nacimiento" value={drawerCliente.fecha_nacimiento ? dayjs(drawerCliente.fecha_nacimiento).format('DD/MM/YYYY') : null} />
-                <DetalleCampo label="Edad" value={drawerCliente.edad ? `${drawerCliente.edad} anos` : null} />
+                <DetalleCampo label="Teléfono" value={drawerCliente.telefono} />
+                <DetalleCampo label="Fecha nacimiento" value={drawerCliente.fecha_nacimiento ? formatFecha(drawerCliente.fecha_nacimiento) : null} />
+                <DetalleCampo label="Edad" value={drawerCliente.edad ? `${drawerCliente.edad} años` : null} />
                 <DetalleCampo label="Estado civil" value={drawerCliente.estado_civil?.replace('_', ' ')} />
                 <DetalleCampo label="Nacionalidad" value={drawerCliente.nacionalidad} />
-                <DetalleCampo label="Pais residencia" value={drawerCliente.pais_residencia} />
+                <DetalleCampo label="País residencia" value={drawerCliente.pais_residencia} />
                 <DetalleCampo label="Proyecto" value={proyectoNombre(drawerCliente.proyecto_id)} />
-                <DetalleCampo label="Fecha captacion" value={drawerCliente.fecha_captacion ? dayjs(drawerCliente.fecha_captacion).format('DD/MM/YYYY') : null} />
+                <DetalleCampo label="Fecha captación" value={drawerCliente.fecha_captacion ? formatFecha(drawerCliente.fecha_captacion) : null} />
               </div>
             </div>
             {drawerProcesos.length > 0 && (
               <>
                 <Title level={5} style={{ marginBottom: 8 }}>Procesos de venta</Title>
                 {drawerProcesos.map(p => (
-                  <div key={p.sk} style={{ padding: '10px 14px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 8 }}>
+                  <div key={p.sk} style={{ padding: '10px 14px', background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, marginBottom: 8 }}>
                     <Space>
                       <Tag color="geekblue">{p.unidad_nombre || p.unidad_id}</Tag>
                       <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
@@ -1295,7 +1300,7 @@ const ClientesPage = () => {
         {clienteTransferir && (
           <>
             <div style={{
-              background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8,
+              background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8,
               padding: '12px 14px', marginBottom: 16,
             }}>
               <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE</Text>
@@ -1376,7 +1381,7 @@ const ClientesPage = () => {
             />
 
             <div style={{
-              background: '#fff1f0', border: '1px solid #ffccc7', borderRadius: 8,
+              background: 'var(--danger-soft-bg)', border: '1px solid var(--danger-soft-border)', borderRadius: 8,
               padding: '12px 14px', marginBottom: 16,
             }}>
               <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE A ELIMINAR</Text>
@@ -1399,7 +1404,7 @@ const ClientesPage = () => {
               </div>
             </div>
 
-            <div style={{ background: '#fafafa', border: '1px solid #d9d9d9', borderRadius: 8, padding: 12 }}>
+            <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: 12 }}>
               <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>Se eliminarán:</Text>
               <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
                 <li>{drawerRegistros.length} registro{drawerRegistros.length !== 1 ? 's' : ''} del cliente en {drawerRegistros.length} inmobiliaria{drawerRegistros.length !== 1 ? 's' : ''}</li>
@@ -1427,7 +1432,7 @@ const ClientesPage = () => {
               </ul>
             </div>
 
-            <div style={{ marginTop: 16, padding: 12, background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8 }}>
+            <div style={{ marginTop: 16, padding: 12, background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8 }}>
               <Text type="warning" style={{ fontSize: 12 }}>
                 <strong>Nota:</strong> Esta acción no se puede deshacer. Asegúrate de que realmente deseas eliminar este cliente de todas las inmobiliarias.
               </Text>
@@ -1454,7 +1459,7 @@ const ClientesPage = () => {
       >
         {clienteCedula && (
           <Space direction="vertical" style={{ width: '100%' }} size={16}>
-            <div style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8, padding: '12px 16px' }}>
+            <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8, padding: '12px 16px' }}>
               <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE</Text>
               <Text strong>{clienteCedula.nombres} {clienteCedula.apellidos}</Text>
               <br />

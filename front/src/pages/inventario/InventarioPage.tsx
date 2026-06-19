@@ -309,7 +309,7 @@ const InventarioPage = () => {
         <Row gutter={[20, 20]}>
           {proyectosPreview.map(p => (
             <Col key={p.proyecto_id} xs={24} sm={12} md={8} lg={6}>
-              <div style={{ borderRadius: 16, overflow: 'hidden', cursor: 'pointer', background: '#fff', border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'box-shadow 0.2s, transform 0.2s' }}
+              <div style={{ borderRadius: 16, overflow: 'hidden', cursor: 'pointer', background: 'var(--panel-bg)', border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.16)', transition: 'box-shadow 0.2s, transform 0.2s' }}
                 onClick={() => inv.seleccionarProyecto(p.proyecto_id)}
                 onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}

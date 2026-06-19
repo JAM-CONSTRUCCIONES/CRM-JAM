@@ -178,7 +178,7 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
       {/* Info de la unidad */}
       {unidad && (
         <div style={{
-          background: '#e6f4ff', border: '1px solid #91caff', borderRadius: 8,
+          background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8,
           padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <LockOutlined style={{ color: '#1677ff', fontSize: 16 }} />
@@ -236,7 +236,7 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
         {/* Mostrar inmobiliaria seleccionada */}
         {inmobiliariaActual && (
           <div style={{
-            background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8,
+            background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8,
             padding: '8px 12px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <BankOutlined style={{ color: '#52c41a', fontSize: 14 }} />
@@ -331,7 +331,7 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 {/* Mostrar cliente seleccionado */}
                 {clienteSeleccionado && (
                   <div style={{
-                    background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8,
+                    background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8,
                     padding: '10px 14px', marginTop: 12,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>

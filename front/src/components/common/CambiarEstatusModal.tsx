@@ -74,7 +74,7 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
 
         <div style={{
-          background: '#f5f5f5', borderRadius: 8, padding: '10px 14px',
+          background: 'var(--panel-soft-bg)', borderRadius: 8, padding: '10px 14px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <Text type="secondary" style={{ fontSize: 12 }}>Unidad</Text>
@@ -83,7 +83,7 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
           </Tag>
         </div>
 
-        <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 16px' }}>
+        <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 16px' }}>
           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 10 }}>
             Transición de estatus
           </Text>
@@ -179,11 +179,11 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
                   icon={<TeamOutlined />}
                   onClick={() => handleConfirm('todos')}
                   loading={loading}
-                  style={{ textAlign: 'left', height: 'auto', padding: '10px 14px', border: '1px solid #d9d9d9' }}
+                  style={{ textAlign: 'left', height: 'auto', padding: '10px 14px', border: '1px solid var(--app-border)' }}
                 >
                   <div>
                     <div style={{ fontWeight: 500, fontSize: 14 }}>Notificar a todos</div>
-                    <div style={{ fontSize: 12, color: '#888', fontWeight: 400, marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
                       {tieneContacto
                         ? 'Cliente, inmobiliaria y administración'
                         : 'Inmobiliaria y administración (cliente sin correo)'}
@@ -195,11 +195,11 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
                   icon={<UserOutlined />}
                   onClick={() => handleConfirm('admin')}
                   loading={loading}
-                  style={{ textAlign: 'left', height: 'auto', padding: '10px 14px', border: '1px solid #d9d9d9' }}
+                  style={{ textAlign: 'left', height: 'auto', padding: '10px 14px', border: '1px solid var(--app-border)' }}
                 >
                   <div>
                     <div style={{ fontWeight: 500, fontSize: 14 }}>Solo administración</div>
-                    <div style={{ fontSize: 12, color: '#888', fontWeight: 400, marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
                       Notificación interna únicamente
                     </div>
                   </div>

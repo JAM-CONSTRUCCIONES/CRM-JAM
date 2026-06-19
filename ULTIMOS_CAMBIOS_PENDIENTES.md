@@ -227,7 +227,7 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   Hecho: el envio de notificaciones ahora convierte los saltos de linea configurados en saltos visibles dentro del correo, manteniendo el formato de parrafos del mensaje.
 
-- [ ] Agregar modo visual oscuro.
+- [x] Agregar modo visual oscuro.
 
   Se agregara una opcion visual para usar el sistema en modo oscuro.
 
@@ -235,24 +235,28 @@ Nota de avance: estos cambios ya fueron desplegados y revisados en dev usando el
 
   No cambia funcionalidades ni permisos del sistema. Es un ajuste visual de interfaz.
 
+  Hecho: se agrego un selector de modo claro/oscuro en la barra lateral, cerca de las opciones del usuario. La preferencia queda guardada en el navegador y se aplica a la interfaz principal, tablas, modales, formularios, menus y graficos.
+
 
 ## Usuario inmobiliarias
 
 ### Dashboard
 
-- [ ] Ajustar grafico de inmobiliaria con unidades disponibles, bloqueadas y no disponibles.
+- [x] Ajustar grafico de inmobiliaria con unidades bloqueadas, no disponibles y desvinculadas.
 
   Para la estadistica del usuario inmobiliaria, el grafico debe considerar:
 
-  - Disponibles: unidades con estatus `disponible`.
-  - Bloqueadas.
+  - Bloqueadas: unidades bloqueadas por la inmobiliaria.
   - No disponibles: unidades desde `reserva` en adelante, sin incluir procesos desvinculados.
+  - Desvinculadas: procesos de esa inmobiliaria con estatus `desvinculado`.
 
   Los procesos desvinculados no se contaran como unidades no disponibles, porque al desvincular un cliente/proceso la unidad vuelve a estar disponible para poder venderse nuevamente.
 
   No se creara un nuevo estado llamado "Desvinculada de JAM".
 
   Los clientes/procesos desvinculados seguiran visibles como registros del proceso con estatus `desvinculado`, pero no cambiaran el conteo operativo de unidades disponibles/no disponibles.
+
+  Hecho: el dashboard de usuario inmobiliaria muestra el grafico de estatus con bloqueadas, no disponibles y desvinculadas. Las bloqueadas se calculan por unidades bloqueadas por esa inmobiliaria, las no disponibles por procesos de esa inmobiliaria desde reserva en adelante, y las desvinculadas por procesos con estatus `desvinculado`. No se creo ningun estado nuevo de unidad.
 
 ### Proyecto
 
@@ -315,18 +319,6 @@ URL de referencia: https://dcgjiswnwqab6.cloudfront.net/captura-global
   Confirmado: el campo cedula/pasaporte debe aceptar letras y numeros, sin guiones ni simbolos. Las letras se guardaran en mayuscula.
 
   Hecho: este punto ya queda cubierto con las listas desplegables y validaciones aplicadas. Los demas puntos descritos no requieren cambios adicionales de sistema.
-
-- [ ] Revisar cliente registrado por inmobiliaria que no aparece en administrativo.
-
-  Todo cliente registrado desde captacion por una inmobiliaria debe ser visible para el usuario administrativo segun los permisos actuales del sistema.
-
-  Si el problema ocurre por duplicidad de cedula/pasaporte, el sistema debe manejarlo de forma clara y no ocultar el registro sin explicacion.
-
-- [ ] Corregir notificacion "Cliente Captado".
-
-  La inmobiliaria debe recibir la notificacion "Cliente Captado" al registrar un cliente.
-
-  Este envio depende de que el correo de la inmobiliaria este correctamente configurado y verificado.
 
 ## Nota de alcance
 

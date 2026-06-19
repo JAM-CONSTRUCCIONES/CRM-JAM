@@ -594,7 +594,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                         <th key={h} style={{ border: '1px solid #91caff', padding: '4px 8px', color: '#1677ff', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
-                    <tr style={{ background: '#fafafa' }}>
+                    <tr style={{ background: 'var(--panel-soft-bg)' }}>
                       {[
                         'B-A-101','76.34','12.5','8.0','3','2','D','1','1',
                         'JOSE MIGUEL BARRERA','A1234567','0991234567','jose@email.com',
@@ -603,7 +603,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                         '474.73','24','60766.64','CONTRATO FIRMADO','Plusval',
                         '2026-02-21','2026-03-21','',
                       ].map((v, i) => (
-                        <td key={i} style={{ border: '1px solid #d9d9d9', padding: '4px 8px', color: '#555' }}>{v || <span style={{ color: '#bbb' }}>vacío</span>}</td>
+                        <td key={i} style={{ border: '1px solid var(--app-border)', padding: '4px 8px', color: 'var(--text-secondary)' }}>{v || <span style={{ color: 'var(--text-muted)' }}>vacío</span>}</td>
                       ))}
                     </tr>
                   </thead>
@@ -616,7 +616,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                   <Tag color="default">El resto es opcional</Tag>
                   <Tag color="orange">Si hay cliente, NOMBRES, APELLIDOS, DOCUMENTO e INMOBILIARIA son obligatorias</Tag>
                 </div>
-                <div style={{ marginTop: 6, color: '#888', fontSize: 11 }}>
+                <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: 11 }}>
                   💡 Los nombres de columna no tienen que ser exactos — la IA intenta mapearlos automáticamente. Pero si coinciden, el resultado es más preciso.
                 </div>
               </div>
@@ -875,7 +875,7 @@ function CeldaIA({ children, sugerido, confianza, esNueva }: {
       : `Sugerido por IA (${confianza ?? ''}%)`}>
       <div style={{ border: `1px solid ${baja ? '#faad14' : '#722ed1'}`, borderRadius: 4, position: 'relative' }}>
         <RobotOutlined style={{ position: 'absolute', top: -8, right: 2, fontSize: 10,
-          color: baja ? '#faad14' : '#722ed1', background: 'white', padding: '0 2px' }} />
+          color: baja ? '#faad14' : '#722ed1', background: 'var(--panel-bg)', padding: '0 2px' }} />
         {children}
       </div>
     </Tooltip>

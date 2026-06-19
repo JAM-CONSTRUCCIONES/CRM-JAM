@@ -51,7 +51,7 @@ const HistorialEstatusDrawer = ({ open, proceso, clienteNombre, onClose }: Props
             color: ESTADO_COLOR[h.estatus_nuevo] ?? 'gray',
             children: (
               <div style={{
-                background: '#fafafa', border: '1px solid #f0f0f0',
+                background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)',
                 borderRadius: 8, padding: '10px 12px', marginBottom: 4,
               }}>
                 {/* Transición */}
@@ -67,7 +67,7 @@ const HistorialEstatusDrawer = ({ open, proceso, clienteNombre, onClose }: Props
 
                 {/* Ejecutor y fecha */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <UserOutlined style={{ color: '#8c8c8c', fontSize: 11 }} />
+                  <UserOutlined style={{ color: 'var(--text-muted)', fontSize: 11 }} />
                   <Text style={{ fontSize: 12 }}>{h.ejecutado_por_nombre}</Text>
                   <Text type="secondary" style={{ fontSize: 11 }}>·</Text>
                   <Text type="secondary" style={{ fontSize: 11 }}>

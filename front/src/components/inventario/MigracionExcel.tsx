@@ -20,6 +20,8 @@ import {
   NACIONALIDADES_OPTIONS,
   isNacionalidadValida,
   isPaisValido,
+  normalizarNacionalidadCatalogo,
+  normalizarPaisCatalogo,
 } from '../../constants/catalogosCliente';
 import { clienteFieldNormalizers } from '../../utils/clientesValidation';
 
@@ -48,10 +50,37 @@ const fechaValida = (value?: string | null) => {
 
 const cleanSpaces = (value?: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const normalizeDocumentoInput = (value?: unknown) => String(value ?? '').trim().toLocaleUpperCase('es-VE');
+const cleanDocumentoAutomatico = (value?: unknown) => normalizeDocumentoInput(value).replace(/[^A-Z0-9]/g, '');
+const cleanTelefonoAutomatico = (value?: unknown) => String(value ?? '').replace(/\D/g, '');
+const cleanNombreAutomatico = (value?: unknown) =>
+  String(value ?? '')
+    .replace(/[^\p{L}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase('es-VE');
 const documentoTemporal = (proyectoId: string, idx: number) => {
   const proyectoSeguro = normalizeDocumentoInput(proyectoId).replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'PROYECTO';
   return `MIGP${proyectoSeguro}${String(idx).padStart(3, '0')}`;
 };
+
+const normalizarCatalogosFila = (fila: FilaMigracion): FilaMigracion => {
+  const pais = normalizarPaisCatalogo(fila.pais_residencia);
+  const nacionalidad = normalizarNacionalidadCatalogo(fila.nacionalidad);
+  return {
+    ...fila,
+    pais_residencia: pais || fila.pais_residencia,
+    nacionalidad: nacionalidad || fila.nacionalidad,
+  };
+};
+
+const limpiarDatosClienteFila = (fila: FilaMigracion): FilaMigracion => normalizarCatalogosFila({
+  ...fila,
+  cedula: fila.cedula ? cleanDocumentoAutomatico(fila.cedula) : fila.cedula,
+  nombres_sugerido: fila.nombres_sugerido ? cleanNombreAutomatico(fila.nombres_sugerido) : fila.nombres_sugerido,
+  apellidos_sugerido: fila.apellidos_sugerido ? cleanNombreAutomatico(fila.apellidos_sugerido) : fila.apellidos_sugerido,
+  cliente_telefono: fila.cliente_telefono ? cleanTelefonoAutomatico(fila.cliente_telefono) : fila.cliente_telefono,
+  cliente_correo: fila.cliente_correo ? clienteFieldNormalizers.correo(fila.cliente_correo) : fila.cliente_correo,
+});
 
 const validarDatosClienteMigracion = (f: FilaMigracion) => {
   const errores: string[] = [];
@@ -212,13 +241,11 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       }
       if (!preview) throw new Error('El procesamiento tardó demasiado. Intenta de nuevo.');
       setFilas(preview.filas.map((fila: FilaMigracion) => {
-        const updated = {
+        const updated = limpiarDatosClienteFila({
           ...fila,
-          cedula: fila.cedula ? normalizeDocumentoInput(fila.cedula) : fila.cedula,
           nombres_sugerido: fila.nombres_sugerido ? clienteFieldNormalizers.nombre(fila.nombres_sugerido) : fila.nombres_sugerido,
           apellidos_sugerido: fila.apellidos_sugerido ? clienteFieldNormalizers.nombre(fila.apellidos_sugerido) : fila.apellidos_sugerido,
-          cliente_correo: fila.cliente_correo ? clienteFieldNormalizers.correo(fila.cliente_correo) : fila.cliente_correo,
-        };
+        });
         const { errores, advertencias } = validarFila(updated);
         return { ...updated, errores, advertencias };
       }));
@@ -279,6 +306,14 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       return { ...updated, errores, advertencias };
     }));
   }, [proyectoId]);
+
+  const limpiarDatosClientes = useCallback(() => {
+    setFilas(prev => prev.map(f => {
+      const updated = limpiarDatosClienteFila(f);
+      const { errores, advertencias } = validarFila(updated);
+      return { ...updated, errores, advertencias };
+    }));
+  }, []);
 
   // ── Nueva etapa ───────────────────────────────────────────────────────────
   const [nuevaEtapaModal, setNuevaEtapaModal] = useState(false);
@@ -668,6 +703,11 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
             <RellenarVaciosBtn campo="parqueos" label="Rellenar parqueos vacíos" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="cuota_meses" label="Rellenar meses cuota" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarEtapaBtn etapas={etapas} onRellenar={rellenarVacios} />
+            <Tooltip title="Limpia documentos, nombres, telefonos, correos, pais de residencia y nacionalidad usando las reglas de clientes.">
+              <Button icon={<ThunderboltOutlined />} onClick={limpiarDatosClientes}>
+                Limpiar datos de clientes
+              </Button>
+            </Tooltip>
             <Button size="small" icon={<PlusOutlined />} onClick={() => { setNuevaEtapaNombre(''); setNuevaEtapaAplicar('vacios'); setNuevaEtapaModal(true); }}>
               Nueva etapa
             </Button>

@@ -228,3 +228,55 @@ export const isPaisValido = (value?: unknown) =>
 
 export const isNacionalidadValida = (value?: unknown) =>
   !value || nacionalidadesValidas.has(String(value));
+
+const normalizarTextoCatalogo = (value?: unknown) =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const paisAliases: Record<string, string> = {
+  rd: 'Republica Dominicana',
+  'rep dominicana': 'Republica Dominicana',
+  'republica dominicana': 'Republica Dominicana',
+  dominicana: 'Republica Dominicana',
+  usa: 'Estados Unidos',
+  eeuu: 'Estados Unidos',
+  'ee uu': 'Estados Unidos',
+  'estados unidos': 'Estados Unidos',
+  'estados unidos de america': 'Estados Unidos',
+};
+
+const nacionalidadAliases: Record<string, string> = {
+  dominicano: 'Dominicana',
+  dominicana: 'Dominicana',
+  estadounidense: 'Estadounidense',
+  americano: 'Estadounidense',
+  americana: 'Estadounidense',
+};
+
+const paisesPorTexto = new Map(PAISES_OPTIONS.map(option => [normalizarTextoCatalogo(option.value), option.value]));
+const nacionalidadesPorTexto = new Map(NACIONALIDADES_OPTIONS.map(option => [normalizarTextoCatalogo(option.value), option.value]));
+
+const buscarConVariantesGenero = (normalizado: string, mapa: Map<string, string>) => {
+  const directo = mapa.get(normalizado);
+  if (directo) return directo;
+  if (normalizado.endsWith('o')) return mapa.get(`${normalizado.slice(0, -1)}a`) ?? '';
+  if (normalizado.endsWith('a')) return mapa.get(`${normalizado.slice(0, -1)}o`) ?? '';
+  return '';
+};
+
+export const normalizarPaisCatalogo = (value?: unknown) => {
+  const normalizado = normalizarTextoCatalogo(value);
+  if (!normalizado) return '';
+  return paisAliases[normalizado] ?? buscarConVariantesGenero(normalizado, paisesPorTexto) ?? '';
+};
+
+export const normalizarNacionalidadCatalogo = (value?: unknown) => {
+  const normalizado = normalizarTextoCatalogo(value);
+  if (!normalizado) return '';
+  return nacionalidadAliases[normalizado] ?? buscarConVariantesGenero(normalizado, nacionalidadesPorTexto) ?? '';
+};

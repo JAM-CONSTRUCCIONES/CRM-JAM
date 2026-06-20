@@ -157,6 +157,23 @@ def _texto_multilinea_html(texto):
     return '<br>'.join(escape(str(texto or '')).splitlines())
 
 
+def _formatear_fecha_correo(fecha):
+    """Formats email dates as DD/MM/YYYY without time or timezone."""
+    if not fecha:
+        return ''
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(str(fecha).replace('Z', '+00:00'))
+        return dt.strftime('%d/%m/%Y')
+    except Exception:
+        texto = str(fecha)
+        if len(texto) >= 10:
+            partes = texto[:10].split('-')
+            if len(partes) == 3:
+                return f'{partes[2]}/{partes[1]}/{partes[0]}'
+        return texto
+
+
 def _sustituir_variables(texto, vars_dict):
     """Replace known placeholders in editable email templates."""
     resultado = str(texto or '')
@@ -285,8 +302,8 @@ def _bloqueo_registrado(msg):
     horas = meta.get('horas', 48)
     cliente = _nombre_cliente(cliente_cedula, inmo_id, msg.get('proyecto_id', '')) if cliente_cedula else ''
 
-    fecha_bloqueo_fmt = fecha_bloqueo[:19].replace("T", " ") + " UTC" if fecha_bloqueo else ''
-    fecha_liberacion_fmt = fecha_liberacion[:19].replace("T", " ") + " UTC" if fecha_liberacion else ''
+    fecha_bloqueo_fmt = _formatear_fecha_correo(fecha_bloqueo)
+    fecha_liberacion_fmt = _formatear_fecha_correo(fecha_liberacion)
 
     filas = [
         ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
@@ -309,17 +326,10 @@ def _alerta_vencimiento(msg):
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     fecha_liberacion = meta.get('fecha_liberacion') or msg.get('fecha_liberacion', '')
-    fecha_fmt = ''
-    if fecha_liberacion:
-        try:
-            from datetime import datetime
-            dt = datetime.fromisoformat(fecha_liberacion.replace('Z', '+00:00'))
-            fecha_fmt = dt.strftime('%d/%m/%Y %H:%M UTC')
-        except:
-            fecha_fmt = fecha_liberacion[:19].replace("T", " ") + " UTC"
+    fecha_fmt = _formatear_fecha_correo(fecha_liberacion)
 
     filas = [('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Vence el', fecha_fmt)]
-    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
     titulo, cuerpo = _render_template('alerta_vencimiento', vars_dict, filas,
         '⚠️ Bloqueo próximo a vencer',
         'El siguiente bloqueo está próximo a vencer. Si necesita más tiempo, comuníquese con el administrador.')
@@ -335,17 +345,10 @@ def _liberacion_automatica(msg):
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     fecha = meta.get('fecha_liberacion') or msg.get('fecha_liberacion', '')
-    fecha_fmt = ''
-    if fecha:
-        try:
-            from datetime import datetime
-            dt = datetime.fromisoformat(fecha.replace('Z', '+00:00'))
-            fecha_fmt = dt.strftime('%d/%m/%Y %H:%M UTC')
-        except:
-            fecha_fmt = fecha[:19].replace("T", " ") + " UTC"
+    fecha_fmt = _formatear_fecha_correo(fecha)
 
     filas = [('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Liberada el', fecha_fmt)]
-    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
     titulo, cuerpo = _render_template('liberacion_automatica', vars_dict, filas,
         'Bloqueo liberado por vencimiento',
         'El tiempo de bloqueo expiró y la unidad quedó disponible automáticamente.')
@@ -454,13 +457,13 @@ def _cliente_captado(msg):
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     cliente = f'{nombres} {apellidos} ({cedula})'.strip()
     fecha = msg.get('timestamp', '')
-    fecha_fmt = fecha[:19].replace("T", " ") + " UTC" if fecha else ''
+    fecha_fmt = _formatear_fecha_correo(fecha)
 
     filas = [
         ('Nombre', f'{nombres} {apellidos}'), ('Cédula', cedula),
         ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Fecha', fecha_fmt),
     ]
-    vars_dict = {'cliente': cliente, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    vars_dict = {'cliente': cliente, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
     titulo, cuerpo = _render_template('cliente_captado', vars_dict, filas,
         'Nuevo cliente captado',
         'Se ha registrado un nuevo cliente en el sistema.')

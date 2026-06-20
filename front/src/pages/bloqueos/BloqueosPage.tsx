@@ -17,6 +17,8 @@ import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import type { Bloqueo, Proyecto, HistorialBloqueo, Cliente } from '../../types';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
 import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
+import { confirmarLiberarBloqueo } from '../../components/common/ConfirmarLiberarBloqueo';
+import type { ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -114,15 +116,20 @@ const BloqueosPage = () => {
     }
   }, [historialNextToken]);
 
-  const handleLiberar = async (b: Bloqueo) => {
+  const handleLiberar = async (b: Bloqueo, notificar: ModoNotificacion) => {
     try {
-      await liberarBloqueo(b.unidad_id, b.proyecto_id);
+      await liberarBloqueo(b.unidad_id, b.proyecto_id, notificar);
       message.success('Bloqueo liberado');
       cargar();
     } catch {
       message.error('Error al liberar bloqueo');
     }
   };
+
+  const abrirLiberarBloqueo = (b: Bloqueo) => confirmarLiberarBloqueo({
+    tieneCliente: !!b.cliente_cedula,
+    onConfirm: (notificar) => handleLiberar(b, notificar),
+  });
 
   const abrirExtender = (b: Bloqueo) => {
     setBloqueoSeleccionado(b);
@@ -276,11 +283,7 @@ const BloqueosPage = () => {
           { key: 'extender', icon: <FieldTimeOutlined />, label: 'Cambiar tiempo', onClick: () => abrirExtender(record) },
           {
             key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true,
-            onClick: () => Modal.confirm({
-              title: '¿Liberar este bloqueo?', content: 'La unidad volverá a estar disponible.',
-              okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true },
-              onOk: () => handleLiberar(record),
-            }),
+            onClick: () => abrirLiberarBloqueo(record),
           },
         ];
         return <Dropdown menu={{ items }} trigger={['click']} placement="bottomRight"><Button size="small" icon={<MoreOutlined />} /></Dropdown>;
@@ -318,7 +321,7 @@ const BloqueosPage = () => {
                   const menuItems = [
                     ...(!b.cliente_cedula ? [{ key: 'asignar', icon: <UserAddOutlined />, label: 'Asignar cliente', onClick: () => abrirAsignarCliente(b) }] : []),
                     { key: 'extender', icon: <FieldTimeOutlined />, label: 'Cambiar tiempo', onClick: () => abrirExtender(b) },
-                    { key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true, onClick: () => Modal.confirm({ title: '¿Liberar este bloqueo?', content: 'La unidad volverá a estar disponible.', okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true }, onOk: () => handleLiberar(b) }) },
+                    { key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true, onClick: () => abrirLiberarBloqueo(b) },
                   ];
                   return (
                     <div key={b.unidad_id} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px' }}>

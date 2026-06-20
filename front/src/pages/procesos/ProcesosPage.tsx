@@ -25,6 +25,7 @@ import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION,
 import { useAuthContext } from '../../context/AuthContext';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
 import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
+import { confirmarLiberarBloqueo } from '../../components/common/ConfirmarLiberarBloqueo';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -351,9 +352,9 @@ const ProcesosPage = () => {
     } finally { setGuardandoAsignar(false); }
   };
 
-  const handleLiberar = async (b: Bloqueo) => {
+  const handleLiberar = async (b: Bloqueo, notificar: ModoNotificacion) => {
     try {
-      await liberarBloqueo(b.unidad_id, b.proyecto_id);
+      await liberarBloqueo(b.unidad_id, b.proyecto_id, notificar);
       message.success('Bloqueo liberado');
       cargarBloqueosSinCliente();
       cargar(); // refrescar procesos también
@@ -361,6 +362,11 @@ const ProcesosPage = () => {
       message.error('Error al liberar bloqueo');
     }
   };
+
+  const abrirLiberarBloqueo = (b: Bloqueo) => confirmarLiberarBloqueo({
+    tieneCliente: !!b.cliente_cedula,
+    onConfirm: (notificar) => handleLiberar(b, notificar),
+  });
 
   const cargarHistorialBloqueos = useCallback(async (nextToken?: string) => {
     setLoadingHistorialBloqueos(true);
@@ -532,12 +538,7 @@ const ProcesosPage = () => {
         { key: 'extender', icon: <FieldTimeOutlined />, label: 'Extender bloqueo', onClick: () => { setExtenderProcesoModal(p); formExtenderProceso.resetFields(); } },
         {
           key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar bloqueo', danger: true,
-          onClick: () => Modal.confirm({
-            title: '¿Liberar el bloqueo de esta unidad?',
-            content: 'La unidad volverá a estar disponible. El proceso de venta continuará.',
-            okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true },
-            onOk: () => handleLiberar({ unidad_id: p.unidad_id, proyecto_id: p.proyecto_id } as Bloqueo),
-          }),
+          onClick: () => abrirLiberarBloqueo({ unidad_id: p.unidad_id, proyecto_id: p.proyecto_id, cliente_cedula: p.cedula } as Bloqueo),
         },
       ] : []),
     ];
@@ -642,11 +643,7 @@ const ProcesosPage = () => {
           {esBloqueada && !esInmobiliaria && <Tooltip title="Extender bloqueo"><Button size="small" icon={<FieldTimeOutlined />} onClick={() => { setExtenderProcesoModal(p); formExtenderProceso.resetFields(); }} /></Tooltip>}
           {esBloqueada && !esInmobiliaria && (
             <Tooltip title="Liberar bloqueo">
-              <Button size="small" danger icon={<UnlockOutlined />} onClick={() => Modal.confirm({
-                title: '¿Liberar el bloqueo?', content: 'La unidad volverá a estar disponible.',
-                okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true },
-                onOk: () => handleLiberar({ unidad_id: p.unidad_id, proyecto_id: p.proyecto_id } as Bloqueo),
-              })} />
+              <Button size="small" danger icon={<UnlockOutlined />} onClick={() => abrirLiberarBloqueo({ unidad_id: p.unidad_id, proyecto_id: p.proyecto_id, cliente_cedula: p.cedula } as Bloqueo)} />
             </Tooltip>
           )}
           {!esInmobiliaria && <Tooltip title="Historial"><Button size="small" icon={<HistoryOutlined />} onClick={() => { setHistorialProceso(p); setHistorialNombre(nombreCliente(p)); }} /></Tooltip>}
@@ -664,12 +661,7 @@ const ProcesosPage = () => {
       { key: 'extender', icon: <FieldTimeOutlined />, label: 'Extender bloqueo', onClick: () => { setExtenderBloqueoModal(b); formExtenderBloqueo.resetFields(); } },
       {
         key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true,
-        onClick: () => Modal.confirm({
-          title: '¿Liberar este bloqueo?',
-          content: 'La unidad volverá a estar disponible.',
-          okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true },
-          onOk: () => handleLiberar(b),
-        }),
+        onClick: () => abrirLiberarBloqueo(b),
       },
     ];
     if (isMobile) {
@@ -723,11 +715,7 @@ const ProcesosPage = () => {
           <Tooltip title="Asignar cliente"><Button size="small" icon={<UserAddOutlined />} onClick={() => abrirAsignarCliente(b)} /></Tooltip>
           <Tooltip title="Extender bloqueo"><Button size="small" icon={<FieldTimeOutlined />} onClick={() => { setExtenderBloqueoModal(b); formExtenderBloqueo.resetFields(); }} /></Tooltip>
           <Tooltip title="Liberar">
-            <Button size="small" danger icon={<UnlockOutlined />} onClick={() => Modal.confirm({
-              title: '¿Liberar este bloqueo?', content: 'La unidad volverá a estar disponible.',
-              okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true },
-              onOk: () => handleLiberar(b),
-            })} />
+            <Button size="small" danger icon={<UnlockOutlined />} onClick={() => abrirLiberarBloqueo(b)} />
           </Tooltip>
         </div>
       </div>

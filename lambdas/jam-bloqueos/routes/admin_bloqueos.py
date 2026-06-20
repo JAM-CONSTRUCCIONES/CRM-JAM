@@ -71,6 +71,8 @@ def liberar(proyecto_id, unidad_id, event):
     # (el admin puede forzar con ?forzar=true)
     qs = event.get('queryStringParameters') or {}
     forzar = qs.get('forzar', 'false').lower() == 'true'
+    notificar_raw = str(qs.get('notificar', 'false')).lower()
+    notificar = notificar_raw if notificar_raw in ('admin', 'todos') else False
 
     if cliente_cedula and inmobiliaria_id and not forzar:
         procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
@@ -114,7 +116,10 @@ def liberar(proyecto_id, unidad_id, event):
                 'proyecto_id': proyecto_id,
                 'inmobiliaria_id': inmobiliaria_id,
                 'liberado_por': admin_id,
-            }),
+                'cedula': cliente_cedula,
+                'unidad_nombre': unidad.get('id_unidad') or unidad_id,
+                'notificar': notificar,
+            }, ensure_ascii=False),
         )
 
     return ok({'message': 'Bloqueo liberado', 'unidad_id': unidad_id})

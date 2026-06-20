@@ -358,7 +358,6 @@ def _liberacion_automatica(msg):
 def _liberacion_manual(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
-    correos = _correos_inmobiliaria(inmo_id)
     proyecto_id = msg.get('proyecto_id', '')
     unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
@@ -367,6 +366,19 @@ def _liberacion_manual(msg):
     justificacion = meta.get('justificacion') or msg.get('justificacion', '')
     cedula = meta.get('cedula') or msg.get('cedula', '')
     cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else ''
+    notificar = msg.get('notificar')
+    if notificar in (False, 'false', None):
+        logger.info('liberacion_manual sin notificar, omitiendo email')
+        return
+
+    correos_inmo = _correos_inmobiliaria(inmo_id)
+    correo_cliente = _correo_cliente(cedula, inmo_id, proyecto_id) if cedula else ''
+    if notificar == 'todos':
+        correos = [correo_cliente] + correos_inmo + [ADMIN_EMAIL]
+    elif notificar == 'admin':
+        correos = [ADMIN_EMAIL]
+    else:
+        correos = correos_inmo
 
     filas = [
         ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),

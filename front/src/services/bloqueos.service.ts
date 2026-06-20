@@ -1,6 +1,7 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './api';
 import type { Bloqueo, HistorialBloqueo } from '../types';
 import { validateAndNormalizeClientePayload } from '../utils/clientesValidation';
+import type { ModoNotificacion } from '../components/common/CambiarEstatusModal';
 
 export const bloquearUnidad = (data: {
   proyecto_id: string;
@@ -41,8 +42,14 @@ export const getHistorialBloqueos = (unidadId?: string, nextToken?: string): Pro
   return apiGet<HistorialResponse>(`/admin/bloqueos/historial${qs}`);
 };
 
-export const liberarBloqueo = (unidadId: string, proyectoId: string): Promise<{ message: string }> =>
-  apiDelete(`/admin/bloqueos/${unidadId}?proyecto_id=${proyectoId}`);
+export const liberarBloqueo = (
+  unidadId: string,
+  proyectoId: string,
+  notificar: ModoNotificacion = false
+): Promise<{ message: string }> => {
+  const params = new URLSearchParams({ proyecto_id: proyectoId, notificar: String(notificar) });
+  return apiDelete(`/admin/bloqueos/${unidadId}?${params.toString()}`);
+};
 
 export const extenderBloqueo = (
   unidadId: string,

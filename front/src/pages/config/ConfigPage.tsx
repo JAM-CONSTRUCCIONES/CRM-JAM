@@ -13,6 +13,20 @@ import {
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
+const VARIABLES_PERMITIDAS = ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}', '{fecha}'];
+
+const validarVariablesPlantilla = (_: unknown, value?: string) => {
+  const texto = String(value || '');
+  const variables = texto.match(/\{[^{}\r\n]*\}?/g) || [];
+  const invalida = variables.find(v => !VARIABLES_PERMITIDAS.includes(v));
+  if (invalida) {
+    return Promise.reject(
+      new Error(`Variable no valida o incompleta: ${invalida}. Usa ${VARIABLES_PERMITIDAS.join(', ')}`)
+    );
+  }
+  return Promise.resolve();
+};
+
 const GRUPOS: Record<string, string[]> = {
   'Bloqueos': ['bloqueo_registrado', 'alerta_vencimiento', 'liberacion_automatica', 'liberacion_manual'],
   'Cambios de estatus': [
@@ -187,7 +201,7 @@ const ConfigPage = () => {
                     Haz clic en una variable para insertarla en el mensaje:
                   </Text>
                   <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {(editing.variables || ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}', '{fecha}']).map(v => (
+                    {(editing.variables || VARIABLES_PERMITIDAS).map(v => (
                       <Tag
                         key={v}
                         style={{ cursor: 'pointer', fontFamily: 'monospace' }}
@@ -214,14 +228,20 @@ const ConfigPage = () => {
               <Form.Item
                 name="titulo"
                 label="Título del correo"
-                rules={[{ required: true, message: 'El título es requerido' }]}
+                rules={[
+                  { required: true, message: 'El título es requerido' },
+                  { validator: validarVariablesPlantilla },
+                ]}
               >
                 <Input placeholder="Ej: Nuevo bloqueo registrado" maxLength={120} showCount />
               </Form.Item>
               <Form.Item
                 name="mensaje"
                 label="Mensaje principal"
-                rules={[{ required: true, message: 'El mensaje es requerido' }]}
+                rules={[
+                  { required: true, message: 'El mensaje es requerido' },
+                  { validator: validarVariablesPlantilla },
+                ]}
                 extra="Aparece antes de la tabla de datos."
               >
                 <TextArea

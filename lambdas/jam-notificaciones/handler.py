@@ -3,6 +3,7 @@ import json
 import boto3
 import os
 import logging
+import re
 from html import escape
 from boto3.dynamodb.conditions import Key
 
@@ -159,6 +160,15 @@ def _texto_multilinea_html(texto):
     return '<br>'.join(escape(str(texto or '')).splitlines())
 
 
+def _sustituir_variables(texto, vars_dict):
+    """Replace known placeholders in editable email templates."""
+    resultado = str(texto or '')
+    for key, value in (vars_dict or {}).items():
+        pattern = re.compile(r'\{' + re.escape(str(key)) + r'\}?(?![A-Za-z0-9_])', re.IGNORECASE)
+        resultado = pattern.sub(str(value or ''), resultado)
+    return resultado
+
+
 def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensaje):
     """
     Reads template from DynamoDB (or uses defaults), substitutes variables,
@@ -169,14 +179,8 @@ def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensa
     mensaje = mensaje_tpl or default_mensaje
 
     # Safe variable substitution — ignore unknown keys
-    try:
-        titulo = titulo.format(**vars_dict)
-    except (KeyError, ValueError):
-        pass
-    try:
-        mensaje = mensaje.format(**vars_dict)
-    except (KeyError, ValueError):
-        pass
+    titulo = _sustituir_variables(titulo, vars_dict)
+    mensaje = _sustituir_variables(mensaje, vars_dict)
 
     titulo_html = escape(str(titulo or ''))
     mensaje_html = _texto_multilinea_html(mensaje)

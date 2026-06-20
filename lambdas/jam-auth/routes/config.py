@@ -5,6 +5,7 @@ PUT  /admin/config/email-templates/{tipo} — save one template
 """
 import os
 import json
+import re
 import boto3
 from utils.response import ok, bad_request, not_found
 
@@ -113,9 +114,22 @@ LABELS = {
     'intento_duplicado':            'Intento de captación duplicada',
 }
 
+VARIABLES = ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}', '{fecha}']
+
 
 def _pk():
     return 'CONFIG#EMAIL_TEMPLATES'
+
+
+def _validar_variables(*textos):
+    permitidas = set(VARIABLES)
+    for texto in textos:
+        for match in re.finditer(r'\{[^{}\r\n]*\}?', str(texto or '')):
+            if match.group(0) not in permitidas:
+                return bad_request(
+                    'Variable no valida o incompleta. Usa solo: ' + ', '.join(VARIABLES)
+                )
+    return None
 
 
 def listar():
@@ -149,7 +163,7 @@ def obtener(tipo):
         'label': LABELS.get(tipo, tipo),
         'titulo': item.get('titulo', default['titulo']),
         'mensaje': item.get('mensaje', default['mensaje']),
-        'variables': ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}', '{fecha}'],
+        'variables': VARIABLES,
         'modificado_en': item.get('modificado_en'),
     })
 
@@ -162,6 +176,9 @@ def guardar(tipo, event):
     mensaje = body.get('mensaje', '').strip()
     if not titulo or not mensaje:
         return bad_request('titulo y mensaje son requeridos')
+    error_variables = _validar_variables(titulo, mensaje)
+    if error_variables:
+        return error_variables
 
     from datetime import datetime, timezone
     table = _get_table()

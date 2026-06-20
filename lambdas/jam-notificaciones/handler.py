@@ -23,21 +23,18 @@ usuarios = dynamodb.Table(USUARIOS_TABLE)
 clientes_table = dynamodb.Table(CLIENTES_TABLE)
 inventario_table = dynamodb.Table(INVENTARIO_TABLE) if INVENTARIO_TABLE else None
 
-# ── Template cache (per Lambda invocation) ────────────────────────────────────
-_template_cache = {}
-
 def _get_template(tipo):
-    """Returns (titulo, mensaje) from DynamoDB, falling back to defaults."""
-    if tipo in _template_cache:
-        return _template_cache[tipo]
+    """Returns (titulo, mensaje) from DynamoDB, falling back to defaults.
+
+    The templates are editable from Configuracion, so this must always read the
+    current value. Warm Lambda containers can keep old in-memory values alive.
+    """
     try:
         item = usuarios.get_item(
             Key={'pk': 'CONFIG#EMAIL_TEMPLATES', 'sk': tipo}
         ).get('Item', {})
         if item.get('titulo') and item.get('mensaje'):
-            result = (item['titulo'], item['mensaje'])
-            _template_cache[tipo] = result
-            return result
+            return item['titulo'], item['mensaje']
     except Exception as e:
         logger.warning(f'No se pudo leer template {tipo}: {e}')
     return None, None  # caller uses hardcoded default

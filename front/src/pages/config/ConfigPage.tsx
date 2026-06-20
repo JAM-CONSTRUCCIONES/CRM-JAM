@@ -13,7 +13,7 @@ import {
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
-const VARIABLES_PERMITIDAS = ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}', '{fecha}'];
+const VARIABLES_PERMITIDAS = ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}'];
 
 const validarVariablesPlantilla = (_: unknown, value?: string) => {
   const texto = String(value || '');
@@ -221,7 +221,7 @@ const ConfigPage = () => {
               showIcon
               style={{ marginBottom: 20 }}
               message="Datos siempre incluidos"
-              description="Debajo del mensaje siempre aparece una tabla con: cliente, unidad, proyecto, inmobiliaria y fecha."
+              description="Debajo del mensaje siempre aparece una tabla con los datos principales de la notificación."
             />
 
             <Form form={form} layout="vertical" onFinish={guardar}>

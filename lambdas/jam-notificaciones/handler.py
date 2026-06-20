@@ -163,6 +163,7 @@ def _sustituir_variables(texto, vars_dict):
     for key, value in (vars_dict or {}).items():
         pattern = re.compile(r'\{' + re.escape(str(key)) + r'\}?(?![A-Za-z0-9_])', re.IGNORECASE)
         resultado = pattern.sub(str(value or ''), resultado)
+    resultado = re.sub(r'\{fecha\}?(?![A-Za-z0-9_])', '', resultado, flags=re.IGNORECASE)
     return resultado
 
 

@@ -20,7 +20,7 @@ def _get_table():
 
 # ── Default templates ─────────────────────────────────────────────────────────
 # Each template has: titulo, mensaje
-# Variables available: {cliente}, {unidad}, {proyecto}, {inmobiliaria}, {fecha}
+# Variables available: {cliente}, {unidad}, {proyecto}, {inmobiliaria}
 # The data table (client, unit, project, etc.) is always appended automatically.
 
 DEFAULTS = {
@@ -114,7 +114,7 @@ LABELS = {
     'intento_duplicado':            'Intento de captación duplicada',
 }
 
-VARIABLES = ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}', '{fecha}']
+VARIABLES = ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}']
 
 
 def _pk():

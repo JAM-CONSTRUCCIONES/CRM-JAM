@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Table, Tag, Button, Space,
   Modal, Form, InputNumber, Input, message, Badge, Tabs,
-  DatePicker, Select, Divider, Radio, Dropdown, Grid,
+  DatePicker, Select, Divider, Radio, Dropdown, Grid, Spin, Alert,
 } from 'antd';
 import {
   UnlockOutlined, ClockCircleOutlined, ReloadOutlined, FieldTimeOutlined,
@@ -12,7 +12,7 @@ import dayjs from 'dayjs';
 import { getBloquesActivos, liberarBloqueo, extenderBloqueo, getHistorialBloqueos, bloquearUnidad } from '../../services/bloqueos.service';
 import { getProyectos } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
-import { getClientesAdmin } from '../../services/clientes.service';
+import { buscarClientesAdmin } from '../../services/clientes.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import type { Bloqueo, Proyecto, HistorialBloqueo, Cliente } from '../../types';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
@@ -53,6 +53,7 @@ const BloqueosPage = () => {
   const [formCliente] = Form.useForm();
   const [guardandoCliente, setGuardandoCliente] = useState(false);
   const [modoAsignar, setModoAsignar] = useState<'existente' | 'nuevo'>('existente');
+  const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clientesInmo, setClientesInmo] = useState<Cliente[]>([]);
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
@@ -137,27 +138,47 @@ const BloqueosPage = () => {
     setModalExtender(true);
   };
 
-  const abrirAsignarCliente = async (b: Bloqueo) => {
+  const abrirAsignarCliente = (b: Bloqueo) => {
     setBloqueoSinCliente(b);
     formCliente.resetFields();
     setModoAsignar('existente');
+    setBusquedaCliente('');
+    setClientesInmo([]);
     setClienteSeleccionado(null);
     setModalAsignarCliente(true);
-    // Cargar clientes de esa inmobiliaria
-    setLoadingClientes(true);
-    try {
-      const data = await getClientesAdmin({ inmobiliaria_id: b.bloqueado_por });
-      const items = Array.isArray(data) ? data : (data as any).items ?? [];
-      // Filtrar únicos por cédula
-      const vistos = new Set<string>();
-      setClientesInmo(items.filter((c: Cliente) => {
-        if (vistos.has(c.cedula)) return false;
-        vistos.add(c.cedula);
-        return true;
-      }));
-    } catch { setClientesInmo([]); }
-    finally { setLoadingClientes(false); }
   };
+
+  useEffect(() => {
+    const texto = busquedaCliente.trim();
+    if (!bloqueoSinCliente || modoAsignar !== 'existente' || texto.length < 2) {
+      setClientesInmo([]);
+      setLoadingClientes(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setLoadingClientes(true);
+      try {
+        const [porNombre, porCedula] = await Promise.all([
+          buscarClientesAdmin(texto, 'nombre', bloqueoSinCliente.proyecto_id, bloqueoSinCliente.bloqueado_por),
+          buscarClientesAdmin(texto, 'cedula', bloqueoSinCliente.proyecto_id, bloqueoSinCliente.bloqueado_por),
+        ]);
+        const vistos = new Set<string>();
+        const combinados = [...(porNombre || []), ...(porCedula || [])].filter((c: Cliente) => {
+          if (!c.cedula || vistos.has(c.cedula)) return false;
+          vistos.add(c.cedula);
+          return true;
+        });
+        setClientesInmo(combinados);
+      } catch {
+        setClientesInmo([]);
+      } finally {
+        setLoadingClientes(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [busquedaCliente, bloqueoSinCliente, modoAsignar]);
 
   const handleSeleccionarCliente = (cedula: string) => {
     const c = clientesInmo.find(x => x.cedula === cedula) ?? null;
@@ -548,20 +569,47 @@ const BloqueosPage = () => {
 
         {modoAsignar === 'existente' ? (
           <div>
-            <Select
-              showSearch
-              style={{ width: '100%' }}
-              placeholder="Buscar por nombre o cédula..."
-              loading={loadingClientes}
-              filterOption={(input, option) =>
-                (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              onChange={handleSeleccionarCliente}
-              options={clientesInmo.map(c => ({
-                value: c.cedula,
-                label: `${c.nombres} ${c.apellidos} — ${c.cedula}`,
-              }))}
+            <Input
+              placeholder="Buscar por nombre, cedula o pasaporte..."
+              prefix={<SearchOutlined />}
+              value={busquedaCliente}
+              onChange={e => {
+                setBusquedaCliente(e.target.value);
+                setClienteSeleccionado(null);
+                formCliente.resetFields(['cedula']);
+              }}
+              allowClear
+              style={{ marginBottom: 12 }}
             />
+            {loadingClientes && (
+              <div style={{ textAlign: 'center', padding: 16 }}>
+                <Spin size="small" />
+                <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                  Buscando clientes...
+                </Text>
+              </div>
+            )}
+            {!loadingClientes && busquedaCliente.trim().length >= 2 && clientesInmo.length === 0 && (
+              <Alert
+                type="info"
+                message="No se encontraron clientes"
+                description="Intenta con otro nombre, cedula o pasaporte, o registra un cliente nuevo."
+                showIcon
+                style={{ marginBottom: 12 }}
+              />
+            )}
+            {clientesInmo.length > 0 && (
+              <Select
+                style={{ width: '100%' }}
+                placeholder="Selecciona un cliente..."
+                value={clienteSeleccionado?.cedula}
+                onChange={handleSeleccionarCliente}
+                options={clientesInmo.map(c => ({
+                  value: c.cedula,
+                  label: `${c.nombres} ${c.apellidos} - ${c.cedula}`,
+                }))}
+              />
+            )}
             {clienteSeleccionado && (
               <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8 }}>
                 <Text strong>{clienteSeleccionado.nombres} {clienteSeleccionado.apellidos}</Text>
@@ -573,9 +621,9 @@ const BloqueosPage = () => {
                 </Text>
               </div>
             )}
-            {clientesInmo.length === 0 && !loadingClientes && (
+            {!busquedaCliente.trim() && (
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-                Esta inmobiliaria no tiene clientes registrados aún.
+                Escribe al menos 2 caracteres para buscar clientes de esta inmobiliaria.
               </Text>
             )}
             {/* Form oculto para submit con la cédula del cliente seleccionado */}

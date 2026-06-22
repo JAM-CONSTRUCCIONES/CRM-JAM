@@ -9,12 +9,22 @@ const { useBreakpoint } = Grid;
 
 const AppLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const screens = useBreakpoint();
+  const isDesktop = !!screens.lg;
+
+  const handleMenuClick = () => {
+    if (isDesktop) {
+      setSidebarOpen(open => !open);
+    } else {
+      setDrawerOpen(true);
+    }
+  };
 
   return (
     <Layout style={{ minHeight: '100vh', background: 'var(--app-bg)' }}>
       {/* Sidebar desktop */}
-      {screens.lg && (
+      {isDesktop && sidebarOpen && (
         <Sider
           width={250}
           style={{
@@ -25,6 +35,7 @@ const AppLayout = () => {
             height: '100vh',
             overflow: 'hidden',
             zIndex: 100,
+            transition: 'all 0.2s ease',
           }}
           trigger={null}
         >
@@ -45,20 +56,21 @@ const AppLayout = () => {
         <Sidebar onSelect={() => setDrawerOpen(false)} />
       </Drawer>
 
-      <Layout style={{ marginLeft: screens.lg ? 250 : 0, background: 'var(--app-bg)' }}>
-        {/* Mobile topbar */}
-        {!screens.lg && (
-          <div style={{
-            display: 'flex', alignItems: 'center', padding: '12px 16px',
-            background: 'var(--panel-bg)', borderBottom: '1px solid var(--app-border)',
-            position: 'sticky', top: 0, zIndex: 99,
-          }}>
-            <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
-            <span style={{ fontWeight: 700, fontSize: 15, marginLeft: 8, color: 'var(--text-main)' }}>JAM Construcciones</span>
-          </div>
-        )}
+      <Layout style={{
+        marginLeft: isDesktop && sidebarOpen ? 250 : 0,
+        background: 'var(--app-bg)',
+        transition: 'margin-left 0.2s ease',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', padding: isDesktop ? '12px 24px' : '12px 16px',
+          background: 'var(--panel-bg)', borderBottom: '1px solid var(--app-border)',
+          position: 'sticky', top: 0, zIndex: 99,
+        }}>
+          <Button type="text" icon={<MenuOutlined />} onClick={handleMenuClick} />
+          <span style={{ fontWeight: 700, fontSize: 15, marginLeft: 8, color: 'var(--text-main)' }}>JAM Construcciones</span>
+        </div>
 
-        <Content style={{ padding: screens.lg ? 28 : 16, minHeight: '100vh', color: 'var(--text-main)' }}>
+        <Content style={{ padding: isDesktop ? 28 : 16, minHeight: '100vh', color: 'var(--text-main)' }}>
           <Outlet />
           <div style={{
             textAlign: 'right', padding: '24px 0 8px',

@@ -34,10 +34,15 @@ export interface HistorialResponse {
   next_token?: string;
 }
 
-export const getHistorialBloqueos = (unidadId?: string, nextToken?: string): Promise<HistorialResponse> => {
+export const getHistorialBloqueos = (
+  unidadId?: string,
+  nextToken?: string,
+  proyectoId?: string
+): Promise<HistorialResponse> => {
   const params = new URLSearchParams();
   if (unidadId) params.set('unidad_id', unidadId);
   if (nextToken) params.set('next_token', nextToken);
+  if (proyectoId) params.set('proyecto_id', proyectoId);
   const qs = params.toString() ? `?${params.toString()}` : '';
   return apiGet<HistorialResponse>(`/admin/bloqueos/historial${qs}`);
 };

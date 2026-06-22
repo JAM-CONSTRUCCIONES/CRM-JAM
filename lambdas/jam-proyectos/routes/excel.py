@@ -108,6 +108,13 @@ def confirmar(job_id, event):
             ', '.join(errores_clientes[:10])
         )
 
+    errores_estatus = _validar_estatus_confirmacion(filas)
+    if errores_estatus:
+        return bad_request(
+            f'{len(errores_estatus)} fila(s) tienen estado y estatus de proceso incompatibles: ' +
+            ', '.join(errores_estatus[:10])
+        )
+
     filas_con_error = [f for f in filas if f.get('errores')]
     if filas_con_error:
         return bad_request(f'{len(filas_con_error)} filas tienen errores. Corrigelas antes de confirmar.')
@@ -214,6 +221,39 @@ def _validar_clientes_confirmacion(filas):
             if valor and not _fecha_valida(valor):
                 errores.append(f'fila {fila_excel} unidad {id_unidad}: {etiqueta} invalida')
     return errores
+
+
+def _validar_estatus_confirmacion(filas):
+    errores = []
+    for fila in filas:
+        estado = str(fila.get('estado') or '').strip()
+        estado_proceso = str(fila.get('estado_proceso') or '').strip()
+        fila_excel = fila.get('fila_excel', '?')
+        id_unidad = fila.get('id_unidad', '')
+        mensaje = _validar_estado_proceso(estado, estado_proceso)
+        if mensaje:
+            errores.append(f'fila {fila_excel} unidad {id_unidad}: {mensaje}')
+    return errores
+
+
+def _validar_estado_proceso(estado, estado_proceso):
+    permitidos = {
+        'disponible': {''},
+        'bloqueada': {'captacion'},
+        'no_disponible': {'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega'},
+        'vendida': {'vendido'},
+    }
+    if estado not in permitidos:
+        return f'estado invalido: {estado}'
+    if estado_proceso not in permitidos[estado]:
+        etiquetas = {
+            'disponible': 'sin estatus de proceso',
+            'bloqueada': 'captacion',
+            'no_disponible': 'reserva, separacion, contrato firmado, pagos atrasados o contra entrega',
+            'vendida': 'vendido',
+        }
+        return f'{estado} debe usar {etiquetas[estado]}'
+    return None
 
 
 def _fecha_valida(valor):

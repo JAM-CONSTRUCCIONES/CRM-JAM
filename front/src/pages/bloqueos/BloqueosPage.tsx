@@ -86,7 +86,7 @@ const BloqueosPage = () => {
   const cargarHistorial = useCallback(async () => {
     setLoadingHistorial(true);
     try {
-      const [h, inmos] = await Promise.all([getHistorialBloqueos(), getInmobiliarias()]);
+      const [h, inmos] = await Promise.all([getHistorialBloqueos(undefined, undefined, proyectoFiltro), getInmobiliarias()]);
       const sorted = [...h.items].sort((a, b) =>
         (b.fecha_bloqueo ?? '').localeCompare(a.fecha_bloqueo ?? '')
       );
@@ -98,13 +98,13 @@ const BloqueosPage = () => {
     } finally {
       setLoadingHistorial(false);
     }
-  }, []);
+  }, [proyectoFiltro]);
 
   const cargarMasHistorial = useCallback(async () => {
     if (!historialNextToken) return;
     setLoadingHistorial(true);
     try {
-      const h = await getHistorialBloqueos(undefined, historialNextToken);
+      const h = await getHistorialBloqueos(undefined, historialNextToken, proyectoFiltro);
       setHistorial(prev => [...prev, ...h.items].sort((a, b) =>
         (b.fecha_bloqueo ?? '').localeCompare(a.fecha_bloqueo ?? '')
       ));
@@ -114,7 +114,7 @@ const BloqueosPage = () => {
     } finally {
       setLoadingHistorial(false);
     }
-  }, [historialNextToken]);
+  }, [historialNextToken, proyectoFiltro]);
 
   const handleLiberar = async (b: Bloqueo, notificar: ModoNotificacion) => {
     try {
@@ -352,7 +352,7 @@ const BloqueosPage = () => {
                 columns={columns}
                 rowKey="unidad_id"
                 loading={loading}
-                pagination={{ pageSize: 20 }}
+                pagination={{ pageSize: 20, showSizeChanger: false }}
                 locale={{ emptyText: 'No hay bloqueos activos' }}
                 scroll={{ x: true }}
               />
@@ -363,11 +363,37 @@ const BloqueosPage = () => {
             label: <span><HistoryOutlined /> Historial</span>,
             children: (
               <>
+                {isMobile ? (
+                  <div>
+                    {loadingHistorial && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Cargando historial...</div>}
+                    {!loadingHistorial && historial.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No hay registros en el historial</div>}
+                    {historial.map(item => {
+                      const motivo = item.motivo_liberacion;
+                      const cfg: Record<string, string> = { automatica: 'success', manual: 'blue', venta: 'purple' };
+                      const inmo = inmobiliarias.find(i => i.pk === item.inmobiliaria_id || i.pk === `INMOBILIARIA#${item.inmobiliaria_id}`);
+                      return (
+                        <div key={item.sk} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', marginBottom: 10, padding: '14px 16px' }}>
+                          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                              <Text strong>{[item.torre_nombre, item.unidad_nombre ?? item.unidad_id].filter(Boolean).join(' · ')}</Text>
+                              {motivo ? <Tag color={cfg[motivo] ?? 'default'} style={{ margin: 0 }}>{motivo}</Tag> : <Tag color="warning" style={{ margin: 0 }}>Activo</Tag>}
+                            </div>
+                            <Text type="secondary">{proyectoNombre(item.proyecto_id)}</Text>
+                            <Tag style={{ width: 'fit-content' }}>{item.inmobiliaria_nombre ?? inmo?.nombre ?? item.inmobiliaria_id}</Tag>
+                            <Text type="secondary">Bloqueado: {item.fecha_bloqueo ? new Date(item.fecha_bloqueo).toLocaleString('es-VE') : '—'}</Text>
+                            <Text type="secondary">Liberado: {item.fecha_liberacion ? new Date(item.fecha_liberacion).toLocaleString('es-VE') : '—'}</Text>
+                            <Text type="secondary">Liberado por: {item.liberado_por ?? '—'}</Text>
+                          </Space>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
                 <Table
                   dataSource={historial}
                   rowKey="sk"
                   loading={loadingHistorial}
-                  pagination={{ pageSize: 20 }}
+                  pagination={{ pageSize: 20, showSizeChanger: false }}
                   locale={{ emptyText: 'No hay registros en el historial' }}
                   columns={[
                     { title: 'Unidad', dataIndex: 'unidad_id', key: 'unidad_id', render: (v: string, r: any) => (
@@ -393,6 +419,7 @@ const BloqueosPage = () => {
                     { title: 'Liberado por', dataIndex: 'liberado_por', key: 'liberado_por', render: (v: string) => v ?? '—' },
                   ]}
                 />
+                )}
                 {historialNextToken && (
                   <div style={{ textAlign: 'center', marginTop: 16 }}>
                     <Button onClick={cargarMasHistorial} loading={loadingHistorial}>

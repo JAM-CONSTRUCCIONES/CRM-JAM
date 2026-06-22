@@ -45,7 +45,9 @@ def _liberar(unidad_id, proyecto_id):
 
     inmobiliaria_id = item.get('bloqueado_por')
     fecha_bloqueo = item.get('fecha_bloqueo', '')
+    fecha_liberacion = item.get('fecha_liberacion', '')
     cliente_cedula = item.get('cliente_cedula', '')
+    unidad_nombre = item.get('id_unidad', unidad_id)
     ts_ahora = datetime.now(timezone.utc).isoformat()
 
     inventario.update_item(
@@ -65,8 +67,8 @@ def _liberar(unidad_id, proyecto_id):
             UpdateExpression='SET motivo_liberacion = :m, fecha_liberacion = :fl',
             ExpressionAttributeValues={':m': 'automatica', ':fl': ts_ahora},
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f'Error actualizando historial de liberacion automatica para {unidad_id}: {type(e).__name__}: {e}')
 
     if SQS_URL:
         sqs.send_message(
@@ -76,6 +78,16 @@ def _liberar(unidad_id, proyecto_id):
                 'unidad_id': unidad_id,
                 'proyecto_id': proyecto_id,
                 'inmobiliaria_id': inmobiliaria_id,
+                'cliente_cedula': cliente_cedula,
+                'fecha_liberacion': ts_ahora,
+                'metadata': {
+                    'unidad_id': unidad_id,
+                    'unidad_nombre': unidad_nombre,
+                    'cedula': cliente_cedula,
+                    'fecha_bloqueo': fecha_bloqueo,
+                    'fecha_liberacion_programada': fecha_liberacion,
+                    'fecha_liberacion': ts_ahora,
+                },
             }),
         )
 

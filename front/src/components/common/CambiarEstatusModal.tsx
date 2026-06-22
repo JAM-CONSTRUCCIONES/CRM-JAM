@@ -10,12 +10,12 @@ const { Option } = Select;
 export type ModoNotificacion = false | 'admin' | 'todos';
 
 const TRANSICIONES: Record<string, string[]> = {
-  captacion:       ['reserva', 'desvinculado'],
+  captacion:       ['reserva'],
   reserva:         ['separacion', 'desvinculado', 'captacion'],
   separacion:      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva', 'captacion'],
   inicial:         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion', 'reserva'],
-  pagos_atrasados: ['inicial', 'contra_entrega', 'desvinculado', 'separacion'],
-  contra_entrega:  ['vendida', 'desvinculado', 'inicial', 'pagos_atrasados'],
+  pagos_atrasados: ['inicial', 'desvinculado', 'separacion'],
+  contra_entrega:  ['vendida', 'desvinculado', 'inicial'],
   vendida:         ['contra_entrega'],
 };
 
@@ -23,8 +23,8 @@ const ORDEN_FLUJO: Record<string, number> = {
   captacion: 0,
   reserva: 1,
   separacion: 2,
-  inicial: 3,
-  pagos_atrasados: 4,
+  pagos_atrasados: 3,
+  inicial: 4,
   contra_entrega: 5,
   vendida: 6,
 };

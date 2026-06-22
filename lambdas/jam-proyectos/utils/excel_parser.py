@@ -38,8 +38,8 @@ ESTATUS_MAP = {
     'PAGOS_ATRASADOS':  ('no_disponible', 'pagos_atrasados'),
     'CONTRA ENTREGA':   ('no_disponible', 'contra_entrega'),
     'CONTRA_ENTREGA':   ('no_disponible', 'contra_entrega'),
-    'VENDIDO':          ('no_disponible', 'vendido'),
-    'VENDIDA':          ('no_disponible', 'vendido'),
+    'VENDIDO':          ('vendida',       'vendido'),
+    'VENDIDA':          ('vendida',       'vendido'),
 }
 
 PROCESO_MAP = {
@@ -185,11 +185,16 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
         estatus_raw  = gc(['ESTATUS', 'ESTADO', 'STATUS', 'estado', 'Estado'])
         estatus_norm = str(estatus_raw).strip().upper() if estatus_raw else 'DISPONIBLE'
         estado_interno, estado_proceso = ESTATUS_MAP.get(estatus_norm, ('disponible', None))
+        estado_desde_estatus = estado_interno
         estado_proceso_raw = gc(['Estado Proceso', 'ESTADO PROCESO', 'Proceso', 'PROCESO'])
         estado_proceso_norm = str(estado_proceso_raw or '').strip().upper()
         if estado_proceso_norm in PROCESO_MAP:
             estado_proceso = PROCESO_MAP[estado_proceso_norm]
-            if estado_proceso != 'captacion':
+            if estado_proceso == 'captacion':
+                estado_interno = 'bloqueada'
+            elif estado_proceso == 'vendido':
+                estado_interno = 'vendida'
+            else:
                 estado_interno = 'no_disponible'
 
         nombre_cliente = str(gc(['NOMBRE CLIENTE', 'Cliente Nombre', 'CLIENTE NOMBRE', 'NOMBRE', 'Nombre', 'CLIENTE']) or '').strip()
@@ -268,6 +273,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             inmo_excel, inmo_confianza, inmo_es_nueva, id_unidades_existentes,
             nombre_cliente, nombres_final, apellidos_final, cedula_excel,
             telefono_excel, correo_excel,
+            estado_interno, estado_proceso, estado_desde_estatus,
         )
         id_unidades_vistos.add(id_unidad)
 
@@ -386,7 +392,8 @@ def _obtener_ids_unidades_existentes(proyecto_id):
 def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
                   inmo_excel, inmo_confianza, inmo_es_nueva, existentes=None,
                   nombre_cliente='', nombres='', apellidos='', cedula=None,
-                  telefono=None, correo=None):
+                  telefono=None, correo=None, estado_interno=None, estado_proceso=None,
+                  estado_desde_estatus=None):
     errores, advertencias = [], []
     existentes = existentes or set()
     id_normalizado = _normalizar_id_unidad(id_unidad)
@@ -403,6 +410,9 @@ def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
         errores.append('metraje inválido o vacío')
     if estatus_norm not in ESTATUS_MAP:
         errores.append(f'estado desconocido: {estatus_raw}')
+    compatibilidad = _validar_estado_proceso(estado_interno, estado_proceso, estado_desde_estatus)
+    if compatibilidad:
+        errores.append(compatibilidad)
     # Si estado no es disponible, inmobiliaria es obligatoria
     if estatus_norm != 'DISPONIBLE' and not inmo_excel:
         errores.append('inmobiliaria requerida para este estado')
@@ -427,3 +437,40 @@ def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
     if nombre_cliente and (not nombres or not apellidos):
         advertencias.append('Completa nombres y apellidos para registrar el cliente')
     return errores, advertencias
+
+
+def _estado_requerido_por_proceso(estado_proceso):
+    if not estado_proceso:
+        return 'disponible'
+    if estado_proceso == 'captacion':
+        return 'bloqueada'
+    if estado_proceso == 'vendido':
+        return 'vendida'
+    return 'no_disponible'
+
+
+def _validar_estado_proceso(estado, estado_proceso, estado_desde_estatus=None):
+    estado = str(estado or '').strip()
+    estado_proceso = str(estado_proceso or '').strip()
+    estado_desde_estatus = str(estado_desde_estatus or '').strip()
+    permitidos = {
+        'disponible': {''},
+        'bloqueada': {'captacion'},
+        'no_disponible': {'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega'},
+        'vendida': {'vendido'},
+    }
+    if estado_proceso and estado_desde_estatus:
+        estado_requerido = _estado_requerido_por_proceso(estado_proceso)
+        if estado_desde_estatus != estado_requerido:
+            return f'estado y estatus de proceso no coinciden: {estado_desde_estatus} no corresponde con {estado_proceso}'
+    if estado not in permitidos:
+        return None
+    if estado_proceso not in permitidos[estado]:
+        etiquetas = {
+            'disponible': 'sin estatus de proceso',
+            'bloqueada': 'captacion',
+            'no_disponible': 'reserva, separacion, contrato firmado, pagos atrasados o contra entrega',
+            'vendida': 'vendido',
+        }
+        return f'estado y estatus de proceso no coinciden: {estado} debe usar {etiquetas[estado]}'
+    return None

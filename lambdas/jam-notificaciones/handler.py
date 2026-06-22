@@ -339,16 +339,22 @@ def _alerta_vencimiento(msg):
 def _liberacion_automatica(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
-    correos = _correos_inmobiliaria(inmo_id)
     proyecto_id = msg.get('proyecto_id', '')
+    cedula = msg.get('cliente_cedula', '') or meta.get('cedula', '') or meta.get('cliente_cedula', '')
+    correo_cliente = _correo_cliente(cedula, inmo_id, proyecto_id) if cedula else ''
+    correos = [correo_cliente] + _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
     unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     fecha = meta.get('fecha_liberacion') or msg.get('fecha_liberacion', '')
     fecha_fmt = _formatear_fecha_correo(fecha)
+    cliente = _nombre_cliente(cedula, inmo_id, proyecto_id) if cedula else ''
 
-    filas = [('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Liberada el', fecha_fmt)]
-    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
+    filas = [
+        ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
+        ('Cliente', cliente), ('Liberada el', fecha_fmt),
+    ]
+    vars_dict = {'cliente': cliente, 'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
     titulo, cuerpo = _render_template('liberacion_automatica', vars_dict, filas,
         'Bloqueo liberado por vencimiento',
         'El tiempo de bloqueo expiró y la unidad quedó disponible automáticamente.')
@@ -401,6 +407,7 @@ def _cambio_estatus(msg):
     inmo_id = msg.get('inmobiliaria_id', '')
     cedula = msg.get('cedula', '') or meta.get('cedula', '')
     proyecto_id = msg.get('proyecto_id', '')
+    estatus_anterior = msg.get('estatus_anterior', '') or meta.get('estatus_anterior', '')
     nuevo_estatus = msg.get('estatus_nuevo', '') or meta.get('nuevo_estatus', '')
     unidad = _nombre_unidad(msg.get('unidad_nombre', '') or meta.get('unidad_nombre') or meta.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(proyecto_id)
@@ -436,8 +443,31 @@ def _cambio_estatus(msg):
         'vendida':          ('Gracias por su compra', 'La unidad {unidad} correspondiente al cliente {cliente} ha sido entregada satisfactoriamente.'),
         'desvinculado':     ('Cliente desvinculado', 'El cliente {cliente} ha sido desvinculado del proceso de compra de la unidad {unidad}.'),
     }
-    default_titulo, default_mensaje = defaults.get(nuevo_estatus, (f'Actualización — {nuevo_estatus}', ''))
-    titulo, cuerpo = _render_template(tipo, vars_dict, filas, default_titulo, default_mensaje)
+    orden_flujo = {
+        'captacion': 0,
+        'reserva': 1,
+        'separacion': 2,
+        'pagos_atrasados': 3,
+        'inicial': 4,
+        'contra_entrega': 5,
+        'vendida': 6,
+    }
+    es_retroceso = (
+        estatus_anterior in orden_flujo and
+        nuevo_estatus in orden_flujo and
+        orden_flujo[nuevo_estatus] < orden_flujo[estatus_anterior]
+    )
+    if es_retroceso:
+        template_tipo = 'cambio_estatus_actualizacion'
+        default_titulo = 'Actualizacion de estatus'
+        default_mensaje = 'Se ha realizado una correccion en el proceso de la unidad {unidad} a nombre de {cliente}.'
+    else:
+        template_tipo = tipo
+        default_titulo, default_mensaje = defaults.get(
+            nuevo_estatus,
+            ('Actualizacion de estatus', 'Se ha realizado una actualizacion en el proceso de la unidad {unidad} a nombre de {cliente}.')
+        )
+    titulo, cuerpo = _render_template(template_tipo, vars_dict, filas, default_titulo, default_mensaje)
     _enviar(destinatarios, f'{titulo} — {proyecto}', cuerpo)
 
 

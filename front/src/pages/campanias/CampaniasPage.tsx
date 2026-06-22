@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert, Button, Card, Col, Divider, Empty, Form, Input, Modal, Row, Select,
-  Space, Statistic, Table, Tabs, Tag, Typography, Upload, message,
+  Space, Statistic, Table, Tabs, Tag, Typography, Upload, message, Grid,
 } from 'antd';
 import {
   CopyOutlined, EyeOutlined, HistoryOutlined, MailOutlined, PlusOutlined,
@@ -19,6 +19,7 @@ import useAuth from '../../hooks/useAuth';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
+const { useBreakpoint } = Grid;
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -58,6 +59,8 @@ const mensajeToHtml = (mensaje = '') => {
 
 export default function CampaniasPage() {
   const { usuario } = useAuth();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const puedeEnviar = usuario?.rol === 'admin' || usuario?.rol === 'coordinador';
   const [form] = Form.useForm();
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
@@ -470,21 +473,52 @@ export default function CampaniasPage() {
                 <Space style={{ marginBottom: 12 }}>
                   <Button onClick={() => cargarHistorial()}>Actualizar</Button>
                 </Space>
-                <Table
-                  rowKey="campania_id"
-                  dataSource={historial}
-                  columns={[
-                    { title: 'Fecha', dataIndex: 'fecha_envio', render: v => new Date(v).toLocaleString() },
-                    { title: 'Titulo', dataIndex: 'nombre' },
-                    { title: 'Descripcion', dataIndex: 'descripcion', render: v => v || '-' },
-                    { title: 'Proyecto', render: (_, r) => r.proyecto_nombre || proyectosPorId.get(r.proyecto_id) || r.proyecto_id || '-' },
-                    { title: 'Grupo', dataIndex: 'grupo', render: v => <Tag>{grupoLabel[v] || v}</Tag> },
-                    { title: 'Clientes', dataIndex: 'cantidad_destinatarios' },
-                    { title: 'Enviados', dataIndex: 'correos_enviados' },
-                    { title: 'Omitidos', render: (_, r) => (r.clientes_sin_correo || 0) + (r.correos_invalidos || 0) },
-                    { title: 'Usuario', dataIndex: 'enviado_por' },
-                  ]}
-                />
+                {isMobile ? (
+                  <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                    {historial.length === 0 && <Empty description="No hay campañas enviadas" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                    {historial.map(item => (
+                      <Card key={item.campania_id} size="small">
+                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <Text strong style={{ display: 'block' }}>{item.nombre}</Text>
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                {item.proyecto_nombre || proyectosPorId.get(item.proyecto_id) || item.proyecto_id || '-'}
+                              </Text>
+                            </div>
+                            <Tag style={{ margin: 0 }}>{grupoLabel[item.grupo] || item.grupo}</Tag>
+                          </div>
+                          {item.descripcion && <Text type="secondary">{item.descripcion}</Text>}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <Statistic title="Clientes" value={item.cantidad_destinatarios} />
+                            <Statistic title="Enviados" value={item.correos_enviados} />
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                            <Text type="secondary">{new Date(item.fecha_envio).toLocaleString()}</Text>
+                            <Text type="secondary">Omitidos: {(item.clientes_sin_correo || 0) + (item.correos_invalidos || 0)}</Text>
+                          </div>
+                        </Space>
+                      </Card>
+                    ))}
+                  </Space>
+                ) : (
+                  <Table
+                    rowKey="campania_id"
+                    dataSource={historial}
+                    columns={[
+                      { title: 'Fecha', dataIndex: 'fecha_envio', render: v => new Date(v).toLocaleString() },
+                      { title: 'Titulo', dataIndex: 'nombre' },
+                      { title: 'Descripcion', dataIndex: 'descripcion', render: v => v || '-' },
+                      { title: 'Proyecto', render: (_, r) => r.proyecto_nombre || proyectosPorId.get(r.proyecto_id) || r.proyecto_id || '-' },
+                      { title: 'Grupo', dataIndex: 'grupo', render: v => <Tag>{grupoLabel[v] || v}</Tag> },
+                      { title: 'Clientes', dataIndex: 'cantidad_destinatarios' },
+                      { title: 'Enviados', dataIndex: 'correos_enviados' },
+                      { title: 'Omitidos', render: (_, r) => (r.clientes_sin_correo || 0) + (r.correos_invalidos || 0) },
+                      { title: 'Usuario', dataIndex: 'enviado_por' },
+                    ]}
+                    pagination={{ pageSize: 20, showSizeChanger: false }}
+                  />
+                )}
               </Card>
             ),
           },

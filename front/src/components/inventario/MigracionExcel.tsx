@@ -28,7 +28,7 @@ import { clienteFieldNormalizers } from '../../utils/clientesValidation';
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const ESTADOS_VALIDOS = ['disponible', 'bloqueada', 'no_disponible'];
+const ESTADOS_VALIDOS = ['disponible', 'bloqueada', 'no_disponible', 'vendida'];
 const ESTADOS_PROCESO = [
   { value: 'captacion', label: 'Captacion' },
   { value: 'reserva', label: 'Reserva' },
@@ -46,6 +46,27 @@ const EMAIL_REGEX = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
 const fechaValida = (value?: string | null) => {
   if (!value) return true;
   return !Number.isNaN(Date.parse(value));
+};
+
+const validarEstadoProceso = (estado?: string | null, estadoProceso?: string | null) => {
+  const proceso = String(estadoProceso ?? '').trim();
+  const permitidos: Record<string, string[]> = {
+    disponible: [''],
+    bloqueada: ['captacion'],
+    no_disponible: ['reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega'],
+    vendida: ['vendido'],
+  };
+  const etiquetas: Record<string, string> = {
+    disponible: 'sin estatus de proceso',
+    bloqueada: 'captacion',
+    no_disponible: 'reserva, separacion, contrato firmado, pagos atrasados o contra entrega',
+    vendida: 'vendido',
+  };
+  if (!estado || !permitidos[estado]) return 'estado invalido';
+  if (!permitidos[estado].includes(proceso)) {
+    return `estado y estatus proceso no coinciden: ${estado} debe usar ${etiquetas[estado]}`;
+  }
+  return null;
 };
 
 const cleanSpaces = (value?: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -194,6 +215,8 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
     if (f.precio === null || f.precio === undefined) errores.push('precio inválido o vacío');
     if (f.metraje === null || f.metraje === undefined) errores.push('metraje inválido o vacío');
     if (!ESTADOS_VALIDOS.includes(f.estado)) errores.push('estado inválido');
+    const errorEstadoProceso = validarEstadoProceso(f.estado, f.estado_proceso);
+    if (errorEstadoProceso) errores.push(errorEstadoProceso);
     if (f.estado !== 'disponible' && !f.inmobiliaria_nombre_sugerido)
       errores.push('inmobiliaria requerida para este estado');
 
@@ -417,6 +440,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
             <Option value="disponible"><Tag color="green">Disponible</Tag></Option>
             <Option value="bloqueada"><Tag color="orange">Bloqueada</Tag></Option>
             <Option value="no_disponible"><Tag color="red">No disponible</Tag></Option>
+            <Option value="vendida"><Tag color="blue">Vendida</Tag></Option>
           </Select>
         </CeldaRequerida>
       ),
@@ -424,17 +448,19 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
     {
       title: 'Estatus proceso', dataIndex: 'estado_proceso', width: 170,
       render: (v: string | null, r: FilaMigracion) => (
-        <Select
-          value={v ?? undefined}
-          placeholder="Sin proceso"
-          style={{ width: '100%' }}
-          allowClear
-          onChange={val => actualizarFila(r.id_unidad, 'estado_proceso', val ?? null)}
-        >
-          {ESTADOS_PROCESO.map(e => (
-            <Option key={e.value} value={e.value}>{e.label}</Option>
-          ))}
-        </Select>
+        <CeldaRequerida error={r.errores.some(e => e.includes('estatus proceso'))}>
+          <Select
+            value={v ?? undefined}
+            placeholder="Sin proceso"
+            style={{ width: '100%' }}
+            allowClear
+            onChange={val => actualizarFila(r.id_unidad, 'estado_proceso', val ?? null)}
+          >
+            {ESTADOS_PROCESO.map(e => (
+              <Option key={e.value} value={e.value}>{e.label}</Option>
+            ))}
+          </Select>
+        </CeldaRequerida>
       ),
     },
     {
@@ -723,7 +749,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
           <div ref={tableRef}>
             <Table
               dataSource={filas} columns={columnas} rowKey="fila_excel"
-              scroll={{ x: 4200 }} size="small" pagination={{ pageSize: 50 }}
+              scroll={{ x: 4200 }} size="small" pagination={{ pageSize: 50, showSizeChanger: false }}
               rowClassName={r => r.errores.length > 0 ? 'fila-error' : r.advertencias.length > 0 ? 'fila-advertencia' : ''}
             />
           </div>

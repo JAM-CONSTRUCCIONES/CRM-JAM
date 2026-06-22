@@ -30,7 +30,10 @@ import { confirmarLiberarBloqueo } from '../../components/common/ConfirmarLibera
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
-const ESTADOS_ACTIVOS = ['captacion', 'reserva', 'separacion', 'inicial'];
+type TabProcesos = 'activos' | 'cerrados' | 'desvinculados' | 'historial';
+
+const ESTADOS_ACTIVOS = ['captacion', 'reserva', 'separacion', 'pagos_atrasados', 'inicial', 'contra_entrega'];
+const ESTADOS_CERRADOS = ['vendida'];
 
 const formatTiempo = (seg: number) => {
   if (seg <= 0) return 'Vencido';
@@ -58,7 +61,7 @@ const ProcesosPage = () => {
   const [inmoFiltro, setInmoFiltro] = useState<string | undefined>();
   const [estadoFiltro, setEstadoFiltro] = useState<string | undefined>();
   const [busqueda, setBusqueda] = useState('');
-  const [tabActiva, setTabActiva] = useState<'activos' | 'cerrados'>('activos');
+  const [tabActiva, setTabActiva] = useState<TabProcesos>('activos');
 
   // ── Modales procesos ──────────────────────────────────────────────────────
   const [estatusModal, setEstatusModal] = useState<ProcesoEnriquecido | null>(null);
@@ -371,7 +374,8 @@ const ProcesosPage = () => {
   const cargarHistorialBloqueos = useCallback(async (nextToken?: string) => {
     setLoadingHistorialBloqueos(true);
     try {
-      const data = await getHistorialBloqueos(undefined, nextToken);
+      const proyectoId = proyectoFiltro ?? proyectoSeleccionado?.proyecto_id;
+      const data = await getHistorialBloqueos(undefined, nextToken, proyectoId);
       const sorted = [...data.items].sort((a, b) =>
         (b.fecha_bloqueo ?? '').localeCompare(a.fecha_bloqueo ?? '')
       );
@@ -382,7 +386,7 @@ const ProcesosPage = () => {
     } finally {
       setLoadingHistorialBloqueos(false);
     }
-  }, []);
+  }, [proyectoFiltro, proyectoSeleccionado]);
 
   const limpiarFiltros = () => {
     setInmoFiltro(undefined);
@@ -442,12 +446,15 @@ const ProcesosPage = () => {
     });
   }
 
-  // Separar en activos y cerrados
+  // Separar por listas visibles
   const procesosActivos = procesosFiltrados.filter(p =>
     ESTADOS_ACTIVOS.includes(p.estado)
   );
   const procesosCerrados = procesosFiltrados.filter(p =>
-    !ESTADOS_ACTIVOS.includes(p.estado)
+    ESTADOS_CERRADOS.includes(p.estado)
+  );
+  const procesosDesvinculados = procesosFiltrados.filter(p =>
+    p.estado === 'desvinculado'
   );
 
   // Bloqueos sin cliente filtrados por búsqueda/proyecto
@@ -501,8 +508,8 @@ const ProcesosPage = () => {
 
   const renderTarjetaProceso = (p: ProcesoEnriquecido) => {
     const { vencida, proxima, dias } = alertaInfo(p);
-    const puedeAvanzar = !esInmobiliaria && p.estado !== 'desvinculado';
     const esBloqueada = isUnidadBloqueada(p);
+    const puedeAvanzar = !esInmobiliaria && p.estado !== 'desvinculado';
     
     // Calcular tiempo restante si está bloqueada
     let tiempoRestante = 0;
@@ -515,8 +522,9 @@ const ProcesosPage = () => {
     
     const pasoAtras = PASO_ANTERIOR[p.estado];
     const menuItems = [
+      { key: 'detalles', icon: <InfoCircleOutlined />, label: 'Ver detalles de unidad', onClick: () => abrirDetalleUnidad(p.unidad_id, p.proyecto_id) },
       ...(puedeAvanzar ? [{ key: 'estatus', icon: <SwapOutlined />, label: 'Cambiar estatus', onClick: () => setEstatusModal(p) }] : []),
-      ...(!esInmobiliaria && pasoAtras ? [{
+      ...(!isMobile && !esInmobiliaria && pasoAtras ? [{
         key: 'retroceder', icon: <ArrowLeftOutlined />, label: `Retroceder a ${ESTADO_PROCESO_LABEL[pasoAtras] ?? pasoAtras}`,
         onClick: () => Modal.confirm({
           title: '¿Retroceder estado?',
@@ -596,8 +604,8 @@ const ProcesosPage = () => {
 
   const renderFilaProceso = (p: ProcesoEnriquecido) => {
     const { vencida, proxima } = alertaInfo(p);
-    const puedeAvanzar = !esInmobiliaria && p.estado !== 'desvinculado';
     const esBloqueada = isUnidadBloqueada(p);
+    const puedeAvanzar = !esInmobiliaria && p.estado !== 'desvinculado';
     
     // Calcular tiempo restante si está bloqueada
     let tiempoRestante = 0;
@@ -771,6 +779,29 @@ const ProcesosPage = () => {
     </div>
   );
 
+  const renderTablaDesvinculados = () => (
+    <div>
+      {!isMobile && procesosDesvinculados.length > 0 && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
+          padding: '8px 14px', background: 'var(--panel-soft-bg)', borderRadius: 8,
+          marginBottom: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5,
+        }}>
+          <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
+          {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
+        </div>
+      )}
+      {isMobile ? procesosDesvinculados.map(renderTarjetaProceso) : procesosDesvinculados.map(renderFilaProceso)}
+      {procesosDesvinculados.length === 0 && !loading && (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
+          <UserOutlined style={{ fontSize: 40, marginBottom: 12 }} />
+          <div>No hay procesos desvinculados</div>
+        </div>
+      )}
+    </div>
+  );
+
   const opcionesEstado = ['captacion', 'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida', 'desvinculado'].map(e => ({
     value: e,
     label: (
@@ -873,11 +904,12 @@ const ProcesosPage = () => {
               value={estadoFiltro} options={opcionesEstado}
               onChange={v => {
                 setEstadoFiltro(v);
-                // Si el estatus seleccionado es cerrado, cambiar tab automáticamente
-                const esCerrado = v && !ESTADOS_ACTIVOS.includes(v);
-                if (esCerrado && tabActiva !== 'cerrados') {
+                // Cambiar a la lista que corresponde al estatus seleccionado.
+                if (v === 'desvinculado' && tabActiva !== 'desvinculados') {
+                  setTabActiva('desvinculados');
+                } else if (v && ESTADOS_CERRADOS.includes(v) && tabActiva !== 'cerrados') {
                   setTabActiva('cerrados');
-                } else if (!esCerrado && v && tabActiva !== 'activos') {
+                } else if (v && ESTADOS_ACTIVOS.includes(v) && tabActiva !== 'activos') {
                   setTabActiva('activos');
                 }
               }} />
@@ -888,8 +920,8 @@ const ProcesosPage = () => {
           <Tabs
             activeKey={tabActiva}
             onChange={key => {
-              const t = key as 'activos' | 'cerrados' | 'historial';
-              setTabActiva(t as any);
+              const t = key as TabProcesos;
+              setTabActiva(t);
               if (t === 'historial') {
                 cargarHistorialBloqueos();
               }
@@ -897,19 +929,49 @@ const ProcesosPage = () => {
             items={[
               {
                 key: 'activos',
-                label: `Activos (${procesosActivos.length}${bloqueosFiltrados.length > 0 ? ` + ${bloqueosFiltrados.length} sin cliente` : ''})`,
+                label: `Activos (${procesosActivos.length})`,
                 children: renderTablaActivos(),
               },
               {
                 key: 'cerrados',
-                label: 'Cerrados',
+                label: `Cerrados (${procesosCerrados.length})`,
                 children: renderTablaCerrados(),
+              },
+              {
+                key: 'desvinculados',
+                label: `Desvinculados (${procesosDesvinculados.length})`,
+                children: renderTablaDesvinculados(),
               },
               ...(!esInmobiliaria ? [{
                 key: 'historial',
                 label: <span><HistoryOutlined /> Historial bloqueos</span>,
                 children: (
                   <div>
+                    {isMobile ? (
+                      <div>
+                        {loadingHistorialBloqueos && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Cargando historial...</div>}
+                        {!loadingHistorialBloqueos && historialBloqueos.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No hay registros en el historial</div>}
+                        {historialBloqueos.map(item => {
+                          const motivo = item.motivo_liberacion;
+                          const cfg: Record<string, string> = { automatica: 'success', manual: 'blue', venta: 'purple' };
+                          return (
+                            <div key={item.sk} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', marginBottom: 10, padding: '14px 16px' }}>
+                              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                  <Text strong>{[item.torre_nombre, item.unidad_nombre ?? item.unidad_id].filter(Boolean).join(' · ')}</Text>
+                                  {motivo ? <Tag color={cfg[motivo] ?? 'default'} style={{ margin: 0 }}>{motivo}</Tag> : <Tag color="warning" style={{ margin: 0 }}>Activo</Tag>}
+                                </div>
+                                <Text type="secondary">{proyectoNombre(item.proyecto_id)}</Text>
+                                <Tag style={{ width: 'fit-content' }}>{item.inmobiliaria_nombre ?? inmoNombre(item.inmobiliaria_id)}</Tag>
+                                <Text type="secondary">Bloqueado: {item.fecha_bloqueo ? new Date(item.fecha_bloqueo).toLocaleString('es-VE') : '—'}</Text>
+                                <Text type="secondary">Liberado: {item.fecha_liberacion ? new Date(item.fecha_liberacion).toLocaleString('es-VE') : '—'}</Text>
+                                <Text type="secondary">Liberado por: {item.liberado_por ?? '—'}</Text>
+                              </Space>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
                     <Table
                       dataSource={historialBloqueos}
                       rowKey="sk"
@@ -952,6 +1014,7 @@ const ProcesosPage = () => {
                         },
                       ]}
                     />
+                    )}
                     {historialBloqueoNextToken && (
                       <div style={{ textAlign: 'center', marginTop: 16 }}>
                         <Button onClick={() => cargarHistorialBloqueos(historialBloqueoNextToken)} loading={loadingHistorialBloqueos}>

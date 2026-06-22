@@ -274,7 +274,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
 
   return (
     <Table dataSource={unidades} columns={columnas} rowKey="unidad_id"
-      loading={loading} pagination={{ pageSize: 30 }}
+      loading={loading} pagination={{ pageSize: 30, showSizeChanger: false }}
       locale={{ emptyText: 'Sin unidades' }}
       scroll={{ x: true }}
       rowClassName={(r) => `row-estado-${r.estado}`}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Button, Modal, Form, Input, Tag, Space, Popconfirm,
-  Typography, Tooltip, Select, message, Row, Col, Avatar, Badge, Upload,
+  Typography, Tooltip, Select, message, Row, Col, Avatar, Badge, Upload, Grid,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, StopOutlined, CheckOutlined,
@@ -22,6 +22,7 @@ import { getProyectos } from '../../services/proyectos.service';
 import type { Proyecto } from '../../types';
 
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 type ModalMode = 'crear' | 'editar';
 
@@ -35,6 +36,8 @@ const inmoColor = (nombre: string) => {
 
 const InmobiliariasPage = () => {
   const navigate = useNavigate();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -174,12 +177,22 @@ const InmobiliariasPage = () => {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0 }}>Inmobiliarias</Title>
-        <Space>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'stretch' : 'center',
+        marginBottom: 24,
+        gap: 12,
+        flexDirection: isMobile ? 'column' : 'row',
+      }}>
+        <Title level={4} style={{ margin: 0, wordBreak: 'normal', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
+          Inmobiliarias
+        </Title>
+        <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
           <Tooltip title="Copiar enlace de registro global">
             <Button
               icon={<LinkOutlined />}
+              style={{ flex: isMobile ? '1 1 140px' : undefined }}
               onClick={() => {
                 const url = `${window.location.origin}/captura-global`;
                 navigator.clipboard.writeText(url);
@@ -192,7 +205,7 @@ const InmobiliariasPage = () => {
           <Tooltip title="Actualizar">
             <Button icon={<ReloadOutlined />} onClick={cargar} loading={loading} />
           </Tooltip>
-          <Button type="primary" icon={<PlusOutlined />} onClick={abrirCrear}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={abrirCrear} style={{ flex: isMobile ? '1 1 150px' : undefined }}>
             Nueva inmobiliaria
           </Button>
         </Space>

@@ -25,12 +25,12 @@ HORAS_BLOQUEO = 48
 HORAS_ALERTA_BLOQUEO = 43
 
 TRANSICIONES = {
-    'captacion':       ['reserva', 'desvinculado'],
+    'captacion':       ['reserva'],
     'reserva':         ['separacion', 'desvinculado', 'captacion'],
     'separacion':      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva', 'captacion'],
     'inicial':         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion', 'reserva'],
-    'pagos_atrasados': ['inicial', 'contra_entrega', 'desvinculado', 'separacion'],
-    'contra_entrega':  ['vendida', 'desvinculado', 'inicial', 'pagos_atrasados'],
+    'pagos_atrasados': ['inicial', 'desvinculado', 'separacion'],
+    'contra_entrega':  ['vendida', 'desvinculado', 'inicial'],
     'vendida':         ['contra_entrega'],
 }
 
@@ -331,7 +331,7 @@ def listar_todos_procesos(event):
 
     # Filtrar estado en Python cuando usamos gsi-proyecto-procesos sin estado exacto
     if usar_gsi_proyecto and not estado:
-        estados_activos = {'captacion', 'reserva', 'separacion', 'inicial'}
+        estados_activos = {'captacion', 'reserva', 'separacion', 'pagos_atrasados', 'inicial', 'contra_entrega'}
         if not incluir_cerrados:
             items = [i for i in items if i.get('estado') in estados_activos]
 
@@ -341,7 +341,7 @@ def listar_todos_procesos(event):
             # Estado específico tiene prioridad
             items = [i for i in items if i.get('estado') == estado]
         elif not incluir_cerrados:
-            estados_activos = {'captacion', 'reserva', 'separacion', 'inicial'}
+            estados_activos = {'captacion', 'reserva', 'separacion', 'pagos_atrasados', 'inicial', 'contra_entrega'}
             items = [i for i in items if i.get('estado') in estados_activos]
 
     # Enriquecer con datos del cliente (con cache por cedula+inmo+proyecto)
@@ -433,6 +433,37 @@ def _registrar_historial_bloqueo(proyecto_id, unidad_id, unidad_nombre, inmobili
         })
     except Exception as e:
         print(f'_registrar_historial_bloqueo error: {type(e).__name__}: {e}')
+
+
+def _cerrar_historial_bloqueo(unidad_id, fecha_bloqueo, motivo, liberado_por, fecha_liberacion=None):
+    if not historial_table:
+        return
+    try:
+        sk_objetivo = f'BLOQUEO#{fecha_bloqueo}' if fecha_bloqueo else ''
+        result = historial_table.query(
+            KeyConditionExpression=Key('pk').eq(f'UNIDAD#{unidad_id}'),
+            ScanIndexForward=False,
+            Limit=20,
+        )
+        items = result.get('Items', [])
+        item_objetivo = next((i for i in items if sk_objetivo and i.get('sk') == sk_objetivo), None)
+        if not item_objetivo:
+            item_objetivo = next((i for i in items if not i.get('motivo_liberacion')), None)
+        if not item_objetivo:
+            print(f'_cerrar_historial_bloqueo sin historial abierto para unidad {unidad_id}')
+            return
+
+        historial_table.update_item(
+            Key={'pk': item_objetivo['pk'], 'sk': item_objetivo['sk']},
+            UpdateExpression='SET motivo_liberacion = :m, liberado_por = :lp, fecha_liberacion = :fl',
+            ExpressionAttributeValues={
+                ':m': motivo,
+                ':lp': liberado_por,
+                ':fl': fecha_liberacion or datetime.now(timezone.utc).isoformat(),
+            },
+        )
+    except Exception as e:
+        print(f'_cerrar_historial_bloqueo error: {type(e).__name__}: {e}')
 
 
 def _activar_bloqueo_desde_proceso(cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre):
@@ -615,6 +646,17 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
         _cancelar_alerta_separacion(cedula, unidad_id)
         _limpiar_campos_separacion(pk, sk)
         _limpiar_pago_confirmado(pk, sk)
+        if estatus_actual == 'captacion':
+            unidad_actual = inventario_table.get_item(
+                Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'}
+            ).get('Item', {})
+            _cerrar_historial_bloqueo(
+                unidad_id,
+                unidad_actual.get('fecha_bloqueo', ''),
+                'reserva',
+                nombre_admin,
+                ahora,
+            )
         _marcar_unidad_no_disponible(proyecto_id, unidad_id)
     elif nuevo_estatus == 'captacion':
         _cancelar_alerta_separacion(cedula, unidad_id)
@@ -661,7 +703,6 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
     cliente = clientes_table.get_item(
         Key={'pk': f'CLIENTE#{cedula}#{inmobiliaria_id}', 'sk': f'PROYECTO#{proyecto_id}'}
     ).get('Item', {})
-
     sqs.send_message(
         QueueUrl=SQS_URL,
         MessageBody=json.dumps({
@@ -709,6 +750,9 @@ def manejar_alerta_separacion(event):
     proyecto_id = event.get('proyecto_id')
     unidad_id = event.get('unidad_id')
     unidad_nombre = event.get('unidad_nombre', unidad_id)
+    cliente = clientes_table.get_item(
+        Key={'pk': f'CLIENTE#{cedula}#{inmobiliaria_id}', 'sk': f'PROYECTO#{proyecto_id}'}
+    ).get('Item', {}) if all([cedula, inmobiliaria_id, proyecto_id]) else {}
 
     if not all([cedula, inmobiliaria_id, proyecto_id, unidad_id]):
         return
@@ -722,23 +766,51 @@ def manejar_alerta_separacion(event):
         return
 
     # Marcar alerta en el proceso
+    ahora = _now()
+    entrada_historial = {
+        'estatus_anterior': 'separacion',
+        'estatus_nuevo': 'pagos_atrasados',
+        'ejecutado_por': 'sistema',
+        'ejecutado_por_nombre': 'Sistema',
+        'notificacion_enviada': 'admin',
+        'origen': 'vencimiento_separacion_30_dias',
+        'timestamp': ahora,
+    }
+
     procesos_table.update_item(
         Key={'pk': pk, 'sk': sk},
-        UpdateExpression='SET alerta_separacion_vencida = :v',
-        ExpressionAttributeValues={':v': True},
+        UpdateExpression=(
+            'SET #estado = :estado, alerta_separacion_vencida = :v, actualizado_en = :ts, '
+            'historial = list_append(if_not_exists(historial, :empty), :entrada)'
+        ),
+        ExpressionAttributeNames={'#estado': 'estado'},
+        ExpressionAttributeValues={
+            ':estado': 'pagos_atrasados',
+            ':v': True,
+            ':ts': ahora,
+            ':empty': [],
+            ':entrada': [entrada_historial],
+        },
     )
 
     # Enviar notificación al admin por SQS
     sqs.send_message(
         QueueUrl=SQS_URL,
         MessageBody=json.dumps({
-            'tipo': 'alerta_separacion_vencida',
+            'tipo': 'cambio_estatus',
             'cedula': cedula,
             'proyecto_id': proyecto_id,
             'inmobiliaria_id': inmobiliaria_id,
             'unidad_id': unidad_id,
+            'estatus_anterior': 'separacion',
+            'estatus_nuevo': 'pagos_atrasados',
+            'notificar': 'admin',
+            'correo': cliente.get('correo'),
+            'telefono': cliente.get('telefono'),
+            'nombres': cliente.get('nombres'),
+            'apellidos': cliente.get('apellidos'),
             'unidad_nombre': unidad_nombre,
-            'timestamp': _now(),
+            'timestamp': ahora,
         }, ensure_ascii=False),
     )
 

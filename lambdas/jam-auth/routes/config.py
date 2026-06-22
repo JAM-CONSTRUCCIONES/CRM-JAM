@@ -48,6 +48,10 @@ DEFAULTS = {
         'titulo': 'Unidad bloqueada',
         'mensaje': 'Le informamos que la unidad ha sido bloqueada y cuenta con un plazo de 48 horas para completar el proceso de reserva. En caso de no recibirse el pago dentro de este período, la unidad quedará disponible nuevamente de forma automática.',
     },
+    'cambio_estatus_actualizacion': {
+        'titulo': 'Actualizacion de estatus',
+        'mensaje': 'Le informamos que se ha realizado una correccion en el proceso de la unidad {unidad}, a nombre del cliente {cliente}.',
+    },
     'cambio_estatus_reserva': {
         'titulo': 'Unidad reservada',
         'mensaje': 'Le informamos que hemos recibido el pago correspondiente a la reserva de la unidad {unidad}, a nombre del cliente {cliente}. Una vez contabilidad aplique el pago, estaremos remitiendo el recibo correspondiente.',
@@ -101,6 +105,7 @@ LABELS = {
     'liberacion_manual':            'Liberación manual',
     'cambio_estatus_disponible':    'Estatus: Disponible',
     'cambio_estatus_bloqueada':     'Estatus: Bloqueada',
+    'cambio_estatus_actualizacion': 'Estatus: Actualizacion',
     'cambio_estatus_reserva':       'Estatus: Reserva',
     'cambio_estatus_separacion':    'Estatus: Separación',
     'cambio_estatus_inicial':       'Estatus: Inicial / Contrato',

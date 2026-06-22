@@ -654,22 +654,29 @@ const ClientesPage = () => {
     <div>
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 10 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'stretch' : 'center',
+          marginBottom: isMobile ? 10 : 0,
+          gap: 12,
+          flexDirection: isMobile ? 'column' : 'row',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             {vista === 'clientes' && (
               <Tooltip title="Volver a proyectos">
                 <Button icon={<ArrowLeftOutlined />} onClick={volverAProyectos} />
               </Tooltip>
             )}
-            <Title level={4} style={{ margin: 0 }}>
+            <Title level={4} style={{ margin: 0, wordBreak: 'normal', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
               {vista === 'proyectos' ? 'Clientes' : proyectoSeleccionado?.nombre ?? 'Clientes'}
             </Title>
           </div>
-          <Space>
+          <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
             {vista === 'clientes' && (
               <>
                 <Tooltip title="Exportar clientes en Excel">
-                  <Button icon={<DownloadOutlined />} onClick={handleExportarClientes} loading={exportando}>
+                  <Button icon={<DownloadOutlined />} onClick={handleExportarClientes} loading={exportando} style={{ flex: isMobile ? '1 1 120px' : undefined }}>
                     {isMobile ? '' : 'Exportar clientes'}
                   </Button>
                 </Tooltip>
@@ -679,7 +686,7 @@ const ClientesPage = () => {
               </>
             )}
             {!isAdmin && vista === 'clientes' && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.setFieldsValue({ proyecto_id: proyectoFiltro }); setModalOpen(true); }}>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.setFieldsValue({ proyecto_id: proyectoFiltro }); setModalOpen(true); }} style={{ flex: isMobile ? '1 1 140px' : undefined }}>
                 {isMobile ? '' : 'Registrar cliente'}
               </Button>
             )}
@@ -922,7 +929,7 @@ const ClientesPage = () => {
           <Table
             dataSource={clientesFiltrados} columns={columnasProyecto}
             rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
-            pagination={{ pageSize: 20 }} locale={{ emptyText: 'Sin clientes' }}
+            pagination={{ pageSize: 20, showSizeChanger: false }} locale={{ emptyText: 'Sin clientes' }}
             onRow={r => ({ onClick: () => abrirDrawerInmo(r), style: { cursor: 'pointer' } })}
             scroll={{ x: true }}
           />

@@ -115,7 +115,7 @@ def liberar(proyecto_id, unidad_id, event):
                 'unidad_id': unidad_id,
                 'proyecto_id': proyecto_id,
                 'inmobiliaria_id': inmobiliaria_id,
-                'liberado_por': admin_id,
+                'liberado_por': admin_nombre,
                 'cedula': cliente_cedula,
                 'unidad_nombre': unidad.get('id_unidad') or unidad_id,
                 'notificar': notificar,

@@ -13,7 +13,7 @@ import {
 import { useAuthContext } from '../../context/AuthContext';
 import type { RolInterno } from '../../types';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const ROL_LABELS: Record<RolInterno, string> = {
@@ -216,11 +216,59 @@ const UsuariosSistemaPage = () => {
         </Space>
       </div>
 
-      <Table
-        dataSource={usuarios} columns={columns}
-        rowKey="pk" loading={loading} pagination={{ pageSize: 20 }}
-        scroll={{ x: true }}
-      />
+      {isMobile ? (
+        <div>
+          {loading && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Cargando usuarios...</div>}
+          {!loading && usuarios.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No hay usuarios registrados</div>}
+          {usuarios.map(u => {
+            const self = esSelf(u);
+            const items = [
+              { key: 'editar', icon: <EditOutlined />, label: 'Editar', onClick: () => abrirEditar(u) },
+              {
+                key: 'toggle', icon: u.activo ? <StopOutlined /> : <CheckOutlined />,
+                label: u.activo ? 'Deshabilitar' : 'Habilitar', danger: u.activo,
+                disabled: self,
+                onClick: () => !self && handleToggle(u),
+              },
+              ...(isAdmin ? [{
+                key: 'eliminar', icon: <DeleteOutlined />, label: 'Eliminar', danger: true,
+                disabled: self,
+                onClick: () => {
+                  if (self) return;
+                  Modal.confirm({
+                    title: '¿Eliminar usuario?', okText: 'Eliminar',
+                    cancelText: 'Cancelar', okButtonProps: { danger: true },
+                    onOk: () => handleEliminar(u),
+                  });
+                },
+              }] : []),
+            ];
+            return (
+              <div key={u.pk} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', marginBottom: 10, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <Text strong style={{ display: 'block' }}>{u.nombre || u.cognito_username}</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{u.cognito_username}</Text>
+                    <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <Tag color={ROL_COLORS[u.rol]}>{ROL_LABELS[u.rol]}</Tag>
+                      <Tag color={u.activo ? 'green' : 'red'}>{u.activo ? 'Activo' : 'Inactivo'}</Tag>
+                    </div>
+                  </div>
+                  <Dropdown menu={{ items }} trigger={['click']} placement="bottomRight">
+                    <Button size="small" icon={<MoreOutlined />} />
+                  </Dropdown>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <Table
+          dataSource={usuarios} columns={columns}
+          rowKey="pk" loading={loading} pagination={{ pageSize: 20, showSizeChanger: false }}
+          scroll={{ x: true }}
+        />
+      )}
 
       <Modal
         title={modo === 'crear' ? 'Nuevo usuario' : 'Editar usuario'}

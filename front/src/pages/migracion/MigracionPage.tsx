@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Typography, Table, Tag, Space, Button, Tooltip, Modal, Select, Empty,
+  Typography, Table, Tag, Space, Button, Tooltip, Modal, Select, Empty, Alert, Grid,
 } from 'antd';
 import { ReloadOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons';
 import { useInventario } from '../../hooks/useInventario';
@@ -8,9 +8,12 @@ import MigracionExcel from '../../components/inventario/MigracionExcel';
 import { listarReportes, type ReporteMigracion } from '../../services/migracion.service';
 
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const MigracionPage = () => {
   const inv = useInventario();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [modalProyecto, setModalProyecto] = useState(false);
   const [proyectoId, setProyectoId] = useState('');
   const [proyectoIdTemp, setProyectoIdTemp] = useState('');
@@ -37,6 +40,20 @@ const MigracionPage = () => {
     setProyectoIdTemp('');
     setModalProyecto(false);
   };
+
+  if (isMobile) {
+    return (
+      <div>
+        <Title level={4} style={{ marginTop: 0 }}>Migraciones</Title>
+        <Alert
+          type="info"
+          showIcon
+          message="La migracion de Excel debe realizarse desde una computadora."
+          description="Esta pantalla necesita espacio para revisar columnas, corregir datos y confirmar la carga antes de importar."
+        />
+      </div>
+    );
+  }
 
   const columnas = [
     {
@@ -114,7 +131,7 @@ const MigracionPage = () => {
         rowKey="job_id"
         loading={cargandoReportes}
         size="middle"
-        pagination={{ pageSize: 10 }}
+        pagination={{ pageSize: 10, showSizeChanger: false }}
         locale={{
           emptyText: (
             <Empty

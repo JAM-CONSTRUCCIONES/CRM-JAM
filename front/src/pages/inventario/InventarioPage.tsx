@@ -44,6 +44,9 @@ const InventarioPage = () => {
         return inmo?.proyectos?.includes(p.proyecto_id);
       })
     : inv.proyectos;
+  const unidadesVisibles = isPreview
+    ? inv.unidades.filter(u => u.estado === 'disponible' || u.estado === 'bloqueada')
+    : inv.unidades;
 
   // Estado local solo para bloqueo (no pertenece al hook de inventario)
   const [modalBloqueo, setModalBloqueo] = useState(false);
@@ -483,7 +486,7 @@ const InventarioPage = () => {
           </div>
 
           <TablaUnidades
-            unidades={inv.unidades} etapas={inv.etapas} loading={inv.loading}
+            unidades={unidadesVisibles} etapas={inv.etapas} loading={inv.loading}
             isAdmin={isPreview ? false : inv.isAdmin} isInmobiliaria={isInmobiliariaEffective}
             canEdit={canEditEffective}
             inmoNombre={inv.inmoNombre}

@@ -1054,7 +1054,11 @@ def _unidades_inventario_publico(proyecto_id, qs):
     if not _get_proyecto_publico(proyecto_id):
         return not_found('Proyecto no encontrado')
 
-    filter_expr = Attr('estado').eq('disponible')
+    estado = (qs.get('estado') or '').strip().lower()
+    if estado in ('disponible', 'bloqueada'):
+        filter_expr = Attr('estado').eq(estado)
+    else:
+        filter_expr = Attr('estado').is_in(['disponible', 'bloqueada'])
 
     if qs.get('etapa_id'):
         filter_expr = filter_expr & Attr('etapa_id').eq(qs['etapa_id'])

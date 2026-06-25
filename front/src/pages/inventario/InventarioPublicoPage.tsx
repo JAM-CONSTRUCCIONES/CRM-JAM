@@ -26,12 +26,14 @@ const InventarioPublicoPage = () => {
   const [error, setError] = useState('');
 
   const [filtroEtapa, setFiltroEtapa] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroUnidad, setFiltroUnidad] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroManzana, setFiltroManzana] = useState('');
   const [filtroPiso, setFiltroPiso] = useState('');
 
   const cargarUnidades = async (override?: Partial<{
+    estado: string;
     etapa_id: string;
     id_unidad: string;
     tipo: string;
@@ -42,6 +44,7 @@ const InventarioPublicoPage = () => {
     setLoadingUnidades(true);
     try {
       const data = await getUnidadesPublicas(proyectoId, {
+        estado: override?.estado ?? filtroEstado,
         etapa_id: override?.etapa_id ?? filtroEtapa,
         id_unidad: override?.id_unidad ?? filtroUnidad,
         tipo: override?.tipo ?? filtroTipo,
@@ -93,11 +96,12 @@ const InventarioPublicoPage = () => {
 
   const limpiarFiltros = () => {
     setFiltroEtapa('');
+    setFiltroEstado('');
     setFiltroUnidad('');
     setFiltroTipo('');
     setFiltroManzana('');
     setFiltroPiso('');
-    cargarUnidades({ etapa_id: '', id_unidad: '', tipo: '', manzana: '', piso: '' });
+    cargarUnidades({ estado: '', etapa_id: '', id_unidad: '', tipo: '', manzana: '', piso: '' });
   };
 
   if (loading) {
@@ -143,7 +147,7 @@ const InventarioPublicoPage = () => {
               <Col xs={24} md={proyecto?.imagen_url ? 17 : 24} lg={proyecto?.imagen_url ? 18 : 24}>
                 <Space direction="vertical" size={8} style={{ width: '100%' }}>
                   <Tag icon={<AppstoreOutlined />} color="blue" style={{ width: 'fit-content' }}>
-                    Inventario disponible
+                    Inventario publico
                   </Tag>
                   <Title level={isMobile ? 3 : 2} style={{ margin: 0 }}>{proyecto?.nombre}</Title>
                   {proyecto?.descripcion && (
@@ -178,7 +182,7 @@ const InventarioPublicoPage = () => {
           showIcon
           style={{ marginBottom: 16 }}
           message="Vista publica de solo lectura"
-          description="Solo se muestran unidades disponibles. Esta vista no permite bloquear, editar, cambiar estatus ni ver informacion interna."
+          description="Solo se muestran unidades disponibles y bloqueadas. Esta vista no permite bloquear, editar, cambiar estatus ni ver informacion interna."
         />
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
@@ -195,14 +199,25 @@ const InventarioPublicoPage = () => {
           >
             {etapas.map(e => <Option key={e.etapa_id} value={e.etapa_id}>{e.nombre}</Option>)}
           </Select>
-          <Select disabled value="disponible" style={{ width: isMobile ? '100%' : 180 }}>
+          <Select
+            placeholder="Estado"
+            value={filtroEstado || 'todos'}
+            style={{ width: isMobile ? '100%' : 180 }}
+            onChange={v => {
+              const value = v === 'todos' ? '' : v || '';
+              setFiltroEstado(value);
+              cargarUnidades({ estado: value });
+            }}
+          >
+            <Option value="todos">Todas</Option>
             <Option value="disponible">Disponible</Option>
+            <Option value="bloqueada">Bloqueada</Option>
           </Select>
           <Input placeholder="Unidad (ej: 101)" style={{ width: isMobile ? '100%' : 140 }} value={filtroUnidad} onChange={e => setFiltroUnidad(e.target.value)} allowClear />
           <Input placeholder="Tipo (ej: D)" style={{ width: isMobile ? '100%' : 120 }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} allowClear />
           <Input placeholder="Bloque (ej: A)" style={{ width: isMobile ? '100%' : 140 }} value={filtroManzana} onChange={e => setFiltroManzana(e.target.value)} allowClear />
           <Input placeholder="Piso (ej: 3)" style={{ width: isMobile ? '100%' : 120 }} value={filtroPiso} onChange={e => setFiltroPiso(e.target.value)} allowClear />
-          {(filtroEtapa || filtroUnidad || filtroTipo || filtroManzana || filtroPiso) && (
+          {(filtroEtapa || filtroEstado || filtroUnidad || filtroTipo || filtroManzana || filtroPiso) && (
             <Button onClick={limpiarFiltros}>Limpiar</Button>
           )}
           <Button icon={<ReloadOutlined />} onClick={() => cargarUnidades()} loading={loadingUnidades}>
@@ -211,7 +226,7 @@ const InventarioPublicoPage = () => {
         </div>
 
         <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          {unidades.length} unidad{unidades.length === 1 ? '' : 'es'} disponible{unidades.length === 1 ? '' : 's'}
+          {unidades.length} unidad{unidades.length === 1 ? '' : 'es'} disponible{unidades.length === 1 ? '' : 's'} o bloqueada{unidades.length === 1 ? '' : 's'}
         </Text>
 
         <TablaUnidades

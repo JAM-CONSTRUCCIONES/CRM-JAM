@@ -11,8 +11,7 @@ import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloque
 import { ESTADO_UNIDAD_CONFIG, projectGradient } from '../../constants/estados';
 import { eliminarProyecto, getProyecto, exportarInventario } from '../../services/proyectos.service';
 import { bloquearUnidad } from '../../services/bloqueos.service';
-import { buscarClientePorCedula } from '../../services/clientes.service';
-import type { Cliente, Unidad } from '../../types';
+import type { Unidad } from '../../types';
 import { message } from 'antd';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEffect, useRef } from 'react';
@@ -52,8 +51,6 @@ const InventarioPage = () => {
   const [modalBloqueo, setModalBloqueo] = useState(false);
   const [unidadABloquear, setUnidadABloquear] = useState<Unidad | null>(null);
   const [guardandoBloqueo, setGuardandoBloqueo] = useState(false);
-  const [clienteEncontrado, setClienteEncontrado] = useState<Cliente | null>(null);
-  const [buscandoCliente, setBuscandoCliente] = useState(false);
 
   // Modal crear bloqueo admin (manual)
   const [modalCrearBloqueoAdmin, setModalCrearBloqueoAdmin] = useState(false);
@@ -120,17 +117,6 @@ const InventarioPage = () => {
     inv.setModalUnidad(true);
   };
 
-  const buscarCliente = async (cedula: string) => {
-    if (!cedula?.trim()) return;
-    setBuscandoCliente(true);
-    try {
-      const result = await buscarClientePorCedula(cedula.trim(), inv.proyectoId);
-      const cliente = Array.isArray(result) ? result[0] : result;
-      setClienteEncontrado(cliente || null);
-    } catch { setClienteEncontrado(null); }
-    finally { setBuscandoCliente(false); }
-  };
-
   const handleBloquear = async (omitir: boolean, values?: any) => {
     if (!unidadABloquear) return;
     setGuardandoBloqueo(true);
@@ -146,7 +132,7 @@ const InventarioPage = () => {
         }
       }
       message.success(omitir ? `Unidad ${unidadABloquear.id_unidad} bloqueada` : `Unidad ${unidadABloquear.id_unidad} bloqueada y cliente registrado`);
-      setModalBloqueo(false); setClienteEncontrado(null);
+      setModalBloqueo(false);
       await inv.cargarUnidades();
     } catch (err: any) {
       const s = err?.response?.statusCode ?? err?.response?.status;
@@ -492,7 +478,7 @@ const InventarioPage = () => {
             inmoNombre={inv.inmoNombre}
             onEditar={abrirEditarUnidad}
             onEliminar={inv.handleEliminarUnidad}
-            onBloquear={isPreview ? undefined : (u => { setUnidadABloquear(u); setClienteEncontrado(null); setModalBloqueo(true); })}
+            onBloquear={isPreview ? undefined : (u => { setUnidadABloquear(u); setModalBloqueo(true); })}
             onCrearBloqueoAdmin={isPreview || !inv.isAdmin ? undefined : (u => { setUnidadParaBloqueoAdmin(u); setModalCrearBloqueoAdmin(true); })}
           />
         </>
@@ -535,9 +521,9 @@ const InventarioPage = () => {
 
       <ModalBloqueo
         open={modalBloqueo} unidad={unidadABloquear}
-        clienteEncontrado={clienteEncontrado} buscandoCliente={buscandoCliente} guardando={guardandoBloqueo}
-        onCancel={() => { setModalBloqueo(false); setClienteEncontrado(null); }}
-        onBuscar={buscarCliente}
+        proyectoId={inv.proyectoId}
+        guardando={guardandoBloqueo}
+        onCancel={() => { setModalBloqueo(false); }}
         onBloquear={handleBloquear}
       />
 

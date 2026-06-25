@@ -16,7 +16,10 @@ inventario_table = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 _usuarios_table_name = os.environ.get('USUARIOS_TABLE', '')
 
 ESTADOS_COMERCIALES = {'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida'}
-ESTADOS_VENTA = {'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida'}
+# Para dashboard, venta = todo estado que hace que una unidad sea no disponible,
+# mas vendida. Desvinculado queda fuera porque la unidad vuelve a disponible.
+ESTADOS_VENTA = {'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida'}
+ESTADOS_INVENTARIO_VENTA = {'no_disponible', 'vendida'}
 
 
 def _normalizar_inmo_id(value):
@@ -150,6 +153,8 @@ def get_analytics(event):
             unidad_map[uid] = {
                 'piso': str(u.get('piso', '')).strip() if u.get('piso') is not None else '',
                 'metraje': u.get('metraje'),
+                'estado': estado,
+                'inmobiliaria_id': _normalizar_inmo_id(u.get('bloqueado_por')),
             }
 
     if es_inmobiliaria:
@@ -202,7 +207,7 @@ def get_analytics(event):
     }
     # Por inmobiliaria: captados, reservas, separaciones, desvinculados
     por_inmo: dict = {}
-    # Cierres mensuales (reserva + separacion)
+    # Cierres mensuales: primer estado contado como venta
     cierres_mensuales: dict = {}
     # Velocidad: tiempos captacion→reserva, reserva→separacion
     tiempos_cap_res: list = []
@@ -262,22 +267,35 @@ def get_analytics(event):
         ts_captacion = _parse_dt(p.get('fecha_inicio', ''))
         ts_reserva = None
         ts_separacion = None
+        ts_venta = None
+        estado_venta_mes = ''
 
         for entrada in historial:
             nuevo = entrada.get('estatus_nuevo', '')
             ts = _parse_dt(entrada.get('timestamp', ''))
 
-            # Cierres mensuales
-            if nuevo in ('reserva', 'separacion') and ts:
-                mes = ts.strftime('%Y-%m')
-                if mes not in cierres_mensuales:
-                    cierres_mensuales[mes] = {'reservas': 0, 'separaciones': 0}
-                if nuevo == 'reserva':
-                    cierres_mensuales[mes]['reservas'] += 1
-                    ts_reserva = ts
-                elif nuevo == 'separacion':
-                    cierres_mensuales[mes]['separaciones'] += 1
-                    ts_separacion = ts
+            # Cierres mensuales: contar una sola vez desde el primer estado
+            # considerado venta.
+            if nuevo in ESTADOS_VENTA and ts and ts_venta is None:
+                ts_venta = ts
+                estado_venta_mes = nuevo
+            if nuevo == 'reserva' and ts:
+                ts_reserva = ts
+            elif nuevo == 'separacion' and ts:
+                ts_separacion = ts
+
+        if ts_venta is None and estado in ESTADOS_VENTA:
+            ts_venta = _parse_dt(p.get('actualizado_en', '')) or _parse_dt(p.get('fecha_inicio', ''))
+            estado_venta_mes = estado
+
+        if ts_venta:
+            mes = ts_venta.strftime('%Y-%m')
+            if mes not in cierres_mensuales:
+                cierres_mensuales[mes] = {'reservas': 0, 'separaciones': 0}
+            if estado_venta_mes == 'reserva':
+                cierres_mensuales[mes]['reservas'] += 1
+            else:
+                cierres_mensuales[mes]['separaciones'] += 1
 
         # Velocidad
         h_cap_res = _diff_hours(ts_captacion, ts_reserva)
@@ -286,6 +304,32 @@ def get_analytics(event):
         h_res_sep = _diff_hours(ts_reserva, ts_separacion)
         if h_res_sep is not None:
             tiempos_res_sep.append(h_res_sep)
+
+    # Incluir unidades migradas o actualizadas directamente en inventario que
+    # ya estan no disponibles/vendidas, aunque no tengan proceso asociado.
+    for uid, info in unidad_map.items():
+        if uid in unidades_vendidas:
+            continue
+        if info.get('estado') not in ESTADOS_INVENTARIO_VENTA:
+            continue
+
+        unidades_vendidas.add(uid)
+        piso = info.get('piso', '')
+        if piso:
+            ventas_por_piso[piso] = ventas_por_piso.get(piso, 0) + 1
+        metraje = info.get('metraje')
+        if metraje is not None:
+            try:
+                m_key = str(float(metraje))
+                ventas_por_metraje[m_key] = ventas_por_metraje.get(m_key, 0) + 1
+            except (ValueError, TypeError):
+                pass
+
+        inmo_id = info.get('inmobiliaria_id') or ''
+        if inmo_id:
+            if inmo_id not in por_inmo:
+                por_inmo[inmo_id] = {'captados': 0, 'reservas': 0, 'separaciones': 0, 'desvinculados': 0}
+            ventas_por_inmo[inmo_id] = ventas_por_inmo.get(inmo_id, 0) + 1
 
     # Promedios de velocidad
     def avg(lst):
@@ -300,12 +344,12 @@ def get_analytics(event):
     total_procesos = proceso_stats['total']
     kpis = {
         'pct_conversion': round(
-            (proceso_stats['reserva'] + proceso_stats['separacion'] + proceso_stats['inicial']) / total_procesos * 100, 1
+            sum(proceso_stats[e] for e in ESTADOS_VENTA) / total_procesos * 100, 1
         ) if total_procesos > 0 else 0,
         'tasa_abandono': round(proceso_stats['desvinculado'] / total_procesos * 100, 1) if total_procesos > 0 else 0,
         'pct_bloqueos_a_venta': round(
-            (proceso_stats['reserva'] + proceso_stats['separacion'] + proceso_stats['inicial']) /
-            max(unidad_stats['bloqueada'] + proceso_stats['reserva'] + proceso_stats['separacion'] + proceso_stats['inicial'], 1) * 100, 1
+            sum(proceso_stats[e] for e in ESTADOS_VENTA) /
+            max(unidad_stats['bloqueada'] + sum(proceso_stats[e] for e in ESTADOS_VENTA), 1) * 100, 1
         ),
     }
 

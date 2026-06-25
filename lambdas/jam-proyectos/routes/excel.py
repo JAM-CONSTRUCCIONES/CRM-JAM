@@ -453,7 +453,7 @@ def exportar_inventario(event):
         
         # Headers
         headers = [
-            'ID Unidad', 'Etapa', 'Tipo', 'Manzana', 'Piso',
+            'ID Unidad', 'Etapa', 'Tipo', 'Bloque', 'Piso',
             'Metraje', 'Metraje Terraza', 'Metraje Patio',
             'Cuartos', 'Baños', 'Parqueos',
             'Precio', 'Precio Reserva', 'Precio Separación', 'Precio Inicial',

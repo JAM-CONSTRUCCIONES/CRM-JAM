@@ -183,7 +183,6 @@ const ProcesosPage = () => {
   }, [proyectoFiltro, esInmobiliaria, proyectoSeleccionado]);
 
   const cargarBloqueosSinCliente = useCallback(async () => {
-    if (esInmobiliaria) return;
     setLoadingBloqueos(true);
     try {
       const data = await getBloquesActivos();
@@ -459,8 +458,9 @@ const ProcesosPage = () => {
 
   // Bloqueos sin cliente filtrados por búsqueda/proyecto
   // Solo mostrar cuando NO hay filtro de estado activo
+  const proyectoBloqueosFiltro = proyectoFiltro ?? proyectoSeleccionado?.proyecto_id;
   const bloqueosFiltrados = estadoFiltro ? [] : bloqueosSinCliente.filter(b => {
-    if (proyectoFiltro && b.proyecto_id?.replace('PROYECTO#', '') !== proyectoFiltro) return false;
+    if (proyectoBloqueosFiltro && b.proyecto_id?.replace('PROYECTO#', '') !== proyectoBloqueosFiltro) return false;
     if (inmoFiltro) {
       const norm = inmoFiltro.replace('INMOBILIARIA#', '');
       if (b.bloqueado_por !== norm && b.bloqueado_por !== inmoFiltro) return false;
@@ -510,6 +510,7 @@ const ProcesosPage = () => {
     const { vencida, proxima, dias } = alertaInfo(p);
     const esBloqueada = isUnidadBloqueada(p);
     const puedeAvanzar = !esInmobiliaria && p.estado !== 'desvinculado';
+    const puedeVerDetalleUnidad = !(esInmobiliaria && p.estado === 'desvinculado');
     
     // Calcular tiempo restante si está bloqueada
     let tiempoRestante = 0;
@@ -522,7 +523,7 @@ const ProcesosPage = () => {
     
     const pasoAtras = PASO_ANTERIOR[p.estado];
     const menuItems = [
-      { key: 'detalles', icon: <InfoCircleOutlined />, label: 'Ver detalles de unidad', onClick: () => abrirDetalleUnidad(p.unidad_id, p.proyecto_id) },
+      ...(puedeVerDetalleUnidad ? [{ key: 'detalles', icon: <InfoCircleOutlined />, label: 'Ver detalles de unidad', onClick: () => abrirDetalleUnidad(p.unidad_id, p.proyecto_id) }] : []),
       ...(puedeAvanzar ? [{ key: 'estatus', icon: <SwapOutlined />, label: 'Cambiar estatus', onClick: () => setEstatusModal(p) }] : []),
       ...(!isMobile && !esInmobiliaria && pasoAtras ? [{
         key: 'retroceder', icon: <ArrowLeftOutlined />, label: `Retroceder a ${ESTADO_PROCESO_LABEL[pasoAtras] ?? pasoAtras}`,
@@ -574,9 +575,9 @@ const ProcesosPage = () => {
             <Space size={4} wrap>
               <Tag
                 color="geekblue"
-                style={{ margin: 0, cursor: 'pointer' }}
-                icon={<InfoCircleOutlined />}
-                onClick={() => abrirDetalleUnidad(p.unidad_id, p.proyecto_id)}
+                style={{ margin: 0, cursor: puedeVerDetalleUnidad ? 'pointer' : 'default' }}
+                icon={puedeVerDetalleUnidad ? <InfoCircleOutlined /> : undefined}
+                onClick={puedeVerDetalleUnidad ? () => abrirDetalleUnidad(p.unidad_id, p.proyecto_id) : undefined}
               >{p.unidad_nombre || p.unidad_id}</Tag>
               <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
                 <Tag color={ESTADO_PROCESO_COLOR[p.estado]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[p.estado] ?? p.estado}</Tag>
@@ -606,6 +607,7 @@ const ProcesosPage = () => {
     const { vencida, proxima } = alertaInfo(p);
     const esBloqueada = isUnidadBloqueada(p);
     const puedeAvanzar = !esInmobiliaria && p.estado !== 'desvinculado';
+    const puedeVerDetalleUnidad = !(esInmobiliaria && p.estado === 'desvinculado');
     
     // Calcular tiempo restante si está bloqueada
     let tiempoRestante = 0;
@@ -646,7 +648,9 @@ const ProcesosPage = () => {
         } />
         {!esInmobiliaria && <Text style={{ fontSize: 12 }}>{inmoNombre(p.inmobiliaria_id)}</Text>}
         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-          <Tooltip title="Ver detalles de unidad"><Button size="small" icon={<InfoCircleOutlined />} onClick={() => abrirDetalleUnidad(p.unidad_id, p.proyecto_id)} /></Tooltip>
+          {puedeVerDetalleUnidad && (
+            <Tooltip title="Ver detalles de unidad"><Button size="small" icon={<InfoCircleOutlined />} onClick={() => abrirDetalleUnidad(p.unidad_id, p.proyecto_id)} /></Tooltip>
+          )}
           {puedeAvanzar && <Tooltip title="Cambiar estatus"><Button size="small" icon={<SwapOutlined />} onClick={() => setEstatusModal(p)} /></Tooltip>}
           {esBloqueada && !esInmobiliaria && <Tooltip title="Extender bloqueo"><Button size="small" icon={<FieldTimeOutlined />} onClick={() => { setExtenderProcesoModal(p); formExtenderProceso.resetFields(); }} /></Tooltip>}
           {esBloqueada && !esInmobiliaria && (

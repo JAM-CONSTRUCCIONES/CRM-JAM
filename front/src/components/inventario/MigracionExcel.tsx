@@ -645,24 +645,32 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                   <thead>
                     <tr style={{ background: '#e6f4ff' }}>
                       {[
-                        'unidad','Area','Metraje Terraza','Metraje Patio','No Cuartos','No. baños','Tipo','Piso','Parqueos',
-                        'NOMBRE CLIENTE','DOCUMENTO','TELEFONO','CORREO',
-                        'FECHA NACIMIENTO','PAIS RESIDENCIA','NACIONALIDAD',
-                        'Precios US$','RESERVA','SEPARACION','INICIAL',
-                        'CUOTAS 24','Cuota Meses','CONTRA ENTREGA','ESTATUS','INMOBILIARIA',
-                        'FECHA BLOQUEO','FECHA FIN BLOQUEO/ PAGO SEPARACION','COMENTARIO',
+                        'ID Unidad', 'Etapa', 'Tipo', 'Manzana o Bloque', 'Piso',
+                        'Metraje', 'Metraje Terraza', 'Metraje Patio',
+                        'Cuartos', 'Baños', 'Parqueos',
+                        'Precio', 'Precio Reserva', 'Precio Separación', 'Precio Inicial',
+                        'Cuota Monto', 'Cuota Meses', 'Contra Entrega',
+                        'Estado', 'Documento', 'Cliente Nombre', 'Cliente Teléfono', 'Cliente Correo',
+                        'Fecha Nacimiento', 'Pais Residencia', 'Nacionalidad',
+                        'Inmobiliaria', 'Estado Proceso',
+                        'Fecha Bloqueo', 'Fecha Liberación', 'Días Restantes',
+                        'Comentario',
                       ].map(h => (
                         <th key={h} style={{ border: '1px solid #91caff', padding: '4px 8px', color: '#1677ff', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
                     <tr style={{ background: 'var(--panel-soft-bg)' }}>
                       {[
-                        'B-A-101','76.34','12.5','8.0','3','2','D','1','1',
-                        'JOSE MIGUEL BARRERA','A1234567','0991234567','jose@email.com',
-                        '1995-04-15','Republica Dominicana','Dominicana',
-                        '75958.30','500','3297.91','11393.74',
-                        '474.73','24','60766.64','CONTRATO FIRMADO','Plusval',
-                        '2026-02-21','2026-03-21','',
+                        'B-A-101', 'Etapa I', 'D', 'B', '1',
+                        '76.34', '12.5', '8.0',
+                        '3', '2', '1',
+                        '75958.30', '500', '3297.91', '11393.74',
+                        '474.73', '24', '60766.64',
+                        'NO DISPONIBLE', 'A1234567', 'JOSE MIGUEL BARRERA', '0991234567', 'jose@email.com',
+                        '1995-04-15', 'Republica Dominicana', 'Dominicana',
+                        'Plusval', 'contrato_firmado',
+                        '2026-02-21', '2026-03-21', '0',
+                        '',
                       ].map((v, i) => (
                         <td key={i} style={{ border: '1px solid var(--app-border)', padding: '4px 8px', color: 'var(--text-secondary)' }}>{v || <span style={{ color: 'var(--text-muted)' }}>vacío</span>}</td>
                       ))}
@@ -670,10 +678,10 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                   </thead>
                 </table>
                 <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  <Tag color="blue">unidad — obligatorio</Tag>
-                  <Tag color="blue">Precios US$ — obligatorio</Tag>
-                  <Tag color="blue">Area — obligatorio</Tag>
-                  <Tag color="blue">ESTATUS — obligatorio</Tag>
+                  <Tag color="blue">ID Unidad — obligatorio</Tag>
+                  <Tag color="blue">Precio — obligatorio</Tag>
+                  <Tag color="blue">Metraje — obligatorio</Tag>
+                  <Tag color="blue">Estado — obligatorio</Tag>
                   <Tag color="default">El resto es opcional</Tag>
                   <Tag color="orange">Si hay cliente, NOMBRES, APELLIDOS, DOCUMENTO e INMOBILIARIA son obligatorias</Tag>
                 </div>

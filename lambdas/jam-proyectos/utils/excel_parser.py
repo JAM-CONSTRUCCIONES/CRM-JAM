@@ -312,7 +312,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
                                                             'Fecha Liberación', 'FECHA LIBERACION',
                                                             'FECHA LIBERACIÓN', 'FECHA FIN', 'FECHA_FIN'])),
             'comentario':                   str(gc(['COMENTARIO', 'Comentario', 'OBSERVACION', 'NOTAS']) or '').strip() or None,
-            'manzana':                      str(gc(['Manzana', 'MANZANA', 'MZ']) or '').strip() or None,
+            'manzana':                      str(gc(['Bloque', 'BLOQUE', 'Manzana', 'MANZANA', 'MZ']) or '').strip() or None,
             'metraje_terraza':              _dec(['Metraje Terraza', 'METRAJE TERRAZA', 'TERRAZA',
                                                   'M2 TERRAZA', 'Area Terraza', 'Área Terraza',
                                                   'Metros Terraza', 'M2 Balcon', 'Balcon', 'Balcón',

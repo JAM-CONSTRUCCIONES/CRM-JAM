@@ -12,7 +12,7 @@ scheduler_client = boto3.client('scheduler')
 MESES_EXCLUSIVIDAD = 3
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
-CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-z .-]+$')
+CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ .-]+$')
 PAISES_VALIDOS = {
     'Alemania', 'Argentina', 'Australia', 'Belgica', 'Bolivia', 'Brasil', 'Canada',
     'Chile', 'China', 'Colombia', 'Corea del Sur', 'Costa Rica', 'Cuba', 'Ecuador',

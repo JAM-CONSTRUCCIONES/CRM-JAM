@@ -133,7 +133,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPubli
         {isInmobiliaria && !readOnlyPublic && u.estado === 'bloqueada' && (
           <Tag icon={<LockOutlined />} color="warning" style={{ width: '100%', textAlign: 'center', padding: '4px 0' }}>Bloqueada</Tag>
         )}
-        
+
         {/* Crear bloqueo button (admin) */}
         {isAdmin && !isInmobiliaria && u.estado === 'disponible' && onCrearBloqueoAdmin && (
           <Button size="small" icon={<LockOutlined />} type="primary" block onClick={() => onCrearBloqueoAdmin(u)}>
@@ -192,7 +192,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
         const c = (u as any).num_cuartos;
         const b = (u as any).num_banos;
         if (c == null && b == null) return <Text type="secondary">—</Text>;
-        return <Text>{c != null ? `${c}c` : '—'} / {b != null ? `${b}b` : '—'}</Text>;
+        return <Text>{c != null ? `${c} hab.` : '—'} / {b != null ? `${b} baños` : '—'}</Text>;
       },
     },
     {
@@ -284,4 +284,3 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
 };
 
 export default TablaUnidades;
-

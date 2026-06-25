@@ -1,3 +1,0 @@
-# Dependencias para pruebas locales
-boto3>=1.26.0
-moto>=4.2.0  # Para mocks de AWS

@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 from utils.response import ok, bad_request, conflict, too_many, not_found
-from utils.auth import get_inmobiliaria_id, require_admin
+from utils.auth import get_inmobiliaria_id, get_rol, require_admin
 from utils import scheduler as sched
 from utils.clientes import registrar_cliente_y_proceso, _normalizar_datos_cliente
 
@@ -244,6 +244,10 @@ def listar_activos(event):
     qs = event.get('queryStringParameters') or {}
     next_token = qs.get('next_token')
     limit = min(int(qs.get('limit', 100)), 200)
+    es_inmobiliaria = get_rol(event) == 'inmobiliaria'
+    inmo_id_filtro = ''
+    if es_inmobiliaria:
+        inmo_id_filtro, _ = _get_inmobiliaria_info(get_inmobiliaria_id(event))
 
     kwargs = {
         'IndexName': 'gsi-estado',
@@ -259,6 +263,11 @@ def listar_activos(event):
 
     result = inventario.query(**kwargs)
     items = result.get('Items', [])
+    if es_inmobiliaria:
+        items = [
+            item for item in items
+            if str(item.get('bloqueado_por', '')).replace('INMOBILIARIA#', '') == inmo_id_filtro
+        ]
 
     for item in items:
         if not item.get('proyecto_id') and item.get('pk', '').startswith('PROYECTO#'):

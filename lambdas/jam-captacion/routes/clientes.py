@@ -2,6 +2,7 @@ import json
 import boto3
 import os
 import re
+import unicodedata
 from io import BytesIO
 from datetime import datetime, timezone, date
 from boto3.dynamodb.conditions import Key, Attr
@@ -17,7 +18,7 @@ procesos = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 MESES_EXCLUSIVIDAD = 3
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
-CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-z .-]+$')
+CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ .-]+$')
 ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
 PAISES_VALIDOS = {
     'Alemania', 'Argentina', 'Australia', 'Belgica', 'Bolivia', 'Brasil', 'Canada',
@@ -230,6 +231,15 @@ def _nombre_archivo_seguro(value):
 
 def _clean_spaces(value):
     return ' '.join(str(value or '').strip().split())
+
+
+def _normalizar_texto_busqueda(value):
+    return (
+        unicodedata.normalize('NFD', str(value or ''))
+        .encode('ascii', 'ignore')
+        .decode('ascii')
+        .lower()
+    )
 
 
 def _normalizar_nombre(value):
@@ -1234,27 +1244,21 @@ def buscar_clientes_admin(event):
         # DynamoDB contains es case-sensitive, así que buscamos en múltiples variaciones
         
         # Buscar en minúsculas, Title Case y MAYÚSCULAS
-        query_lower = query_lower.lower()
-        query_title = query_lower.title()  # "liliana" -> "Liliana"
-        query_upper = query.upper()
+        query_tokens = [
+            token for token in _normalizar_texto_busqueda(query).split()
+            if len(token) >= 2
+        ]
         
-        filter_expr = (
-            Attr('nombres').contains(query_lower) | 
-            Attr('apellidos').contains(query_lower) |
-            Attr('nombres').contains(query_title) | 
-            Attr('apellidos').contains(query_title) |
-            Attr('nombres').contains(query_upper) | 
-            Attr('apellidos').contains(query_upper)
-        )
+        filter_expr = None
         
         if proyecto_id:
-            filter_expr = filter_expr & Attr('proyecto_id').eq(proyecto_id)
+            filter_expr = Attr('proyecto_id').eq(proyecto_id)
         
         try:
             # Scan completo con paginación automática - SIN LÍMITE
-            scan_kwargs = {
-                'FilterExpression': filter_expr
-            }
+            scan_kwargs = {}
+            if filter_expr is not None:
+                scan_kwargs['FilterExpression'] = filter_expr
             
             # Paginar hasta obtener TODOS los resultados
             while True:
@@ -1272,6 +1276,18 @@ def buscar_clientes_admin(event):
                 scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
             
             print(f'DEBUG scan total encontró: {len(items)} items')
+            if query_tokens:
+                items_antes = len(items)
+                items = [
+                    item for item in items
+                    if all(
+                        token in _normalizar_texto_busqueda(
+                            f"{item.get('nombres', '')} {item.get('apellidos', '')} {item.get('cedula', '')}"
+                        )
+                        for token in query_tokens
+                    )
+                ]
+                print(f'DEBUG filtro nombre combinado: {items_antes} -> {len(items)} items')
         except Exception as e:
             print(f'ERROR en scan: {e}')
             import traceback

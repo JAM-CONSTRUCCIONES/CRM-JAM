@@ -314,7 +314,7 @@ def _bloqueo_registrado(msg):
     titulo, cuerpo = _render_template('bloqueo_registrado', vars_dict, filas,
         'Nuevo bloqueo registrado',
         'Le informamos que se ha registrado un nuevo bloqueo en el sistema.')
-    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
+    _enviar(correos, titulo, cuerpo)
 
 
 def _alerta_vencimiento(msg):
@@ -333,7 +333,7 @@ def _alerta_vencimiento(msg):
     titulo, cuerpo = _render_template('alerta_vencimiento', vars_dict, filas,
         '⚠️ Bloqueo próximo a vencer',
         'El siguiente bloqueo está próximo a vencer. Si necesita más tiempo, comuníquese con el administrador.')
-    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
+    _enviar(correos, titulo, cuerpo)
 
 
 def _liberacion_automatica(msg):
@@ -358,7 +358,7 @@ def _liberacion_automatica(msg):
     titulo, cuerpo = _render_template('liberacion_automatica', vars_dict, filas,
         'Bloqueo liberado por vencimiento',
         'El tiempo de bloqueo expiró y la unidad quedó disponible automáticamente.')
-    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
+    _enviar(correos, titulo, cuerpo)
 
 
 def _liberacion_manual(msg):
@@ -394,7 +394,7 @@ def _liberacion_manual(msg):
     titulo, cuerpo = _render_template('liberacion_manual', vars_dict, filas,
         'Bloqueo liberado manualmente',
         'El bloqueo de la unidad ha sido liberado manualmente por un administrador.')
-    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
+    _enviar(correos, titulo, cuerpo)
 
 
 def _cambio_estatus(msg):
@@ -468,7 +468,7 @@ def _cambio_estatus(msg):
             ('Actualizacion de estatus', 'Se ha realizado una actualizacion en el proceso de la unidad {unidad} a nombre de {cliente}.')
         )
     titulo, cuerpo = _render_template(template_tipo, vars_dict, filas, default_titulo, default_mensaje)
-    _enviar(destinatarios, f'{titulo} — {proyecto}', cuerpo)
+    _enviar(destinatarios, titulo, cuerpo)
 
 
 def _alerta_separacion_vencida(msg):
@@ -486,7 +486,7 @@ def _alerta_separacion_vencida(msg):
     titulo, cuerpo = _render_template('alerta_separacion_vencida', vars_dict, filas,
         '⚠️ Separación vencida sin pago',
         f'Han transcurrido {dias} días desde la separación sin registrar pago.')
-    _enviar([ADMIN_EMAIL], f'{titulo} — {cedula}', cuerpo)
+    _enviar([ADMIN_EMAIL], titulo, cuerpo)
 
 
 def _cliente_captado(msg):
@@ -509,7 +509,7 @@ def _cliente_captado(msg):
     titulo, cuerpo = _render_template('cliente_captado', vars_dict, filas,
         'Nuevo cliente captado',
         'Se ha registrado un nuevo cliente en el sistema.')
-    _enviar([ADMIN_EMAIL], f'{titulo} — {nombres} {apellidos}', cuerpo)
+    _enviar([ADMIN_EMAIL], titulo, cuerpo)
 
 
 def _exclusividad_vencida(msg):
@@ -526,7 +526,7 @@ def _exclusividad_vencida(msg):
     titulo, cuerpo = _render_template('exclusividad_vencida', vars_dict, filas,
         'Exclusividad de cliente vencida',
         'El período de exclusividad de 3 meses ha expirado. La unidad quedó disponible para otras inmobiliarias.')
-    _enviar([ADMIN_EMAIL] + correos_inmo, f'{titulo} — {cedula}', cuerpo)
+    _enviar([ADMIN_EMAIL] + correos_inmo, titulo, cuerpo)
 
 
 def _intento_duplicado(msg):
@@ -550,4 +550,4 @@ def _intento_duplicado(msg):
     titulo, cuerpo = _render_template('intento_duplicado', vars_dict, filas,
         '⚠️ Intento de captación duplicada bloqueado',
         'Una inmobiliaria intentó captar un cliente que ya tiene exclusividad activa con otra inmobiliaria.')
-    _enviar([ADMIN_EMAIL], f'{titulo} — {cedula}', cuerpo)
+    _enviar([ADMIN_EMAIL], titulo, cuerpo)

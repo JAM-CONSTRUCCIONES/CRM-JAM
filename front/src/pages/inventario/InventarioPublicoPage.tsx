@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Col, Grid, Input, Result, Row, Select, Space, Spin, Tag, Typography } from 'antd';
-import { AppstoreOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Alert, Button, Col, Grid, Input, Result, Row, Select, Space, Spin, Switch, Tag, Typography } from 'antd';
+import { AppstoreOutlined, MoonOutlined, ReloadOutlined, SunOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import TablaUnidades from '../../components/inventario/TablaUnidades';
 import { getEtapasPublicas, getProyectoPublico, getUnidadesPublicas } from '../../services/inventario-publico.service';
 import type { Etapa, Proyecto, Unidad } from '../../types';
+import { useThemeMode } from '../../context/ThemeContext';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -15,6 +16,7 @@ const InventarioPublicoPage = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const { isDark, toggleMode } = useThemeMode();
 
   const [proyecto, setProyecto] = useState<Proyecto | null>(null);
   const [etapas, setEtapas] = useState<Etapa[]>([]);
@@ -100,7 +102,7 @@ const InventarioPublicoPage = () => {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#f5f7fb' }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-bg)' }}>
         <Spin size="large" />
       </div>
     );
@@ -108,7 +110,7 @@ const InventarioPublicoPage = () => {
 
   if (error) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#f5f7fb', padding: 24 }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-bg)', padding: 24 }}>
         <Result
           status="404"
           title="Inventario no disponible"
@@ -119,33 +121,56 @@ const InventarioPublicoPage = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f7fb' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--app-bg)', color: 'var(--text-main)' }}>
       <div style={{ maxWidth: 1320, margin: '0 auto', padding: isMobile ? 16 : 24 }}>
-        <div style={{ marginBottom: 18 }}>
-          <Row gutter={[18, 18]} align="middle">
-            {proyecto?.imagen_url && (
-              <Col xs={24} md={7} lg={6}>
-                <img
-                  src={proyecto.imagen_url}
-                  alt={proyecto.nombre}
-                  style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, display: 'block' }}
-                />
+
+        {/* Header con toggle de tema */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginBottom: 18, flexWrap: 'wrap', gap: 12,
+        }}>
+          <div style={{ flex: 1 }}>
+            <Row gutter={[18, 18]} align="middle">
+              {proyecto?.imagen_url && (
+                <Col xs={24} md={7} lg={6}>
+                  <img
+                    src={proyecto.imagen_url}
+                    alt={proyecto.nombre}
+                    style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                  />
+                </Col>
+              )}
+              <Col xs={24} md={proyecto?.imagen_url ? 17 : 24} lg={proyecto?.imagen_url ? 18 : 24}>
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <Tag icon={<AppstoreOutlined />} color="blue" style={{ width: 'fit-content' }}>
+                    Inventario disponible
+                  </Tag>
+                  <Title level={isMobile ? 3 : 2} style={{ margin: 0 }}>{proyecto?.nombre}</Title>
+                  {proyecto?.descripcion && (
+                    <Paragraph style={{ margin: 0, maxWidth: 820, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                      {proyecto.descripcion}
+                    </Paragraph>
+                  )}
+                </Space>
               </Col>
-            )}
-            <Col xs={24} md={proyecto?.imagen_url ? 17 : 24} lg={proyecto?.imagen_url ? 18 : 24}>
-              <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                <Tag icon={<AppstoreOutlined />} color="blue" style={{ width: 'fit-content' }}>
-                  Inventario disponible
-                </Tag>
-                <Title level={isMobile ? 3 : 2} style={{ margin: 0 }}>{proyecto?.nombre}</Title>
-                {proyecto?.descripcion && (
-                  <Paragraph style={{ margin: 0, maxWidth: 820, color: '#595959', whiteSpace: 'pre-wrap' }}>
-                    {proyecto.descripcion}
-                  </Paragraph>
-                )}
-              </Space>
-            </Col>
-          </Row>
+            </Row>
+          </div>
+
+          {/* Botón tema — igual que en el Sidebar */}
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              padding: '10px 14px', borderRadius: 10, flexShrink: 0,
+              color: 'var(--text-secondary)', fontSize: 14,
+              background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {isDark ? <MoonOutlined /> : <SunOutlined />}
+              {isDark ? 'Modo oscuro' : 'Modo claro'}
+            </span>
+            <Switch size="small" checked={isDark} onChange={toggleMode} />
+          </div>
         </div>
 
         <Alert

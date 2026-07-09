@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import { getProyectosPublico, registrarClientePublico } from '../../services/clientes.service';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
 import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
+import './captura-responsive.css';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -71,7 +72,7 @@ const CapturaPage = () => {
   // Enlace inválido
   if (!loadingProyectos && !inmoValida) {
     return (
-      <div style={s.wrap}>
+      <div style={s.wrap} className="captura-publica">
         <style>{`
           .captura-result .ant-result-title {
             color: #ffffff !important;
@@ -96,8 +97,8 @@ const CapturaPage = () => {
   // Éxito
   if (enviado) {
     return (
-      <div style={s.wrap}>
-        <div style={s.card}>
+      <div style={s.wrap} className="captura-publica">
+        <div style={s.card} className="captura-publica__card">
           <div style={{ textAlign: 'center', padding: '32px 0' }}>
             <CheckCircleFilled style={{ fontSize: 56, color: '#52c41a', marginBottom: 16 }} />
             <Title level={3} style={{ margin: '0 0 8px', color: '#fff' }}>¡Registro exitoso!</Title>
@@ -111,7 +112,7 @@ const CapturaPage = () => {
   }
 
   return (
-    <div style={s.wrap}>
+    <div style={s.wrap} className="captura-publica">
       <style>{`
         .captura-form .ant-form-item-label > label {
           color: #fff !important;
@@ -121,7 +122,7 @@ const CapturaPage = () => {
           color: #ff4d4f !important;
         }
       `}</style>
-      <div style={s.card}>
+      <div style={s.card} className="captura-publica__card">
         {/* Header */}
         <div style={s.header}>
           <img
@@ -154,7 +155,7 @@ const CapturaPage = () => {
               <Alert type="warning" message={inmoError} showIcon style={{ marginBottom: 16 }} />
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+            <div className="captura-publica__grid">
               <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}>
                 <Input prefix={<UserOutlined style={{ color: '#bfbfbf' }} />} placeholder="Juan" />
               </Form.Item>
@@ -167,7 +168,7 @@ const CapturaPage = () => {
               <Input placeholder="12345678 o AB123456" />
             </Form.Item>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+            <div className="captura-publica__grid">
               <Form.Item name="correo" label="Correo electrónico" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}>
                 <Input type="email" placeholder="correo@ejemplo.com" />
               </Form.Item>
@@ -176,7 +177,7 @@ const CapturaPage = () => {
               </Form.Item>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+            <div className="captura-publica__grid">
               <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento">
                 <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="DD/MM/AAAA" />
               </Form.Item>
@@ -185,7 +186,7 @@ const CapturaPage = () => {
               </Form.Item>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+            <div className="captura-publica__grid">
               <Form.Item name="nacionalidad" label="Nacionalidad">
                 <NacionalidadSelect />
               </Form.Item>

@@ -83,11 +83,12 @@ def _schedule_name_separacion(cedula, unidad_id):
     return f"sep-{safe_cedula}-{safe_unidad}"[:64]
 
 
-def _crear_alerta_separacion(cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre):
+def _crear_alerta_separacion_en(
+    cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre, fecha_alerta
+):
     """Crea un EventBridge Scheduler que dispara a los 30 días si no se avanzó a inicial."""
     if not SCHEDULER_ROLE_ARN or not CRM_LAMBDA_ARN:
         return
-    fecha_alerta = datetime.now(timezone.utc) + timedelta(days=DIAS_SEPARACION)
     schedule_expr = f"at({fecha_alerta.strftime('%Y-%m-%dT%H:%M:%S')})"
     nombre = _schedule_name_separacion(cedula, unidad_id)
     try:
@@ -113,6 +114,13 @@ def _crear_alerta_separacion(cedula, inmobiliaria_id, proyecto_id, unidad_id, un
         )
     except Exception:
         pass  # No crítico si falla la creación del schedule
+
+
+def _crear_alerta_separacion(cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre):
+    _crear_alerta_separacion_en(
+        cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre,
+        datetime.now(timezone.utc) + timedelta(days=DIAS_SEPARACION),
+    )
 
 
 def _cancelar_alerta_separacion(cedula, unidad_id):

@@ -40,6 +40,19 @@ def _get_template(tipo):
     return None, None  # caller uses hardcoded default
 
 
+def _notificacion_activa(tipo):
+    """Fail-open: existing notifications remain enabled if config cannot be read."""
+    try:
+        item = usuarios.get_item(
+            Key={'pk': 'CONFIG#EMAIL_TEMPLATES', 'sk': tipo},
+            ProjectionExpression='activo',
+        ).get('Item', {})
+        return item.get('activo', True) is not False
+    except Exception as e:
+        logger.warning(f'No se pudo leer estado de notificacion {tipo}: {e}')
+        return True
+
+
 def handler(event, context):
     for record in event.get('Records', []):
         try:
@@ -513,6 +526,10 @@ def _cliente_captado(msg):
 
 
 def _exclusividad_vencida(msg):
+    if not _notificacion_activa('exclusividad_vencida'):
+        logger.info('Notificacion exclusividad_vencida desactivada; correo omitido')
+        return
+
     meta = msg.get('metadata', {})
     cedula = meta.get('cedula', '')
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))

@@ -112,12 +112,19 @@ export interface Bloqueo {
 export type EstadoCliente = 'captacion' | 'reserva' | 'separacion' | 'inicial' | 'pagos_atrasados' | 'contra_entrega' | 'vendida' | 'desvinculado';
 
 export interface HistorialProcesoEntry {
-  estatus_anterior: string;
-  estatus_nuevo: string;
+  tipo?: 'cambio_estatus' | 'traspaso_cliente';
+  estatus_anterior?: string;
+  estatus_nuevo?: string;
   ejecutado_por: string;
   ejecutado_por_nombre: string;
   notificacion_enviada: boolean;
   timestamp: string;
+  cedula_anterior?: string;
+  cliente_anterior_nombre?: string;
+  cedula_nueva?: string;
+  cliente_nuevo_nombre?: string;
+  justificacion?: string;
+  estado_proceso?: string;
 }
 
 export interface Proceso {

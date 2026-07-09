@@ -1,0 +1,79 @@
+.captura-publica {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  overflow-x: hidden;
+}
+
+.captura-publica__card {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.captura-publica__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 12px;
+}
+
+.captura-publica .ant-form-item,
+.captura-publica .ant-input-affix-wrapper,
+.captura-publica .ant-picker,
+.captura-publica .ant-select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.captura-publica .ant-input,
+.captura-publica .ant-input-affix-wrapper,
+.captura-publica .ant-picker,
+.captura-publica .ant-select-selector {
+  min-height: 44px;
+}
+
+.captura-publica .ant-select-selection-item,
+.captura-publica .ant-select-selection-placeholder {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 480px) {
+  .captura-publica__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 479px) {
+  .captura-publica {
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .captura-publica__card {
+    padding: 24px 20px !important;
+    border-radius: 12px !important;
+  }
+
+  .captura-publica .ant-form {
+    margin-top: 20px !important;
+  }
+}
+
+@media (max-width: 359px) {
+  .captura-publica {
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-left: max(10px, env(safe-area-inset-left));
+  }
+
+  .captura-publica__card {
+    padding: 20px 16px !important;
+  }
+}

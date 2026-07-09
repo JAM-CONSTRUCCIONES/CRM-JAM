@@ -537,15 +537,24 @@ export class JamStack extends cdk.Stack {
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         CRM_LAMBDA_ARN: crmLambdaArn,
         BLOQUEOS_LAMBDA_ARN: bloqueosLambdaArn,
+        CAPTACION_LAMBDA_ARN: captacionLambdaArn,
       },
     });
 
-    clientesTable.grantReadData(crmLambda);
+    clientesTable.grantReadWriteData(crmLambda);
     usuariosTable.grantReadData(crmLambda);
     procesosTable.grantReadWriteData(crmLambda);
     inventarioTable.grantReadWriteData(crmLambda);
     historialTable.grantReadWriteData(crmLambda);
     notificacionesQueue.grantSendMessages(crmLambda);
+    crmLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:TransactWriteItems'],
+      resources: [
+        clientesTable.tableArn,
+        procesosTable.tableArn,
+        inventarioTable.tableArn,
+      ],
+    }));
 
     crmLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['scheduler:CreateSchedule', 'scheduler:DeleteSchedule'],

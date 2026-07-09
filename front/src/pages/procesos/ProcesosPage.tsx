@@ -8,14 +8,14 @@ import {
   ReloadOutlined, SwapOutlined, HistoryOutlined,
   SearchOutlined, MoreOutlined, UserOutlined, LockOutlined,
   FieldTimeOutlined, UserAddOutlined, ClockCircleOutlined, UnlockOutlined,
-  ArrowLeftOutlined, AppstoreOutlined, InfoCircleOutlined,
+  ArrowLeftOutlined, AppstoreOutlined, InfoCircleOutlined, UserSwitchOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { listarTodosProcesos, cambiarEstatus, getMisProcesos, type ProcesoEnriquecido } from '../../services/crm.service';
+import { listarTodosProcesos, cambiarEstatus, getMisProcesos, traspasarClienteProceso, type ProcesoEnriquecido } from '../../services/crm.service';
 import { getProyectos, getUnidad, getEtapas } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import { extenderBloqueo, getBloquesActivos, bloquearUnidad, liberarBloqueo, getHistorialBloqueos } from '../../services/bloqueos.service';
-import { getClientesAdmin } from '../../services/clientes.service';
+import { buscarClientesAdmin, getClientesAdmin } from '../../services/clientes.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import type { Proyecto, Proceso, Bloqueo, Cliente, HistorialBloqueo, Unidad, Etapa } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
@@ -34,6 +34,16 @@ type TabProcesos = 'activos' | 'cerrados' | 'desvinculados' | 'historial';
 
 const ESTADOS_ACTIVOS = ['captacion', 'reserva', 'separacion', 'pagos_atrasados', 'inicial', 'contra_entrega'];
 const ESTADOS_CERRADOS = ['vendida'];
+const UNIDAD_COLLATOR = new Intl.Collator('es', {
+  sensitivity: 'variant',
+  numeric: true,
+});
+
+const compararPorUnidad = (a: ProcesoEnriquecido, b: ProcesoEnriquecido) =>
+  UNIDAD_COLLATOR.compare(
+    a.unidad_nombre || a.unidad_id || '',
+    b.unidad_nombre || b.unidad_id || '',
+  );
 
 const formatTiempo = (seg: number) => {
   if (seg <= 0) return 'Vencido';
@@ -137,6 +147,15 @@ const ProcesosPage = () => {
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
 
+  // Modal traspasar cliente de un proceso
+  const [traspasarModal, setTraspasarModal] = useState<ProcesoEnriquecido | null>(null);
+  const [formTraspasar] = Form.useForm();
+  const [modoTraspasar, setModoTraspasar] = useState<'existente' | 'nuevo'>('existente');
+  const [clientesTraspaso, setClientesTraspaso] = useState<Cliente[]>([]);
+  const [clienteTraspaso, setClienteTraspaso] = useState<Cliente | null>(null);
+  const [buscandoClientesTraspaso, setBuscandoClientesTraspaso] = useState(false);
+  const [guardandoTraspaso, setGuardandoTraspaso] = useState(false);
+
   // Historial de bloqueos
   const [historialBloqueos, setHistorialBloqueos] = useState<HistorialBloqueo[]>([]);
   const [historialBloqueoNextToken, setHistorialBloqueoNextToken] = useState<string | undefined>();
@@ -161,9 +180,7 @@ const ProcesosPage = () => {
           ...p,
           cliente: p.nombres ? { nombres: p.nombres, apellidos: p.apellidos ?? '' } : undefined,
         }));
-        setProcesos(enriched.sort((a, b) =>
-          (a.unidad_nombre || a.unidad_id || '').localeCompare(b.unidad_nombre || b.unidad_id || '')
-        ));
+        setProcesos(enriched.sort(compararPorUnidad));
       } else {
         // Backend ahora devuelve TODOS los procesos del proyecto
         const data = await listarTodosProcesos({
@@ -171,9 +188,7 @@ const ProcesosPage = () => {
           // No enviar filtros de inmobiliaria ni estado - se filtran en frontend
           incluir_cerrados: true, // Traer todos para filtrar localmente
         });
-        setProcesos(data.items.sort((a, b) =>
-          (a.unidad_nombre || a.unidad_id || '').localeCompare(b.unidad_nombre || b.unidad_id || '')
-        ));
+        setProcesos(data.items.sort(compararPorUnidad));
       }
     } catch {
       message.error('Error al cargar procesos');
@@ -365,6 +380,104 @@ const ProcesosPage = () => {
     }
   };
 
+  const buscarCandidatosTraspaso = async (query = '') => {
+    if (!traspasarModal) return;
+    setBuscandoClientesTraspaso(true);
+    try {
+      let items: Cliente[] = [];
+      if (query.trim().length >= 2) {
+        const [porNombre, porCedula] = await Promise.all([
+          buscarClientesAdmin(query.trim(), 'nombre', traspasarModal.proyecto_id, traspasarModal.inmobiliaria_id).catch(() => []),
+          buscarClientesAdmin(query.trim(), 'cedula', traspasarModal.proyecto_id, traspasarModal.inmobiliaria_id).catch(() => []),
+        ]);
+        items = [...porNombre, ...porCedula];
+      } else {
+        const data = await getClientesAdmin({
+          proyecto_id: traspasarModal.proyecto_id,
+          inmobiliaria_id: traspasarModal.inmobiliaria_id,
+          limit: 200,
+        });
+        items = data.items ?? [];
+      }
+      const vistos = new Set<string>();
+      setClientesTraspaso(items.filter(c => {
+        if (c.cedula === traspasarModal.cedula || vistos.has(c.cedula)) return false;
+        vistos.add(c.cedula);
+        return true;
+      }));
+    } catch {
+      setClientesTraspaso([]);
+    } finally {
+      setBuscandoClientesTraspaso(false);
+    }
+  };
+
+  const abrirTraspasarCliente = (proceso: ProcesoEnriquecido) => {
+    setTraspasarModal(proceso);
+    setModoTraspasar('existente');
+    setClienteTraspaso(null);
+    setClientesTraspaso([]);
+    formTraspasar.resetFields();
+  };
+
+  useEffect(() => {
+    if (traspasarModal) buscarCandidatosTraspaso();
+    // La carga se dispara solamente al abrir otro proceso.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [traspasarModal]);
+
+  const handleTraspasarCliente = async (values: any) => {
+    if (!traspasarModal) return;
+    if (modoTraspasar === 'existente' && !clienteTraspaso) {
+      message.warning('Selecciona el cliente destino');
+      return;
+    }
+
+    const payload: any = {
+      inmobiliaria_id: traspasarModal.inmobiliaria_id,
+      tipo_destino: modoTraspasar,
+      justificacion: values.justificacion?.trim(),
+    };
+    if (modoTraspasar === 'existente') {
+      payload.cedula_destino = clienteTraspaso!.cedula;
+    } else {
+      const normalizado = normalizeClientePayload(values);
+      payload.cliente = {
+        cedula: normalizado.cedula,
+        nombres: normalizado.nombres,
+        apellidos: normalizado.apellidos,
+        correo: normalizado.correo,
+        telefono: normalizado.telefono,
+        fecha_nacimiento: values.fecha_nacimiento
+          ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD')
+          : undefined,
+        estado_civil: values.estado_civil,
+        nacionalidad: values.nacionalidad,
+        pais_residencia: values.pais_residencia,
+      };
+    }
+
+    setGuardandoTraspaso(true);
+    try {
+      const result = await traspasarClienteProceso(
+        traspasarModal.cedula,
+        traspasarModal.proyecto_id,
+        traspasarModal.unidad_id,
+        payload,
+      );
+      message.success(result.message);
+      if (result.advertencia) message.warning(result.advertencia);
+      setTraspasarModal(null);
+      setClienteTraspaso(null);
+      formTraspasar.resetFields();
+      await Promise.all([cargar(), cargarBloqueosSinCliente()]);
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || err?.message || 'No se pudo traspasar el cliente');
+    } finally {
+      setGuardandoTraspaso(false);
+    }
+  };
+
   const abrirLiberarBloqueo = (b: Bloqueo) => confirmarLiberarBloqueo({
     tieneCliente: !!b.cliente_cedula,
     onConfirm: (notificar) => handleLiberar(b, notificar),
@@ -525,6 +638,10 @@ const ProcesosPage = () => {
     const menuItems = [
       ...(puedeVerDetalleUnidad ? [{ key: 'detalles', icon: <InfoCircleOutlined />, label: 'Ver detalles de unidad', onClick: () => abrirDetalleUnidad(p.unidad_id, p.proyecto_id) }] : []),
       ...(puedeAvanzar ? [{ key: 'estatus', icon: <SwapOutlined />, label: 'Cambiar estatus', onClick: () => setEstatusModal(p) }] : []),
+      ...(!esInmobiliaria && p.estado !== 'desvinculado' ? [{
+        key: 'traspasar-cliente', icon: <UserSwitchOutlined />, label: 'Traspasar cliente',
+        onClick: () => abrirTraspasarCliente(p),
+      }] : []),
       ...(!isMobile && !esInmobiliaria && pasoAtras ? [{
         key: 'retroceder', icon: <ArrowLeftOutlined />, label: `Retroceder a ${ESTADO_PROCESO_LABEL[pasoAtras] ?? pasoAtras}`,
         onClick: () => Modal.confirm({
@@ -652,6 +769,11 @@ const ProcesosPage = () => {
             <Tooltip title="Ver detalles de unidad"><Button size="small" icon={<InfoCircleOutlined />} onClick={() => abrirDetalleUnidad(p.unidad_id, p.proyecto_id)} /></Tooltip>
           )}
           {puedeAvanzar && <Tooltip title="Cambiar estatus"><Button size="small" icon={<SwapOutlined />} onClick={() => setEstatusModal(p)} /></Tooltip>}
+          {!esInmobiliaria && p.estado !== 'desvinculado' && (
+            <Tooltip title="Traspasar cliente">
+              <Button size="small" icon={<UserSwitchOutlined />} onClick={() => abrirTraspasarCliente(p)} />
+            </Tooltip>
+          )}
           {esBloqueada && !esInmobiliaria && <Tooltip title="Extender bloqueo"><Button size="small" icon={<FieldTimeOutlined />} onClick={() => { setExtenderProcesoModal(p); formExtenderProceso.resetFields(); }} /></Tooltip>}
           {esBloqueada && !esInmobiliaria && (
             <Tooltip title="Liberar bloqueo">
@@ -1101,6 +1223,130 @@ const ProcesosPage = () => {
             <Input.TextArea rows={3} placeholder="Motivo..." />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Modal traspasar cliente de un proceso */}
+      <Modal
+        title="Traspasar cliente"
+        open={!!traspasarModal}
+        onCancel={() => {
+          setTraspasarModal(null);
+          setClienteTraspaso(null);
+          formTraspasar.resetFields();
+        }}
+        onOk={() => formTraspasar.submit()}
+        okText="Confirmar traspaso"
+        cancelText="Cancelar"
+        confirmLoading={guardandoTraspaso}
+        width={600}
+      >
+        {traspasarModal && (
+          <>
+            <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+              <Row gutter={[12, 8]}>
+                <Col span={12}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>CLIENTE ACTUAL</Text>
+                  <div><Text strong>{nombreCliente(traspasarModal)}</Text></div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{traspasarModal.cedula}</Text>
+                </Col>
+                <Col span={12}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>UNIDAD Y ESTADO</Text>
+                  <div><Text strong>{traspasarModal.unidad_nombre || traspasarModal.unidad_id}</Text></div>
+                  <Tag color={ESTADO_PROCESO_COLOR[traspasarModal.estado]}>
+                    {ESTADO_PROCESO_LABEL[traspasarModal.estado] ?? traspasarModal.estado}
+                  </Tag>
+                </Col>
+              </Row>
+            </div>
+
+            <Radio.Group
+              value={modoTraspasar}
+              onChange={e => {
+                setModoTraspasar(e.target.value);
+                setClienteTraspaso(null);
+                formTraspasar.resetFields();
+              }}
+              buttonStyle="solid"
+              style={{ marginBottom: 16 }}
+            >
+              <Radio.Button value="existente"><SearchOutlined /> Cliente existente</Radio.Button>
+              <Radio.Button value="nuevo"><UserAddOutlined /> Nuevo cliente</Radio.Button>
+            </Radio.Group>
+
+            <Form form={formTraspasar} layout="vertical" onFinish={handleTraspasarCliente}>
+              {modoTraspasar === 'existente' ? (
+                <Form.Item label="Cliente destino" required>
+                  <Select
+                    showSearch
+                    filterOption={false}
+                    loading={buscandoClientesTraspaso}
+                    placeholder="Buscar por nombre o cédula..."
+                    onSearch={buscarCandidatosTraspaso}
+                    onChange={cedula => setClienteTraspaso(
+                      clientesTraspaso.find(c => c.cedula === cedula) ?? null
+                    )}
+                    options={clientesTraspaso.map(c => ({
+                      value: c.cedula,
+                      label: `${c.nombres} ${c.apellidos} — ${c.cedula}`,
+                    }))}
+                    notFoundContent={buscandoClientesTraspaso ? <Spin size="small" /> : 'Sin resultados'}
+                  />
+                </Form.Item>
+              ) : (
+                <>
+                  <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}>
+                    <Input placeholder="12345678 o AB123456" />
+                  </Form.Item>
+                  <Row gutter={12}>
+                    <Col xs={24} sm={12}>
+                      <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}>
+                        <Input />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}>
+                        <Input />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Row gutter={12}>
+                    <Col xs={24} sm={12}>
+                      <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}>
+                        <Input type="email" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}>
+                        <Input inputMode="numeric" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento">
+                    <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+                  </Form.Item>
+                  <Form.Item name="estado_civil" label="Estado civil"><EstadoCivilSelect /></Form.Item>
+                  <Form.Item name="nacionalidad" label="Nacionalidad"><NacionalidadSelect /></Form.Item>
+                  <Form.Item name="pais_residencia" label="País de residencia"><PaisResidenciaSelect /></Form.Item>
+                </>
+              )}
+
+              <Form.Item
+                name="justificacion"
+                label="Justificación"
+                rules={[
+                  { required: true, message: 'Ingresa el motivo del traspaso' },
+                  { min: 5, message: 'Ingresa al menos 5 caracteres' },
+                ]}
+              >
+                <Input.TextArea rows={3} placeholder="Motivo administrativo del cambio de cliente..." />
+              </Form.Item>
+            </Form>
+
+            <Text type="warning" style={{ fontSize: 12 }}>
+              El estado y las fechas del proceso se conservarán. Esta acción quedará registrada en el historial.
+            </Text>
+          </>
+        )}
       </Modal>
 
       {/* Modal asignar cliente a bloqueo */}

@@ -1,5 +1,5 @@
 import { Drawer, Timeline, Tag, Typography, Empty, Space } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined, UserOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UserOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { Proceso } from '../../types';
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL } from '../../constants/estados';
@@ -39,21 +39,44 @@ const HistorialEstatusDrawer = ({ open, proceso, clienteNombre, onClose }: Props
       ) : (
         <Timeline
           items={historial.map(h => ({
-            color: ESTADO_PROCESO_COLOR[h.estatus_nuevo] ?? 'gray',
+            color: h.tipo === 'traspaso_cliente' ? 'blue' : ESTADO_PROCESO_COLOR[h.estatus_nuevo ?? ''] ?? 'gray',
             children: (
               <div style={{
                 background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)',
                 borderRadius: 8, padding: '10px 12px', marginBottom: 4,
               }}>
-                <Space size={6} style={{ marginBottom: 6 }}>
-                  <Tag color={ESTADO_PROCESO_COLOR[h.estatus_anterior] ?? 'default'} style={{ margin: 0 }}>
-                    {ESTADO_PROCESO_LABEL[h.estatus_anterior] ?? h.estatus_anterior}
-                  </Tag>
-                  <Text type="secondary">-&gt;</Text>
-                  <Tag color={ESTADO_PROCESO_COLOR[h.estatus_nuevo] ?? 'default'} style={{ margin: 0 }}>
-                    {ESTADO_PROCESO_LABEL[h.estatus_nuevo] ?? h.estatus_nuevo}
-                  </Tag>
-                </Space>
+                {h.tipo === 'traspaso_cliente' ? (
+                  <>
+                    <Space size={6} style={{ marginBottom: 6 }}>
+                      <SwapOutlined style={{ color: '#1677ff' }} />
+                      <Text strong>Traspaso de cliente</Text>
+                    </Space>
+                    <div style={{ marginBottom: 6 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {h.cliente_anterior_nombre || h.cedula_anterior} ({h.cedula_anterior})
+                      </Text>
+                      <Text type="secondary"> -&gt; </Text>
+                      <Text style={{ fontSize: 12 }}>
+                        {h.cliente_nuevo_nombre || h.cedula_nueva} ({h.cedula_nueva})
+                      </Text>
+                    </div>
+                    {h.justificacion && (
+                      <div style={{ marginBottom: 6 }}>
+                        <Text type="secondary" style={{ fontSize: 11 }}>Motivo: {h.justificacion}</Text>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <Space size={6} style={{ marginBottom: 6 }}>
+                    <Tag color={ESTADO_PROCESO_COLOR[h.estatus_anterior ?? ''] ?? 'default'} style={{ margin: 0 }}>
+                      {ESTADO_PROCESO_LABEL[h.estatus_anterior ?? ''] ?? h.estatus_anterior}
+                    </Tag>
+                    <Text type="secondary">-&gt;</Text>
+                    <Tag color={ESTADO_PROCESO_COLOR[h.estatus_nuevo ?? ''] ?? 'default'} style={{ margin: 0 }}>
+                      {ESTADO_PROCESO_LABEL[h.estatus_nuevo ?? ''] ?? h.estatus_nuevo}
+                    </Tag>
+                  </Space>
+                )}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <UserOutlined style={{ color: 'var(--text-muted)', fontSize: 11 }} />
@@ -64,7 +87,7 @@ const HistorialEstatusDrawer = ({ open, proceso, clienteNombre, onClose }: Props
                   </Text>
                 </div>
 
-                {h.notificacion_enviada ? (
+                {h.tipo !== 'traspaso_cliente' && (h.notificacion_enviada ? (
                   <Text type="success" style={{ fontSize: 11 }}>
                     <CheckCircleOutlined style={{ marginRight: 4 }} />Notificacion enviada
                   </Text>
@@ -72,7 +95,7 @@ const HistorialEstatusDrawer = ({ open, proceso, clienteNombre, onClose }: Props
                   <Text type="secondary" style={{ fontSize: 11 }}>
                     <CloseCircleOutlined style={{ marginRight: 4 }} />Sin notificacion
                   </Text>
-                )}
+                ))}
               </div>
             ),
           }))}

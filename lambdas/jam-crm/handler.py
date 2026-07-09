@@ -2,6 +2,7 @@ from utils.auth import require_admin, get_rol
 from utils.response import forbidden, not_found, bad_request
 from routes import estatus as estatus_routes
 from routes import analytics as analytics_routes
+from routes import traspaso_cliente as traspaso_cliente_routes
 
 
 def handler(event, context):
@@ -45,6 +46,17 @@ def handler(event, context):
 
     if not cedula or not proyecto_id or not unidad_id:
         return bad_request('cedula, proyecto_id y unidad_id son requeridos')
+
+    query = event.get('queryStringParameters') or {}
+
+    # Reutiliza el recurso /estatus para no aumentar los recursos de API Gateway.
+    if (
+        method == 'PUT' and path.endswith('/estatus') and
+        query.get('accion') == 'traspasar_cliente'
+    ):
+        return traspaso_cliente_routes.traspasar_cliente(
+            event, cedula, proyecto_id, unidad_id
+        )
 
     # PUT /admin/clientes/{cedula}/proyecto/{proyecto_id}/unidad/{unidad_id}/estatus
     if method == 'PUT' and path.endswith('/estatus'):

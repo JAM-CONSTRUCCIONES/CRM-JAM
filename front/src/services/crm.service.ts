@@ -1,5 +1,6 @@
 import { apiGet, apiPut } from './api';
 import type { Proceso } from '../types';
+import type { RegistrarClientePayload } from './clientes.service';
 import type { ModoNotificacion } from '../components/common/CambiarEstatusModal';
 
 export interface CambiarEstatusPayload {
@@ -70,4 +71,29 @@ export const getHistorialProceso = (
 ): Promise<Proceso['historial']> =>
   apiGet(
     `/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}/unidad/${encodeURIComponent(unidadId)}/historial?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`
+  );
+
+export interface TraspasarClienteProcesoPayload {
+  inmobiliaria_id: string;
+  tipo_destino: 'existente' | 'nuevo';
+  cedula_destino?: string;
+  cliente?: Omit<RegistrarClientePayload, 'proyecto_id' | 'unidad_id'>;
+  justificacion: string;
+}
+
+export const traspasarClienteProceso = (
+  cedulaActual: string,
+  proyectoId: string,
+  unidadId: string,
+  data: TraspasarClienteProcesoPayload,
+): Promise<{
+  message: string;
+  cedula_anterior: string;
+  cedula_nueva: string;
+  proceso: Proceso;
+  advertencia?: string;
+}> =>
+  apiPut(
+    `/admin/clientes/${encodeURIComponent(cedulaActual)}/proyecto/${encodeURIComponent(proyectoId)}/unidad/${encodeURIComponent(unidadId)}/estatus?accion=traspasar_cliente`,
+    data,
   );

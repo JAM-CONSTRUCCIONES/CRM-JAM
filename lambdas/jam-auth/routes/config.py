@@ -152,6 +152,7 @@ def listar():
             'label': LABELS.get(tipo, tipo),
             'titulo': item.get('titulo', default['titulo']),
             'mensaje': item.get('mensaje', default['mensaje']),
+            'activo': item.get('activo', True),
             'modificado_en': item.get('modificado_en'),
         })
     return ok(templates)
@@ -168,6 +169,7 @@ def obtener(tipo):
         'label': LABELS.get(tipo, tipo),
         'titulo': item.get('titulo', default['titulo']),
         'mensaje': item.get('mensaje', default['mensaje']),
+        'activo': item.get('activo', True),
         'variables': VARIABLES,
         'modificado_en': item.get('modificado_en'),
     })
@@ -177,30 +179,56 @@ def guardar(tipo, event):
     if tipo not in DEFAULTS:
         return not_found('Template no encontrado')
     body = json.loads(event.get('body') or '{}')
-    titulo = body.get('titulo', '').strip()
-    mensaje = body.get('mensaje', '').strip()
-    if not titulo or not mensaje:
-        return bad_request('titulo y mensaje son requeridos')
-    error_variables = _validar_variables(titulo, mensaje)
-    if error_variables:
-        return error_variables
+    tiene_texto = 'titulo' in body or 'mensaje' in body
+    tiene_activo = 'activo' in body
+    if not tiene_texto and not tiene_activo:
+        return bad_request('Nada que actualizar')
+
+    if tiene_activo:
+        if tipo != 'exclusividad_vencida':
+            return bad_request('Solo se puede activar o desactivar Exclusividad vencida')
+        if not isinstance(body.get('activo'), bool):
+            return bad_request('activo debe ser booleano')
+
+    titulo = str(body.get('titulo', '')).strip()
+    mensaje = str(body.get('mensaje', '')).strip()
+    if tiene_texto:
+        if not titulo or not mensaje:
+            return bad_request('titulo y mensaje son requeridos')
+        error_variables = _validar_variables(titulo, mensaje)
+        if error_variables:
+            return error_variables
 
     from datetime import datetime, timezone
     table = _get_table()
-    table.put_item(Item={
-        'pk': _pk(),
-        'sk': tipo,
-        'titulo': titulo,
-        'mensaje': mensaje,
-        'modificado_en': datetime.now(timezone.utc).isoformat(),
-    })
+    updates = []
+    values = {}
+    if tiene_texto:
+        updates.extend(['titulo = :titulo', 'mensaje = :mensaje', 'modificado_en = :ts'])
+        values.update({
+            ':titulo': titulo,
+            ':mensaje': mensaje,
+            ':ts': datetime.now(timezone.utc).isoformat(),
+        })
+    if tiene_activo:
+        updates.append('activo = :activo')
+        values[':activo'] = body['activo']
+
+    table.update_item(
+        Key={'pk': _pk(), 'sk': tipo},
+        UpdateExpression='SET ' + ', '.join(updates),
+        ExpressionAttributeValues=values,
+    )
     return ok({'message': 'Template guardado', 'tipo': tipo})
 
 
 def restaurar(tipo):
-    """Deletes the saved override, reverting to the default."""
+    """Removes the text override without changing the notification switch."""
     if tipo not in DEFAULTS:
         return not_found('Template no encontrado')
     table = _get_table()
-    table.delete_item(Key={'pk': _pk(), 'sk': tipo})
+    table.update_item(
+        Key={'pk': _pk(), 'sk': tipo},
+        UpdateExpression='REMOVE titulo, mensaje, modificado_en',
+    )
     return ok({'message': 'Template restaurado al valor por defecto'})

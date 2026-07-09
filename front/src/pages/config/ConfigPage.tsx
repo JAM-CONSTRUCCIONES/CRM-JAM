@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Button, Drawer, Form, Input, Space,
-  Tag, Tooltip, message, Spin, Popconfirm, Alert, Divider, Table,
+  Tag, Tooltip, message, Spin, Popconfirm, Alert, Divider, Table, Switch,
 } from 'antd';
 import { EditOutlined, UndoOutlined, SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -44,6 +44,7 @@ const ConfigPage = () => {
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [togglingTipo, setTogglingTipo] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   const cargar = useCallback(async () => {
@@ -101,6 +102,25 @@ const ConfigPage = () => {
     }
   };
 
+  const cambiarActivo = async (tpl: EmailTemplate, activo: boolean) => {
+    setTogglingTipo(tpl.tipo);
+    try {
+      await saveEmailTemplate(tpl.tipo, { activo });
+      setTemplates(actuales => actuales.map(item =>
+        item.tipo === tpl.tipo ? { ...item, activo } : item
+      ));
+      message.success(
+        activo
+          ? 'Notificación de exclusividad activada'
+          : 'Notificación de exclusividad desactivada'
+      );
+    } catch {
+      message.error('No se pudo actualizar la notificación');
+    } finally {
+      setTogglingTipo(null);
+    }
+  };
+
   const byTipo = Object.fromEntries(templates.map(t => [t.tipo, t]));
 
   return (
@@ -131,6 +151,15 @@ const ConfigPage = () => {
                       <Space direction="vertical" size={2}>
                         <Space>
                           <Text strong>{tpl.label}</Text>
+                          {tpl.tipo === 'exclusividad_vencida' && (
+                            <Switch
+                              checked={tpl.activo !== false}
+                              loading={togglingTipo === tpl.tipo}
+                              checkedChildren="Activada"
+                              unCheckedChildren="Desactivada"
+                              onChange={(activo) => cambiarActivo(tpl, activo)}
+                            />
+                          )}
                           {tpl.modificado_en && (
                             <Tag color="blue" style={{ fontSize: 11 }}>
                               Editado {dayjs(tpl.modificado_en).format('DD/MM/YY')}

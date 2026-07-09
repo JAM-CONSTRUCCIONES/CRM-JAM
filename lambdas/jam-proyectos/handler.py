@@ -51,6 +51,9 @@ def handler(event, context):
         if method == 'GET' and unidad_id:
             return unidades.detalle(proyecto_id, unidad_id, rol, event)
 
+        if method == 'GET' and path.endswith('/inventario/exportar'):
+            return excel.exportar_inventario(event, rol)
+
         # ===== ADMIN: guard =====
         if is_admin and not require_admin(event):
             return forbidden()
@@ -71,9 +74,6 @@ def handler(event, context):
 
         if method == 'GET' and '/inventario/reportes' in path and not job_id:
             return excel.listar_reportes(event)
-
-        if method == 'GET' and path.endswith('/inventario/exportar'):
-            return excel.exportar_inventario(event)
 
         # ===== PROYECTOS =====
 

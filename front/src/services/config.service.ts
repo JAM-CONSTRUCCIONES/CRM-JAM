@@ -7,6 +7,7 @@ export interface EmailTemplate {
   label: string;
   titulo: string;
   mensaje: string;
+  activo?: boolean;
   variables?: string[];
   modificado_en?: string;
 }
@@ -22,7 +23,10 @@ export const getEmailTemplate = (tipo: string): Promise<EmailTemplate> =>
 
 // PUT uses body marker — no query params to avoid Amplify auth header issue
 // Uses POST on existing /admin/inmobiliarias route (PUT base path not registered)
-export const saveEmailTemplate = (tipo: string, data: { titulo: string; mensaje: string }): Promise<void> =>
+export const saveEmailTemplate = (
+  tipo: string,
+  data: { titulo?: string; mensaje?: string; activo?: boolean }
+): Promise<void> =>
   apiPost(`/admin/inmobiliarias`, { _config: 'email-templates', tipo, ...data });
 
 export const resetEmailTemplate = (tipo: string): Promise<void> =>

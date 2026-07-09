@@ -15,11 +15,118 @@ import {
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
 import { getEtapas } from '../../services/proyectos.service';
 import type { Etapa } from '../../types';
+import {
+  PAISES_OPTIONS,
+  NACIONALIDADES_OPTIONS,
+  isNacionalidadValida,
+  isPaisValido,
+  normalizarNacionalidadCatalogo,
+  normalizarPaisCatalogo,
+} from '../../constants/catalogosCliente';
+import { clienteFieldNormalizers } from '../../utils/clientesValidation';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const ESTADOS_VALIDOS = ['disponible', 'bloqueada', 'no_disponible'];
+const ESTADOS_VALIDOS = ['disponible', 'bloqueada', 'no_disponible', 'vendida'];
+const ESTADOS_PROCESO = [
+  { value: 'captacion', label: 'Captacion' },
+  { value: 'reserva', label: 'Reserva' },
+  { value: 'separacion', label: 'Separacion' },
+  { value: 'inicial', label: 'Contrato firmado / Inicial' },
+  { value: 'pagos_atrasados', label: 'Pagos atrasados' },
+  { value: 'contra_entrega', label: 'Contra entrega' },
+  { value: 'vendido', label: 'Vendido' },
+];
+const DOCUMENTO_REGEX = /^[A-Z0-9]+$/;
+const NOMBRE_REGEX = /^[\p{L}\s]+$/u;
+const TELEFONO_REGEX = /^\d+$/;
+const EMAIL_REGEX = /^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+
+const fechaValida = (value?: string | null) => {
+  if (!value) return true;
+  return !Number.isNaN(Date.parse(value));
+};
+
+const validarEstadoProceso = (estado?: string | null, estadoProceso?: string | null) => {
+  const proceso = String(estadoProceso ?? '').trim();
+  const permitidos: Record<string, string[]> = {
+    disponible: [''],
+    bloqueada: ['captacion'],
+    no_disponible: ['reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega'],
+    vendida: ['vendido'],
+  };
+  const etiquetas: Record<string, string> = {
+    disponible: 'sin estatus de proceso',
+    bloqueada: 'captacion',
+    no_disponible: 'reserva, separacion, contrato firmado, pagos atrasados o contra entrega',
+    vendida: 'vendido',
+  };
+  if (!estado || !permitidos[estado]) return 'estado invalido';
+  if (!permitidos[estado].includes(proceso)) {
+    return `estado y estatus proceso no coinciden: ${estado} debe usar ${etiquetas[estado]}`;
+  }
+  return null;
+};
+
+const cleanSpaces = (value?: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim();
+const normalizeDocumentoInput = (value?: unknown) => String(value ?? '').trim().toLocaleUpperCase('es-VE');
+const cleanDocumentoAutomatico = (value?: unknown) => normalizeDocumentoInput(value).replace(/[^A-Z0-9]/g, '');
+const cleanTelefonoAutomatico = (value?: unknown) => String(value ?? '').replace(/\D/g, '');
+const cleanNombreAutomatico = (value?: unknown) =>
+  String(value ?? '')
+    .replace(/[^\p{L}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase('es-VE');
+const documentoTemporal = (proyectoId: string, idx: number) => {
+  const proyectoSeguro = normalizeDocumentoInput(proyectoId).replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'PROYECTO';
+  return `MIGP${proyectoSeguro}${String(idx).padStart(3, '0')}`;
+};
+
+const normalizarCatalogosFila = (fila: FilaMigracion): FilaMigracion => {
+  const pais = normalizarPaisCatalogo(fila.pais_residencia);
+  const nacionalidad = normalizarNacionalidadCatalogo(fila.nacionalidad);
+  return {
+    ...fila,
+    pais_residencia: pais || fila.pais_residencia,
+    nacionalidad: nacionalidad || fila.nacionalidad,
+  };
+};
+
+const limpiarDatosClienteFila = (fila: FilaMigracion): FilaMigracion => normalizarCatalogosFila({
+  ...fila,
+  cedula: fila.cedula ? cleanDocumentoAutomatico(fila.cedula) : fila.cedula,
+  nombres_sugerido: fila.nombres_sugerido ? cleanNombreAutomatico(fila.nombres_sugerido) : fila.nombres_sugerido,
+  apellidos_sugerido: fila.apellidos_sugerido ? cleanNombreAutomatico(fila.apellidos_sugerido) : fila.apellidos_sugerido,
+  cliente_telefono: fila.cliente_telefono ? cleanTelefonoAutomatico(fila.cliente_telefono) : fila.cliente_telefono,
+  cliente_correo: fila.cliente_correo ? clienteFieldNormalizers.correo(fila.cliente_correo) : fila.cliente_correo,
+});
+
+const validarDatosClienteMigracion = (f: FilaMigracion) => {
+  const errores: string[] = [];
+  const documento = normalizeDocumentoInput(f.cedula);
+  const nombres = cleanSpaces(f.nombres_sugerido);
+  const apellidos = cleanSpaces(f.apellidos_sugerido);
+  const telefono = cleanSpaces(f.cliente_telefono);
+  const correo = cleanSpaces(f.cliente_correo).toLowerCase();
+
+  if (!documento) errores.push('documento de identidad obligatorio cuando hay cliente');
+  else if (!DOCUMENTO_REGEX.test(documento)) errores.push('documento solo debe contener letras y numeros');
+
+  if (!nombres) errores.push('nombres requeridos si hay documento');
+  else if (!NOMBRE_REGEX.test(nombres)) errores.push('nombres solo deben contener letras y espacios');
+
+  if (!apellidos) errores.push('apellidos requeridos si hay documento');
+  else if (!NOMBRE_REGEX.test(apellidos)) errores.push('apellidos solo deben contener letras y espacios');
+
+  if (telefono && !TELEFONO_REGEX.test(telefono)) errores.push('telefono solo debe contener numeros');
+  if (correo && !EMAIL_REGEX.test(correo)) errores.push('correo invalido con dominio requerido');
+  if (!isNacionalidadValida(f.nacionalidad)) errores.push('selecciona una nacionalidad valida');
+  if (!isPaisValido(f.pais_residencia)) errores.push('selecciona un pais de residencia valido');
+
+  return errores;
+};
 
 // ── Local-state input cells — only call parent on blur, not on every keystroke ──
 const CeldaInputLocal = memo(({ value, placeholder, onChange, style }: {
@@ -65,10 +172,6 @@ interface Props {
 
 type Paso = 'upload' | 'revision' | 'resultado';
 
-// Genera cédula fantasma única por proyecto + índice
-const cedulaFantasma = (proyectoId: string, idx: number) =>
-  `MIGP-${proyectoId}-${String(idx).padStart(3, '0')}`;
-
 export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }: Props) {
   const [paso, setPaso] = useState<Paso>('upload');
   const [cargando, setCargando] = useState(false);
@@ -103,21 +206,38 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
 
   // ── Validar fila ─────────────────────────────────────────────────────────
   const validarFila = (f: FilaMigracion) => {
-    const errores: string[] = [];
+    const erroresPersistentes = (f.errores ?? []).filter(e =>
+      e.includes('ya existe en este proyecto') || e.includes('duplicado') || e.includes('duplicada')
+    );
+    const errores: string[] = [...erroresPersistentes];
     const advertencias: string[] = [];
     if (!f.id_unidad) errores.push('id_unidad vacío');
     if (f.precio === null || f.precio === undefined) errores.push('precio inválido o vacío');
     if (f.metraje === null || f.metraje === undefined) errores.push('metraje inválido o vacío');
     if (!ESTADOS_VALIDOS.includes(f.estado)) errores.push('estado inválido');
+    const errorEstadoProceso = validarEstadoProceso(f.estado, f.estado_proceso);
+    if (errorEstadoProceso) errores.push(errorEstadoProceso);
     if (f.estado !== 'disponible' && !f.inmobiliaria_nombre_sugerido)
       errores.push('inmobiliaria requerida para este estado');
-    if (f.cliente_nombre_excel && !f.cedula)
-      errores.push('cédula obligatoria cuando hay cliente');
-    if (f.cedula) {
-      if (!f.nombres_sugerido) errores.push('nombres requeridos si hay cédula');
-      if (!f.apellidos_sugerido) errores.push('apellidos requeridos si hay cédula');
-      if (!f.inmobiliaria_nombre_sugerido) errores.push('inmobiliaria requerida si hay cédula');
+
+    const tieneDatosCliente = [
+      f.cliente_nombre_excel,
+      f.cedula,
+      f.nombres_sugerido,
+      f.apellidos_sugerido,
+      f.cliente_correo,
+      f.cliente_telefono,
+      f.fecha_nacimiento,
+      f.pais_residencia,
+      f.nacionalidad,
+    ].some(value => String(value ?? '').trim());
+
+    if (tieneDatosCliente) {
+      errores.push(...validarDatosClienteMigracion(f));
+      if (!f.inmobiliaria_nombre_sugerido) errores.push('inmobiliaria requerida si hay documento');
     }
+    if (!fechaValida(f.fecha_nacimiento)) errores.push('fecha de nacimiento invalida');
+    if (!fechaValida(f.fecha_bloqueo)) errores.push('Fecha Bloqueo invalida');
     if (f.cliente_nombre_excel && !f.cedula) {
       if (!f.nombres_sugerido || !f.apellidos_sugerido)
         advertencias.push('Completa nombres y apellidos para registrar el cliente');
@@ -143,7 +263,15 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
         try { preview = await getPreview(job_id); break; } catch { /* sigue */ }
       }
       if (!preview) throw new Error('El procesamiento tardó demasiado. Intenta de nuevo.');
-      setFilas(preview.filas);
+      setFilas(preview.filas.map((fila: FilaMigracion) => {
+        const updated = limpiarDatosClienteFila({
+          ...fila,
+          nombres_sugerido: fila.nombres_sugerido ? clienteFieldNormalizers.nombre(fila.nombres_sugerido) : fila.nombres_sugerido,
+          apellidos_sugerido: fila.apellidos_sugerido ? clienteFieldNormalizers.nombre(fila.apellidos_sugerido) : fila.apellidos_sugerido,
+        });
+        const { errores, advertencias } = validarFila(updated);
+        return { ...updated, errores, advertencias };
+      }));
       setPaso('revision');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al procesar el archivo');
@@ -156,7 +284,20 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
   const actualizarFila = useCallback((idUnidad: string, campo: keyof FilaMigracion, valor: unknown) => {
     setFilas(prev => prev.map(f => {
       if (f.id_unidad !== idUnidad) return f;
-      let updated = { ...f, [campo]: valor };
+      let valorNormalizado = valor;
+      if (campo === 'nombres_sugerido' || campo === 'apellidos_sugerido') {
+        valorNormalizado = clienteFieldNormalizers.nombre(valor);
+      }
+      if (campo === 'cliente_correo') {
+        valorNormalizado = clienteFieldNormalizers.correo(valor);
+      }
+      if (campo === 'cedula') {
+        valorNormalizado = normalizeDocumentoInput(valor);
+      }
+      if (campo === 'cliente_telefono') {
+        valorNormalizado = String(valor ?? '').trim();
+      }
+      let updated = { ...f, [campo]: valorNormalizado };
       // Si el admin cambia la inmobiliaria manualmente, limpiar el ID sugerido
       // para que el writer haga lookup por nombre
       if (campo === 'inmobiliaria_nombre_sugerido') {
@@ -178,17 +319,24 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
     }));
   }, []);
 
-  // ── Cédulas fantasma ─────────────────────────────────────────────────────
-  const asignarCedulasFantasma = useCallback(() => {
+  // ── Documentos temporales ────────────────────────────────────────────────
+  const asignarDocumentosTemporales = useCallback(() => {
     let contador = 1;
     setFilas(prev => prev.map(f => {
       if (!f.cliente_nombre_excel || f.cedula) return f;
-      const cedula = cedulaFantasma(proyectoId, contador++);
-      const updated = { ...f, cedula, cedula_es_fantasma: true } as FilaMigracion & { cedula_es_fantasma?: boolean };
+      const updated = { ...f, cedula: documentoTemporal(proyectoId, contador++) };
       const { errores, advertencias } = validarFila(updated);
       return { ...updated, errores, advertencias };
     }));
   }, [proyectoId]);
+
+  const limpiarDatosClientes = useCallback(() => {
+    setFilas(prev => prev.map(f => {
+      const updated = limpiarDatosClienteFila(f);
+      const { errores, advertencias } = validarFila(updated);
+      return { ...updated, errores, advertencias };
+    }));
+  }, []);
 
   // ── Nueva etapa ───────────────────────────────────────────────────────────
   const [nuevaEtapaModal, setNuevaEtapaModal] = useState(false);
@@ -250,7 +398,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
   const filasConAdvertencia = filas.filter(f => f.advertencias.length > 0 && f.errores.length === 0);
   const filasOk = filas.filter(f => f.errores.length === 0 && f.advertencias.length === 0);
   const puedeConfirmar = filasConError.length === 0 && filas.length > 0;
-  const filasConClienteSinCedula = filas.filter(f => f.cliente_nombre_excel && !f.cedula).length;
+  const filasConClienteSinDocumento = filas.filter(f => f.cliente_nombre_excel && !f.cedula).length;
 
   // ── Columnas ─────────────────────────────────────────────────────────────
   const columnas = useMemo(() => [
@@ -292,6 +440,25 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
             <Option value="disponible"><Tag color="green">Disponible</Tag></Option>
             <Option value="bloqueada"><Tag color="orange">Bloqueada</Tag></Option>
             <Option value="no_disponible"><Tag color="red">No disponible</Tag></Option>
+            <Option value="vendida"><Tag color="blue">Vendida</Tag></Option>
+          </Select>
+        </CeldaRequerida>
+      ),
+    },
+    {
+      title: 'Estatus proceso', dataIndex: 'estado_proceso', width: 170,
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('estatus proceso'))}>
+          <Select
+            value={v ?? undefined}
+            placeholder="Sin proceso"
+            style={{ width: '100%' }}
+            allowClear
+            onChange={val => actualizarFila(r.id_unidad, 'estado_proceso', val ?? null)}
+          >
+            {ESTADOS_PROCESO.map(e => (
+              <Option key={e.value} value={e.value}>{e.label}</Option>
+            ))}
           </Select>
         </CeldaRequerida>
       ),
@@ -331,17 +498,14 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       ),
     },
     {
-      title: 'Cédula', dataIndex: 'cedula', width: 140,
-      render: (v: string | null, r: FilaMigracion & { cedula_es_fantasma?: boolean }) => (
-        <CeldaRequerida error={r.errores.some(e => e.includes('cédula'))}>
-          <Tooltip title={r.cedula_es_fantasma ? 'Cédula temporal — completa la real después' : undefined}>
-            <CeldaInputLocal
-              value={v ?? ''}
-              placeholder="Cédula"
-              style={r.cedula_es_fantasma ? { borderColor: '#faad14', background: '#fffbe6' } : undefined}
-              onChange={val => actualizarFila(r.id_unidad, 'cedula', val)}
-            />
-          </Tooltip>
+      title: 'Documento', dataIndex: 'cedula', width: 140,
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('documento') || e.includes('cédula'))}>
+          <CeldaInputLocal
+            value={v ?? ''}
+            placeholder="Letras y números"
+            onChange={val => actualizarFila(r.id_unidad, 'cedula', val)}
+          />
         </CeldaRequerida>
       ),
     },
@@ -374,14 +538,18 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} onChange={val => actualizarFila(r.id_unidad, 'tipo', val)} /> },
     { title: 'Piso', dataIndex: 'piso', width: 65,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'piso', val)} /> },
-    { title: 'Manzana', dataIndex: 'manzana', width: 85,
+    { title: 'Bloque', dataIndex: 'manzana', width: 85,
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} onChange={val => actualizarFila(r.id_unidad, 'manzana', val)} /> },
     { title: 'Parqueos', dataIndex: 'parqueos', width: 85,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'parqueos', val)} /> },
-    { title: 'Cuartos', dataIndex: 'num_cuartos', width: 75,
+    { title: 'Habitaciones', dataIndex: 'num_cuartos', width: 100,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'num_cuartos', val)} /> },
     { title: 'Baños', dataIndex: 'num_banos', width: 70,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'num_banos', val)} /> },
+    { title: 'M. Terraza', dataIndex: 'metraje_terraza', width: 95,
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'metraje_terraza', val)} /> },
+    { title: 'M. Patio', dataIndex: 'metraje_patio', width: 85,
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'metraje_patio', val)} /> },
     { title: 'P. Reserva', dataIndex: 'precio_reserva', width: 110,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_reserva', val)} /> },
     { title: 'P. Separación', dataIndex: 'precio_separacion', width: 120,
@@ -390,8 +558,56 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'precio_inicial', val)} /> },
     { title: 'Cuota', dataIndex: 'cuota_monto', width: 100,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'cuota_monto', val)} /> },
+    { title: 'Meses', dataIndex: 'cuota_meses', width: 70,
+      render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} onChange={val => actualizarFila(r.id_unidad, 'cuota_meses', val)} /> },
     { title: 'Contra entrega', dataIndex: 'contra_entrega', width: 120,
       render: (v: number | null, r: FilaMigracion) => <CeldaNumberLocal value={v} min={0} formatter={val => `$ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} onChange={val => actualizarFila(r.id_unidad, 'contra_entrega', val)} /> },
+    { title: 'Teléfono', dataIndex: 'cliente_telefono', width: 120,
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'cliente_telefono', val)} /> },
+    { title: 'Correo', dataIndex: 'cliente_correo', width: 160,
+      render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'cliente_correo', val)} /> },
+    { title: 'Fecha nac.', dataIndex: 'fecha_nacimiento', width: 130,
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('fecha de nacimiento'))}>
+          <CeldaInputLocal value={v ?? ''} placeholder="YYYY-MM-DD" onChange={val => actualizarFila(r.id_unidad, 'fecha_nacimiento', val)} />
+        </CeldaRequerida>
+      ) },
+    { title: 'Pais residencia', dataIndex: 'pais_residencia', width: 150,
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('pais de residencia'))}>
+          <Select
+            value={v ?? undefined}
+            placeholder="Opcional"
+            style={{ width: '100%' }}
+            showSearch
+            allowClear
+            optionFilterProp="label"
+            options={PAISES_OPTIONS}
+            onChange={val => actualizarFila(r.id_unidad, 'pais_residencia', val ?? null)}
+          />
+        </CeldaRequerida>
+      ) },
+    { title: 'Nacionalidad', dataIndex: 'nacionalidad', width: 150,
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('nacionalidad'))}>
+          <Select
+            value={v ?? undefined}
+            placeholder="Opcional"
+            style={{ width: '100%' }}
+            showSearch
+            allowClear
+            optionFilterProp="label"
+            options={NACIONALIDADES_OPTIONS}
+            onChange={val => actualizarFila(r.id_unidad, 'nacionalidad', val ?? null)}
+          />
+        </CeldaRequerida>
+      ) },
+    { title: 'Fecha Bloqueo', dataIndex: 'fecha_bloqueo', width: 140,
+      render: (v: string | null, r: FilaMigracion) => (
+        <CeldaRequerida error={r.errores.some(e => e.includes('Fecha Bloqueo'))}>
+          <CeldaInputLocal value={v ?? ''} placeholder="YYYY-MM-DD" onChange={val => actualizarFila(r.id_unidad, 'fecha_bloqueo', val)} />
+        </CeldaRequerida>
+      ) },
     { title: 'Comentario', dataIndex: 'comentario', width: 150,
       render: (v: string | null, r: FilaMigracion) => <CeldaInputLocal value={v ?? ''} placeholder="Opcional" onChange={val => actualizarFila(r.id_unidad, 'comentario', val)} /> },
     {
@@ -429,35 +645,47 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
                   <thead>
                     <tr style={{ background: '#e6f4ff' }}>
                       {[
-                        'unidad','Area','No Cuartos','No. baños','Tipo','Piso','Parqueos',
-                        'NOMBRE CLIENTE','Precios US$','RESERVA','SEPARACION','INICIAL',
-                        'CUOTAS 24','CONTRA ENTREGA','ESTATUS','INMOBILIARIA',
-                        'FECHA BLOQUEO','FECHA FIN BLOQUEO/ PAGO SEPARACION','COMENTARIO',
+                        'ID Unidad', 'Etapa', 'Tipo', 'Manzana o Bloque', 'Piso',
+                        'Metraje', 'Metraje Terraza', 'Metraje Patio',
+                        'Cuartos', 'Baños', 'Parqueos',
+                        'Precio', 'Precio Reserva', 'Precio Separación', 'Precio Inicial',
+                        'Cuota Monto', 'Cuota Meses', 'Contra Entrega',
+                        'Estado', 'Documento', 'Cliente Nombre', 'Cliente Teléfono', 'Cliente Correo',
+                        'Fecha Nacimiento', 'Pais Residencia', 'Nacionalidad',
+                        'Inmobiliaria', 'Estado Proceso',
+                        'Fecha Bloqueo', 'Fecha Liberación', 'Días Restantes',
+                        'Comentario',
                       ].map(h => (
                         <th key={h} style={{ border: '1px solid #91caff', padding: '4px 8px', color: '#1677ff', fontWeight: 600 }}>{h}</th>
                       ))}
                     </tr>
-                    <tr style={{ background: '#fafafa' }}>
+                    <tr style={{ background: 'var(--panel-soft-bg)' }}>
                       {[
-                        'B-A-101','76.34','3','2','D','1','1',
-                        'JOSE MIGUEL BARRERA','75958.30','500','3297.91','11393.74',
-                        '474.73','60766.64','CONTRATO FIRMADO','Plusval',
-                        '2026-02-21','2026-03-21','',
+                        'B-A-101', 'Etapa I', 'D', 'B', '1',
+                        '76.34', '12.5', '8.0',
+                        '3', '2', '1',
+                        '75958.30', '500', '3297.91', '11393.74',
+                        '474.73', '24', '60766.64',
+                        'NO DISPONIBLE', 'A1234567', 'JOSE MIGUEL BARRERA', '0991234567', 'jose@email.com',
+                        '1995-04-15', 'Republica Dominicana', 'Dominicana',
+                        'Plusval', 'contrato_firmado',
+                        '2026-02-21', '2026-03-21', '0',
+                        '',
                       ].map((v, i) => (
-                        <td key={i} style={{ border: '1px solid #d9d9d9', padding: '4px 8px', color: '#555' }}>{v || <span style={{ color: '#bbb' }}>vacío</span>}</td>
+                        <td key={i} style={{ border: '1px solid var(--app-border)', padding: '4px 8px', color: 'var(--text-secondary)' }}>{v || <span style={{ color: 'var(--text-muted)' }}>vacío</span>}</td>
                       ))}
                     </tr>
                   </thead>
                 </table>
                 <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  <Tag color="blue">unidad — obligatorio</Tag>
-                  <Tag color="blue">Precios US$ — obligatorio</Tag>
-                  <Tag color="blue">Area — obligatorio</Tag>
-                  <Tag color="blue">ESTATUS — obligatorio</Tag>
+                  <Tag color="blue">ID Unidad — obligatorio</Tag>
+                  <Tag color="blue">Precio — obligatorio</Tag>
+                  <Tag color="blue">Metraje — obligatorio</Tag>
+                  <Tag color="blue">Estado — obligatorio</Tag>
                   <Tag color="default">El resto es opcional</Tag>
-                  <Tag color="orange">Si hay cliente, INMOBILIARIA también es obligatoria</Tag>
+                  <Tag color="orange">Si hay cliente, NOMBRES, APELLIDOS, DOCUMENTO e INMOBILIARIA son obligatorias</Tag>
                 </div>
-                <div style={{ marginTop: 6, color: '#888', fontSize: 11 }}>
+                <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: 11 }}>
                   💡 Los nombres de columna no tienen que ser exactos — la IA intenta mapearlos automáticamente. Pero si coinciden, el resultado es más preciso.
                 </div>
               </div>
@@ -467,7 +695,7 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
             <Title level={4}>Migración de inventario — {proyectoNombre}</Title>
             <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
-              Sube el archivo Excel con el inventario. Solo aplica a proyectos sin unidades.
+              Sube el archivo Excel con inventario nuevo. Las unidades que ya existan en el proyecto seran rechazadas.
             </Text>
             {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
             <Spin spinning={cargando} tip="Procesando con IA...">
@@ -493,19 +721,27 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
 
           {/* Botones de relleno */}
           <Space style={{ marginBottom: 12, flexWrap: 'wrap' }}>
-            {filasConClienteSinCedula > 0 && (
-              <Tooltip title={`Asigna cédulas temporales (MIGP-${proyectoId}-001...) a ${filasConClienteSinCedula} clientes sin cédula. Puedes completar las reales después.`}>
-                <Button icon={<ThunderboltOutlined />} onClick={asignarCedulasFantasma}>
-                  Cédulas temporales ({filasConClienteSinCedula})
+            {filasConClienteSinDocumento > 0 && (
+              <Tooltip title={`Asigna documentos temporales sin guiones ni símbolos a ${filasConClienteSinDocumento} clientes sin documento.`}>
+                <Button icon={<ThunderboltOutlined />} onClick={asignarDocumentosTemporales}>
+                  Cédulas identidad ({filasConClienteSinDocumento})
                 </Button>
               </Tooltip>
             )}
             <RellenarVaciosBtn campo="metraje" label="Rellenar metraje vacío" tipo="numero" onRellenar={rellenarVacios} />
+            <RellenarVaciosBtn campo="metraje_terraza" label="Rellenar terraza vacía" tipo="numero" onRellenar={rellenarVacios} />
+            <RellenarVaciosBtn campo="metraje_patio" label="Rellenar patio vacío" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="precio" label="Rellenar precio vacío" tipo="numero" onRellenar={rellenarVacios} />
-            <RellenarVaciosBtn campo="num_cuartos" label="Rellenar cuartos vacíos" tipo="numero" onRellenar={rellenarVacios} />
+            <RellenarVaciosBtn campo="num_cuartos" label="Rellenar habitaciones vacías" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="num_banos" label="Rellenar baños vacíos" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarVaciosBtn campo="parqueos" label="Rellenar parqueos vacíos" tipo="numero" onRellenar={rellenarVacios} />
+            <RellenarVaciosBtn campo="cuota_meses" label="Rellenar meses cuota" tipo="numero" onRellenar={rellenarVacios} />
             <RellenarEtapaBtn etapas={etapas} onRellenar={rellenarVacios} />
+            <Tooltip title="Limpia documentos, nombres, telefonos, correos, pais de residencia y nacionalidad usando las reglas de clientes.">
+              <Button icon={<ThunderboltOutlined />} onClick={limpiarDatosClientes}>
+                Limpiar datos de clientes
+              </Button>
+            </Tooltip>
             <Button size="small" icon={<PlusOutlined />} onClick={() => { setNuevaEtapaNombre(''); setNuevaEtapaAplicar('vacios'); setNuevaEtapaModal(true); }}>
               Nueva etapa
             </Button>
@@ -520,8 +756,8 @@ export default function MigracionExcel({ proyectoId, proyectoNombre, onCerrar }:
 
           <div ref={tableRef}>
             <Table
-              dataSource={filas} columns={columnas} rowKey="id_unidad"
-              scroll={{ x: 3000 }} size="small" pagination={{ pageSize: 50 }}
+              dataSource={filas} columns={columnas} rowKey="fila_excel"
+              scroll={{ x: 4200 }} size="small" pagination={{ pageSize: 50, showSizeChanger: false }}
               rowClassName={r => r.errores.length > 0 ? 'fila-error' : r.advertencias.length > 0 ? 'fila-advertencia' : ''}
             />
           </div>
@@ -713,7 +949,7 @@ function CeldaIA({ children, sugerido, confianza, esNueva }: {
       : `Sugerido por IA (${confianza ?? ''}%)`}>
       <div style={{ border: `1px solid ${baja ? '#faad14' : '#722ed1'}`, borderRadius: 4, position: 'relative' }}>
         <RobotOutlined style={{ position: 'absolute', top: -8, right: 2, fontSize: 10,
-          color: baja ? '#faad14' : '#722ed1', background: 'white', padding: '0 2px' }} />
+          color: baja ? '#faad14' : '#722ed1', background: 'var(--panel-bg)', padding: '0 2px' }} />
         {children}
       </div>
     </Tooltip>

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Table, Tag, Button, Space,
   Modal, Form, InputNumber, Input, message, Badge, Tabs,
-  DatePicker, Select, Divider, Radio, Dropdown, Grid,
+  DatePicker, Select, Divider, Radio, Dropdown, Grid, Spin, Alert,
 } from 'antd';
 import {
   UnlockOutlined, ClockCircleOutlined, ReloadOutlined, FieldTimeOutlined,
@@ -12,9 +12,13 @@ import dayjs from 'dayjs';
 import { getBloquesActivos, liberarBloqueo, extenderBloqueo, getHistorialBloqueos, bloquearUnidad } from '../../services/bloqueos.service';
 import { getProyectos } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
-import { getClientesAdmin } from '../../services/clientes.service';
+import { buscarClientesAdmin } from '../../services/clientes.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import type { Bloqueo, Proyecto, HistorialBloqueo, Cliente } from '../../types';
+import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
+import { confirmarLiberarBloqueo } from '../../components/common/ConfirmarLiberarBloqueo';
+import type { ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -49,6 +53,7 @@ const BloqueosPage = () => {
   const [formCliente] = Form.useForm();
   const [guardandoCliente, setGuardandoCliente] = useState(false);
   const [modoAsignar, setModoAsignar] = useState<'existente' | 'nuevo'>('existente');
+  const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clientesInmo, setClientesInmo] = useState<Cliente[]>([]);
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
@@ -82,7 +87,7 @@ const BloqueosPage = () => {
   const cargarHistorial = useCallback(async () => {
     setLoadingHistorial(true);
     try {
-      const [h, inmos] = await Promise.all([getHistorialBloqueos(), getInmobiliarias()]);
+      const [h, inmos] = await Promise.all([getHistorialBloqueos(undefined, undefined, proyectoFiltro), getInmobiliarias()]);
       const sorted = [...h.items].sort((a, b) =>
         (b.fecha_bloqueo ?? '').localeCompare(a.fecha_bloqueo ?? '')
       );
@@ -94,13 +99,13 @@ const BloqueosPage = () => {
     } finally {
       setLoadingHistorial(false);
     }
-  }, []);
+  }, [proyectoFiltro]);
 
   const cargarMasHistorial = useCallback(async () => {
     if (!historialNextToken) return;
     setLoadingHistorial(true);
     try {
-      const h = await getHistorialBloqueos(undefined, historialNextToken);
+      const h = await getHistorialBloqueos(undefined, historialNextToken, proyectoFiltro);
       setHistorial(prev => [...prev, ...h.items].sort((a, b) =>
         (b.fecha_bloqueo ?? '').localeCompare(a.fecha_bloqueo ?? '')
       ));
@@ -110,11 +115,11 @@ const BloqueosPage = () => {
     } finally {
       setLoadingHistorial(false);
     }
-  }, [historialNextToken]);
+  }, [historialNextToken, proyectoFiltro]);
 
-  const handleLiberar = async (b: Bloqueo) => {
+  const handleLiberar = async (b: Bloqueo, notificar: ModoNotificacion) => {
     try {
-      await liberarBloqueo(b.unidad_id, b.proyecto_id);
+      await liberarBloqueo(b.unidad_id, b.proyecto_id, notificar);
       message.success('Bloqueo liberado');
       cargar();
     } catch {
@@ -122,33 +127,58 @@ const BloqueosPage = () => {
     }
   };
 
+  const abrirLiberarBloqueo = (b: Bloqueo) => confirmarLiberarBloqueo({
+    tieneCliente: !!b.cliente_cedula,
+    onConfirm: (notificar) => handleLiberar(b, notificar),
+  });
+
   const abrirExtender = (b: Bloqueo) => {
     setBloqueoSeleccionado(b);
     form.resetFields();
     setModalExtender(true);
   };
 
-  const abrirAsignarCliente = async (b: Bloqueo) => {
+  const abrirAsignarCliente = (b: Bloqueo) => {
     setBloqueoSinCliente(b);
     formCliente.resetFields();
     setModoAsignar('existente');
+    setBusquedaCliente('');
+    setClientesInmo([]);
     setClienteSeleccionado(null);
     setModalAsignarCliente(true);
-    // Cargar clientes de esa inmobiliaria
-    setLoadingClientes(true);
-    try {
-      const data = await getClientesAdmin({ inmobiliaria_id: b.bloqueado_por });
-      const items = Array.isArray(data) ? data : (data as any).items ?? [];
-      // Filtrar únicos por cédula
-      const vistos = new Set<string>();
-      setClientesInmo(items.filter((c: Cliente) => {
-        if (vistos.has(c.cedula)) return false;
-        vistos.add(c.cedula);
-        return true;
-      }));
-    } catch { setClientesInmo([]); }
-    finally { setLoadingClientes(false); }
   };
+
+  useEffect(() => {
+    const texto = busquedaCliente.trim();
+    if (!bloqueoSinCliente || modoAsignar !== 'existente' || texto.length < 2) {
+      setClientesInmo([]);
+      setLoadingClientes(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setLoadingClientes(true);
+      try {
+        const [porNombre, porCedula] = await Promise.all([
+          buscarClientesAdmin(texto, 'nombre', bloqueoSinCliente.proyecto_id, bloqueoSinCliente.bloqueado_por),
+          buscarClientesAdmin(texto, 'cedula', bloqueoSinCliente.proyecto_id, bloqueoSinCliente.bloqueado_por),
+        ]);
+        const vistos = new Set<string>();
+        const combinados = [...(porNombre || []), ...(porCedula || [])].filter((c: Cliente) => {
+          if (!c.cedula || vistos.has(c.cedula)) return false;
+          vistos.add(c.cedula);
+          return true;
+        });
+        setClientesInmo(combinados);
+      } catch {
+        setClientesInmo([]);
+      } finally {
+        setLoadingClientes(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [busquedaCliente, bloqueoSinCliente, modoAsignar]);
 
   const handleSeleccionarCliente = (cedula: string) => {
     const c = clientesInmo.find(x => x.cedula === cedula) ?? null;
@@ -184,7 +214,7 @@ const BloqueosPage = () => {
           pais_residencia: clienteSeleccionado.pais_residencia,
         }
       : {
-          ...values,
+          ...normalizeClientePayload(values),
           fecha_nacimiento: values.fecha_nacimiento
             ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD')
             : undefined,
@@ -274,11 +304,7 @@ const BloqueosPage = () => {
           { key: 'extender', icon: <FieldTimeOutlined />, label: 'Cambiar tiempo', onClick: () => abrirExtender(record) },
           {
             key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true,
-            onClick: () => Modal.confirm({
-              title: '¿Liberar este bloqueo?', content: 'La unidad volverá a estar disponible.',
-              okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true },
-              onOk: () => handleLiberar(record),
-            }),
+            onClick: () => abrirLiberarBloqueo(record),
           },
         ];
         return <Dropdown menu={{ items }} trigger={['click']} placement="bottomRight"><Button size="small" icon={<MoreOutlined />} /></Dropdown>;
@@ -308,18 +334,18 @@ const BloqueosPage = () => {
             label: `Activos (${bloqueos.filter(b => !proyectoFiltro || b.proyecto_id === proyectoFiltro || b.proyecto_id?.replace('PROYECTO#','') === proyectoFiltro).length})`,
             children: isMobile ? (
               <div>
-                {loading && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>}
-                {!loading && bloqueos.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>No hay bloqueos activos</div>}
+                {loading && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>}
+                {!loading && bloqueos.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No hay bloqueos activos</div>}
                 {bloqueos.filter(b => !proyectoFiltro || b.proyecto_id === proyectoFiltro || b.proyecto_id?.replace('PROYECTO#','') === proyectoFiltro).map(b => {
                   const tiempoOk = b.tiempo_restante ?? 0;
                   const color = tiempoOk <= 0 ? '#ff4d4f' : tiempoOk < 5 * 3600 ? '#faad14' : '#52c41a';
                   const menuItems = [
                     ...(!b.cliente_cedula ? [{ key: 'asignar', icon: <UserAddOutlined />, label: 'Asignar cliente', onClick: () => abrirAsignarCliente(b) }] : []),
                     { key: 'extender', icon: <FieldTimeOutlined />, label: 'Cambiar tiempo', onClick: () => abrirExtender(b) },
-                    { key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true, onClick: () => Modal.confirm({ title: '¿Liberar este bloqueo?', content: 'La unidad volverá a estar disponible.', okText: 'Liberar', cancelText: 'Cancelar', okButtonProps: { danger: true }, onOk: () => handleLiberar(b) }) },
+                    { key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true, onClick: () => abrirLiberarBloqueo(b) },
                   ];
                   return (
-                    <div key={b.unidad_id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px' }}>
+                    <div key={b.unidad_id} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                         <div>
                           <Text strong style={{ fontSize: 15 }}>{[b.torre_nombre, b.id_unidad || b.unidad_id].filter(Boolean).join(' · ')}</Text>
@@ -347,7 +373,7 @@ const BloqueosPage = () => {
                 columns={columns}
                 rowKey="unidad_id"
                 loading={loading}
-                pagination={{ pageSize: 20 }}
+                pagination={{ pageSize: 20, showSizeChanger: false }}
                 locale={{ emptyText: 'No hay bloqueos activos' }}
                 scroll={{ x: true }}
               />
@@ -358,11 +384,37 @@ const BloqueosPage = () => {
             label: <span><HistoryOutlined /> Historial</span>,
             children: (
               <>
+                {isMobile ? (
+                  <div>
+                    {loadingHistorial && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Cargando historial...</div>}
+                    {!loadingHistorial && historial.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>No hay registros en el historial</div>}
+                    {historial.map(item => {
+                      const motivo = item.motivo_liberacion;
+                      const cfg: Record<string, string> = { automatica: 'success', manual: 'blue', venta: 'purple' };
+                      const inmo = inmobiliarias.find(i => i.pk === item.inmobiliaria_id || i.pk === `INMOBILIARIA#${item.inmobiliaria_id}`);
+                      return (
+                        <div key={item.sk} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', marginBottom: 10, padding: '14px 16px' }}>
+                          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                              <Text strong>{[item.torre_nombre, item.unidad_nombre ?? item.unidad_id].filter(Boolean).join(' · ')}</Text>
+                              {motivo ? <Tag color={cfg[motivo] ?? 'default'} style={{ margin: 0 }}>{motivo}</Tag> : <Tag color="warning" style={{ margin: 0 }}>Activo</Tag>}
+                            </div>
+                            <Text type="secondary">{proyectoNombre(item.proyecto_id)}</Text>
+                            <Tag style={{ width: 'fit-content' }}>{item.inmobiliaria_nombre ?? inmo?.nombre ?? item.inmobiliaria_id}</Tag>
+                            <Text type="secondary">Bloqueado: {item.fecha_bloqueo ? new Date(item.fecha_bloqueo).toLocaleString('es-VE') : '—'}</Text>
+                            <Text type="secondary">Liberado: {item.fecha_liberacion ? new Date(item.fecha_liberacion).toLocaleString('es-VE') : '—'}</Text>
+                            <Text type="secondary">Liberado por: {item.liberado_por ?? '—'}</Text>
+                          </Space>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
                 <Table
                   dataSource={historial}
                   rowKey="sk"
                   loading={loadingHistorial}
-                  pagination={{ pageSize: 20 }}
+                  pagination={{ pageSize: 20, showSizeChanger: false }}
                   locale={{ emptyText: 'No hay registros en el historial' }}
                   columns={[
                     { title: 'Unidad', dataIndex: 'unidad_id', key: 'unidad_id', render: (v: string, r: any) => (
@@ -388,6 +440,7 @@ const BloqueosPage = () => {
                     { title: 'Liberado por', dataIndex: 'liberado_por', key: 'liberado_por', render: (v: string) => v ?? '—' },
                   ]}
                 />
+                )}
                 {historialNextToken && (
                   <div style={{ textAlign: 'center', marginTop: 16 }}>
                     <Button onClick={cargarMasHistorial} loading={loadingHistorial}>
@@ -411,7 +464,7 @@ const BloqueosPage = () => {
       >
         {bloqueoSeleccionado && (
           <div style={{
-            background: '#f0f5ff', border: '1px solid #adc6ff', borderRadius: 8,
+            background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8,
             padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
@@ -457,7 +510,7 @@ const BloqueosPage = () => {
               placeholder="Ej: 0.1 (6 min), 1 (1 hora), 24 (1 día)"
             />
           </Form.Item>
-          <div style={{ marginBottom: 16, padding: 8, background: '#f6f6f6', borderRadius: 4, fontSize: 12 }}>
+          <div style={{ marginBottom: 16, padding: 8, background: 'var(--panel-soft-bg)', borderRadius: 4, fontSize: 12 }}>
             <Text type="secondary">
               💡 <strong>Ejemplos:</strong><br/>
               • 0.1 horas = 6 minutos (para probar notificaciones)<br/>
@@ -490,7 +543,7 @@ const BloqueosPage = () => {
       >
         {bloqueoSinCliente && (
           <div style={{
-            background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8,
+            background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8,
             padding: '10px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
@@ -516,22 +569,49 @@ const BloqueosPage = () => {
 
         {modoAsignar === 'existente' ? (
           <div>
-            <Select
-              showSearch
-              style={{ width: '100%' }}
-              placeholder="Buscar por nombre o cédula..."
-              loading={loadingClientes}
-              filterOption={(input, option) =>
-                (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              onChange={handleSeleccionarCliente}
-              options={clientesInmo.map(c => ({
-                value: c.cedula,
-                label: `${c.nombres} ${c.apellidos} — ${c.cedula}`,
-              }))}
+            <Input
+              placeholder="Buscar por nombre, cedula o pasaporte..."
+              prefix={<SearchOutlined />}
+              value={busquedaCliente}
+              onChange={e => {
+                setBusquedaCliente(e.target.value);
+                setClienteSeleccionado(null);
+                formCliente.resetFields(['cedula']);
+              }}
+              allowClear
+              style={{ marginBottom: 12 }}
             />
+            {loadingClientes && (
+              <div style={{ textAlign: 'center', padding: 16 }}>
+                <Spin size="small" />
+                <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                  Buscando clientes...
+                </Text>
+              </div>
+            )}
+            {!loadingClientes && busquedaCliente.trim().length >= 2 && clientesInmo.length === 0 && (
+              <Alert
+                type="info"
+                message="No se encontraron clientes"
+                description="Intenta con otro nombre, cedula o pasaporte, o registra un cliente nuevo."
+                showIcon
+                style={{ marginBottom: 12 }}
+              />
+            )}
+            {clientesInmo.length > 0 && (
+              <Select
+                style={{ width: '100%' }}
+                placeholder="Selecciona un cliente..."
+                value={clienteSeleccionado?.cedula}
+                onChange={handleSeleccionarCliente}
+                options={clientesInmo.map(c => ({
+                  value: c.cedula,
+                  label: `${c.nombres} ${c.apellidos} - ${c.cedula}`,
+                }))}
+              />
+            )}
             {clienteSeleccionado && (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8 }}>
+              <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8 }}>
                 <Text strong>{clienteSeleccionado.nombres} {clienteSeleccionado.apellidos}</Text>
                 <br />
                 <Text type="secondary" style={{ fontSize: 12 }}>
@@ -541,9 +621,9 @@ const BloqueosPage = () => {
                 </Text>
               </div>
             )}
-            {clientesInmo.length === 0 && !loadingClientes && (
+            {!busquedaCliente.trim() && (
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-                Esta inmobiliaria no tiene clientes registrados aún.
+                Escribe al menos 2 caracteres para buscar clientes de esta inmobiliaria.
               </Text>
             )}
             {/* Form oculto para submit con la cédula del cliente seleccionado */}
@@ -554,27 +634,21 @@ const BloqueosPage = () => {
         ) : (
           <Form form={formCliente} layout="vertical" onFinish={handleAsignarCliente}>
             <Divider style={{ margin: '0 0 16px' }} />
-            <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true }]}>
-              <Input placeholder="V-12345678" />
+            <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}>
+              <Input placeholder="12345678 o AB123456" />
             </Form.Item>
-            <Form.Item name="nombres" label="Nombres" rules={[{ required: true }]}><Input /></Form.Item>
-            <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true }]}><Input /></Form.Item>
-            <Form.Item name="correo" label="Correo"><Input type="email" /></Form.Item>
-            <Form.Item name="telefono" label="Teléfono"><Input placeholder="+58 412 0000000" /></Form.Item>
+            <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+            <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+            <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
+            <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
             <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento">
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>
             <Form.Item name="estado_civil" label="Estado civil">
-              <Select allowClear placeholder="Selecciona">
-                <Select.Option value="soltero">Soltero/a</Select.Option>
-                <Select.Option value="casado">Casado/a</Select.Option>
-                <Select.Option value="divorciado">Divorciado/a</Select.Option>
-                <Select.Option value="viudo">Viudo/a</Select.Option>
-                <Select.Option value="union_libre">Unión libre</Select.Option>
-              </Select>
+              <EstadoCivilSelect />
             </Form.Item>
-            <Form.Item name="nacionalidad" label="Nacionalidad"><Input /></Form.Item>
-            <Form.Item name="pais_residencia" label="País de residencia"><Input /></Form.Item>
+            <Form.Item name="nacionalidad" label="Nacionalidad"><NacionalidadSelect /></Form.Item>
+            <Form.Item name="pais_residencia" label="País de residencia"><PaisResidenciaSelect /></Form.Item>
           </Form>
         )}
       </Modal>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Button, Modal, Form, Input, Tag, Space, Popconfirm,
-  Typography, Tooltip, Select, message, Row, Col, Avatar, Badge, Upload,
+  Typography, Tooltip, Select, message, Row, Col, Avatar, Badge, Upload, Grid,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, StopOutlined, CheckOutlined,
@@ -22,6 +22,7 @@ import { getProyectos } from '../../services/proyectos.service';
 import type { Proyecto } from '../../types';
 
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 type ModalMode = 'crear' | 'editar';
 
@@ -35,6 +36,8 @@ const inmoColor = (nombre: string) => {
 
 const InmobiliariasPage = () => {
   const navigate = useNavigate();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -174,12 +177,22 @@ const InmobiliariasPage = () => {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0 }}>Inmobiliarias</Title>
-        <Space>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'stretch' : 'center',
+        marginBottom: 24,
+        gap: 12,
+        flexDirection: isMobile ? 'column' : 'row',
+      }}>
+        <Title level={4} style={{ margin: 0, wordBreak: 'normal', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
+          Inmobiliarias
+        </Title>
+        <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
           <Tooltip title="Copiar enlace de registro global">
             <Button
               icon={<LinkOutlined />}
+              style={{ flex: isMobile ? '1 1 140px' : undefined }}
               onClick={() => {
                 const url = `${window.location.origin}/captura-global`;
                 navigator.clipboard.writeText(url);
@@ -192,7 +205,7 @@ const InmobiliariasPage = () => {
           <Tooltip title="Actualizar">
             <Button icon={<ReloadOutlined />} onClick={cargar} loading={loading} />
           </Tooltip>
-          <Button type="primary" icon={<PlusOutlined />} onClick={abrirCrear}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={abrirCrear} style={{ flex: isMobile ? '1 1 150px' : undefined }}>
             Nueva inmobiliaria
           </Button>
         </Space>
@@ -207,7 +220,7 @@ const InmobiliariasPage = () => {
               <div
                 style={{
                   borderRadius: 14, overflow: 'hidden',
-                  background: '#fff', border: '1px solid #f0f0f0',
+                  background: 'var(--panel-bg)', border: '1px solid var(--app-border)',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
                   opacity: inmo.activo ? 1 : 0.65,
                   transition: 'box-shadow 0.2s, transform 0.2s, border-color 0.2s',
@@ -220,7 +233,7 @@ const InmobiliariasPage = () => {
                 onMouseLeave={e => {
                   (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.05)';
                   (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-                  (e.currentTarget as HTMLDivElement).style.borderColor = '#f0f0f0';
+                  (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--app-border)';
                 }}
               >
                 {/* Imagen / banner */}
@@ -290,7 +303,7 @@ const InmobiliariasPage = () => {
                   )}
 
                   {/* Footer */}
-                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f5f5f5', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--app-border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* Botón Ver Usuarios */}
                     <Button
                       type="default"
@@ -354,7 +367,7 @@ const InmobiliariasPage = () => {
         {!loading && inmobiliarias.length === 0 && (
           <Col span={24}>
             <div style={{ textAlign: 'center', padding: 60 }}>
-              <TeamOutlined style={{ fontSize: 48, color: '#d9d9d9', marginBottom: 12 }} />
+              <TeamOutlined style={{ fontSize: 48, color: 'var(--text-muted)', marginBottom: 12 }} />
               <div><Text type="secondary">No hay inmobiliarias registradas</Text></div>
             </div>
           </Col>
@@ -419,7 +432,7 @@ const InmobiliariasPage = () => {
         {inmoSeleccionada && (
           <>
             {/* Header */}
-            <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid #f0f0f0' }}>
+            <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--app-border)' }}>
               <div style={{ height: 4, background: color, borderRadius: 2, marginBottom: 16 }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -442,7 +455,7 @@ const InmobiliariasPage = () => {
               </div>
               {inmoSeleccionada.correos?.length > 0 && (
                 <div style={{ marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <MailOutlined style={{ color: '#aaa', fontSize: 12 }} />
+                  <MailOutlined style={{ color: 'var(--text-muted)', fontSize: 12 }} />
                   {inmoSeleccionada.correos.map(c => (
                     <Tag key={c} style={{ margin: 0, fontSize: 11 }}>{c}</Tag>
                   ))}
@@ -458,17 +471,17 @@ const InmobiliariasPage = () => {
                 </div>
               ) : usuarios.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 40 }}>
-                  <UserOutlined style={{ fontSize: 36, color: '#d9d9d9', marginBottom: 8 }} />
+                  <UserOutlined style={{ fontSize: 36, color: 'var(--text-muted)', marginBottom: 8 }} />
                   <div><Text type="secondary">No hay usuarios registrados</Text></div>
                 </div>
               ) : (
                 usuarios.map(u => (
                   <div key={u.pk} style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '12px 0', borderBottom: '1px solid #f5f5f5',
+                    padding: '12px 0', borderBottom: '1px solid var(--app-border)',
                   }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <Avatar size={36} style={{ background: u.activo ? `${color}20` : '#f5f5f5', color: u.activo ? color : '#aaa', fontWeight: 600 }}>
+                      <Avatar size={36} style={{ background: u.activo ? `${color}20` : 'var(--panel-soft-bg)', color: u.activo ? color : 'var(--text-muted)', fontWeight: 600 }}>
                         {(u.nombre || u.cognito_username).charAt(0).toUpperCase()}
                       </Avatar>
                       <div>

@@ -3,6 +3,8 @@ import json
 import boto3
 import os
 import logging
+import re
+from html import escape
 from boto3.dynamodb.conditions import Key
 
 logger = logging.getLogger()
@@ -21,24 +23,34 @@ usuarios = dynamodb.Table(USUARIOS_TABLE)
 clientes_table = dynamodb.Table(CLIENTES_TABLE)
 inventario_table = dynamodb.Table(INVENTARIO_TABLE) if INVENTARIO_TABLE else None
 
-# ── Template cache (per Lambda invocation) ────────────────────────────────────
-_template_cache = {}
-
 def _get_template(tipo):
-    """Returns (titulo, mensaje) from DynamoDB, falling back to defaults."""
-    if tipo in _template_cache:
-        return _template_cache[tipo]
+    """Returns (titulo, mensaje) from DynamoDB, falling back to defaults.
+
+    The templates are editable from Configuracion, so this must always read the
+    current value. Warm Lambda containers can keep old in-memory values alive.
+    """
     try:
         item = usuarios.get_item(
             Key={'pk': 'CONFIG#EMAIL_TEMPLATES', 'sk': tipo}
         ).get('Item', {})
         if item.get('titulo') and item.get('mensaje'):
-            result = (item['titulo'], item['mensaje'])
-            _template_cache[tipo] = result
-            return result
+            return item['titulo'], item['mensaje']
     except Exception as e:
         logger.warning(f'No se pudo leer template {tipo}: {e}')
     return None, None  # caller uses hardcoded default
+
+
+def _notificacion_activa(tipo):
+    """Fail-open: existing notifications remain enabled if config cannot be read."""
+    try:
+        item = usuarios.get_item(
+            Key={'pk': 'CONFIG#EMAIL_TEMPLATES', 'sk': tipo},
+            ProjectionExpression='activo',
+        ).get('Item', {})
+        return item.get('activo', True) is not False
+    except Exception as e:
+        logger.warning(f'No se pudo leer estado de notificacion {tipo}: {e}')
+        return True
 
 
 def handler(event, context):
@@ -153,6 +165,38 @@ def _tabla_datos(filas):
     return f'<table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px">{rows_html}</table>'
 
 
+def _texto_multilinea_html(texto):
+    """Escapes configured text and keeps line breaks visible in HTML emails."""
+    return '<br>'.join(escape(str(texto or '')).splitlines())
+
+
+def _formatear_fecha_correo(fecha):
+    """Formats email dates as DD/MM/YYYY without time or timezone."""
+    if not fecha:
+        return ''
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(str(fecha).replace('Z', '+00:00'))
+        return dt.strftime('%d/%m/%Y')
+    except Exception:
+        texto = str(fecha)
+        if len(texto) >= 10:
+            partes = texto[:10].split('-')
+            if len(partes) == 3:
+                return f'{partes[2]}/{partes[1]}/{partes[0]}'
+        return texto
+
+
+def _sustituir_variables(texto, vars_dict):
+    """Replace known placeholders in editable email templates."""
+    resultado = str(texto or '')
+    for key, value in (vars_dict or {}).items():
+        pattern = re.compile(r'\{' + re.escape(str(key)) + r'\}?(?![A-Za-z0-9_])', re.IGNORECASE)
+        resultado = pattern.sub(str(value or ''), resultado)
+    resultado = re.sub(r'\{fecha\}?(?![A-Za-z0-9_])', '', resultado, flags=re.IGNORECASE)
+    return resultado
+
+
 def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensaje):
     """
     Reads template from DynamoDB (or uses defaults), substitutes variables,
@@ -163,19 +207,39 @@ def _render_template(tipo, vars_dict, filas_datos, default_titulo, default_mensa
     mensaje = mensaje_tpl or default_mensaje
 
     # Safe variable substitution — ignore unknown keys
-    try:
-        mensaje = mensaje.format(**vars_dict)
-    except (KeyError, ValueError):
-        pass
+    titulo = _sustituir_variables(titulo, vars_dict)
+    mensaje = _sustituir_variables(mensaje, vars_dict)
 
+    titulo_html = escape(str(titulo or ''))
+    mensaje_html = _texto_multilinea_html(mensaje)
     pie = '<br><p style="color:#aaa;font-size:12px;margin:0">(Mensaje automático)</p>'
     cuerpo = f'''
-        <h3 style="color:#1a3c5e;margin-top:0;font-size:16px">{titulo}</h3>
-        <p style="margin:0 0 10px">{mensaje}</p>
+        <h3 style="color:#1a3c5e;margin-top:0;font-size:16px">{titulo_html}</h3>
+        <div style="margin:0 0 10px;line-height:1.5">{mensaje_html}</div>
         {_tabla_datos(filas_datos)}
         {pie}
     '''
     return titulo, cuerpo
+
+
+def _nombre_unidad(unidad_id_o_nombre, proyecto_id=''):
+    """
+    Returns the human-readable unit name.
+    If the value looks like an internal UUID (8 chars alphanumeric), look up id_unidad from inventory.
+    """
+    if not unidad_id_o_nombre:
+        return ''
+    # If it looks like a UUID (8 uppercase alphanumeric chars), resolve it
+    import re
+    if re.match(r'^[A-Z0-9]{8}$', str(unidad_id_o_nombre)) and inventario_table and proyecto_id:
+        try:
+            item = inventario_table.get_item(
+                Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id_o_nombre}'}
+            ).get('Item', {})
+            return item.get('id_unidad') or unidad_id_o_nombre
+        except Exception:
+            pass
+    return unidad_id_o_nombre
 
 
 def _firma():
@@ -214,7 +278,13 @@ def _wrap(contenido):
 
 
 def _enviar(destinatarios, asunto, cuerpo_html):
-    destinatarios = [d for d in destinatarios if d]
+    seen = set()
+    dedup = []
+    for d in destinatarios:
+        if d and d.lower() not in seen:
+            seen.add(d.lower())
+            dedup.append(d)
+    destinatarios = dedup
     if not destinatarios:
         logger.warning('Sin destinatarios, email no enviado')
         return
@@ -236,7 +306,7 @@ def _bloqueo_registrado(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
     correos = _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id', ''), msg.get('proyecto_id', ''))
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     fecha_bloqueo = meta.get('fecha_bloqueo', '')
@@ -245,8 +315,8 @@ def _bloqueo_registrado(msg):
     horas = meta.get('horas', 48)
     cliente = _nombre_cliente(cliente_cedula, inmo_id, msg.get('proyecto_id', '')) if cliente_cedula else ''
 
-    fecha_bloqueo_fmt = fecha_bloqueo[:19].replace("T", " ") + " UTC" if fecha_bloqueo else ''
-    fecha_liberacion_fmt = fecha_liberacion[:19].replace("T", " ") + " UTC" if fecha_liberacion else ''
+    fecha_bloqueo_fmt = _formatear_fecha_correo(fecha_bloqueo)
+    fecha_liberacion_fmt = _formatear_fecha_correo(fecha_liberacion)
 
     filas = [
         ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
@@ -257,70 +327,77 @@ def _bloqueo_registrado(msg):
     titulo, cuerpo = _render_template('bloqueo_registrado', vars_dict, filas,
         'Nuevo bloqueo registrado',
         'Le informamos que se ha registrado un nuevo bloqueo en el sistema.')
-    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
+    _enviar(correos, titulo, cuerpo)
 
 
 def _alerta_vencimiento(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
     correos = _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    proyecto_id = msg.get('proyecto_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    fecha_liberacion = meta.get('fecha_liberacion', '')
-    fecha_fmt = ''
-    if fecha_liberacion:
-        try:
-            from datetime import datetime
-            dt = datetime.fromisoformat(fecha_liberacion.replace('Z', '+00:00'))
-            fecha_fmt = dt.strftime('%d/%m/%Y %H:%M UTC')
-        except:
-            fecha_fmt = fecha_liberacion[:19].replace("T", " ") + " UTC"
+    fecha_liberacion = meta.get('fecha_liberacion') or msg.get('fecha_liberacion', '')
+    fecha_fmt = _formatear_fecha_correo(fecha_liberacion)
 
     filas = [('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Vence el', fecha_fmt)]
-    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
     titulo, cuerpo = _render_template('alerta_vencimiento', vars_dict, filas,
         '⚠️ Bloqueo próximo a vencer',
         'El siguiente bloqueo está próximo a vencer. Si necesita más tiempo, comuníquese con el administrador.')
-    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
+    _enviar(correos, titulo, cuerpo)
 
 
 def _liberacion_automatica(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
-    correos = _correos_inmobiliaria(inmo_id)
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    proyecto_id = msg.get('proyecto_id', '')
+    cedula = msg.get('cliente_cedula', '') or meta.get('cedula', '') or meta.get('cliente_cedula', '')
+    correo_cliente = _correo_cliente(cedula, inmo_id, proyecto_id) if cedula else ''
+    correos = [correo_cliente] + _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    fecha = meta.get('fecha_liberacion', '')
-    fecha_fmt = ''
-    if fecha:
-        try:
-            from datetime import datetime
-            dt = datetime.fromisoformat(fecha.replace('Z', '+00:00'))
-            fecha_fmt = dt.strftime('%d/%m/%Y %H:%M UTC')
-        except:
-            fecha_fmt = fecha[:19].replace("T", " ") + " UTC"
+    fecha = meta.get('fecha_liberacion') or msg.get('fecha_liberacion', '')
+    fecha_fmt = _formatear_fecha_correo(fecha)
+    cliente = _nombre_cliente(cedula, inmo_id, proyecto_id) if cedula else ''
 
-    filas = [('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Liberada el', fecha_fmt)]
-    vars_dict = {'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    filas = [
+        ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
+        ('Cliente', cliente), ('Liberada el', fecha_fmt),
+    ]
+    vars_dict = {'cliente': cliente, 'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
     titulo, cuerpo = _render_template('liberacion_automatica', vars_dict, filas,
         'Bloqueo liberado por vencimiento',
         'El tiempo de bloqueo expiró y la unidad quedó disponible automáticamente.')
-    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
+    _enviar(correos, titulo, cuerpo)
 
 
 def _liberacion_manual(msg):
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
-    correos = _correos_inmobiliaria(inmo_id)
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    proyecto_id = msg.get('proyecto_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    liberado_por = meta.get('liberado_por', 'Administrador')
-    justificacion = meta.get('justificacion', '')
-    cedula = meta.get('cedula', '')
+    liberado_por = meta.get('liberado_por') or msg.get('liberado_por', 'Administrador')
+    justificacion = meta.get('justificacion') or msg.get('justificacion', '')
+    cedula = meta.get('cedula') or msg.get('cedula', '')
     cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else ''
+    notificar = msg.get('notificar')
+    if notificar in (False, 'false', None):
+        logger.info('liberacion_manual sin notificar, omitiendo email')
+        return
+
+    correos_inmo = _correos_inmobiliaria(inmo_id)
+    correo_cliente = _correo_cliente(cedula, inmo_id, proyecto_id) if cedula else ''
+    if notificar == 'todos':
+        correos = [correo_cliente] + correos_inmo + [ADMIN_EMAIL]
+    elif notificar == 'admin':
+        correos = [ADMIN_EMAIL]
+    else:
+        correos = correos_inmo
 
     filas = [
         ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
@@ -330,7 +407,7 @@ def _liberacion_manual(msg):
     titulo, cuerpo = _render_template('liberacion_manual', vars_dict, filas,
         'Bloqueo liberado manualmente',
         'El bloqueo de la unidad ha sido liberado manualmente por un administrador.')
-    _enviar(correos, f'{titulo} — {unidad}', cuerpo)
+    _enviar(correos, titulo, cuerpo)
 
 
 def _cambio_estatus(msg):
@@ -343,8 +420,9 @@ def _cambio_estatus(msg):
     inmo_id = msg.get('inmobiliaria_id', '')
     cedula = msg.get('cedula', '') or meta.get('cedula', '')
     proyecto_id = msg.get('proyecto_id', '')
+    estatus_anterior = msg.get('estatus_anterior', '') or meta.get('estatus_anterior', '')
     nuevo_estatus = msg.get('estatus_nuevo', '') or meta.get('nuevo_estatus', '')
-    unidad = msg.get('unidad_nombre', '') or meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    unidad = _nombre_unidad(msg.get('unidad_nombre', '') or meta.get('unidad_nombre') or meta.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(proyecto_id)
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     cliente_nombre = f"{msg.get('nombres', '')} {msg.get('apellidos', '')}".strip()
@@ -378,19 +456,42 @@ def _cambio_estatus(msg):
         'vendida':          ('Gracias por su compra', 'La unidad {unidad} correspondiente al cliente {cliente} ha sido entregada satisfactoriamente.'),
         'desvinculado':     ('Cliente desvinculado', 'El cliente {cliente} ha sido desvinculado del proceso de compra de la unidad {unidad}.'),
     }
-    default_titulo, default_mensaje = defaults.get(nuevo_estatus, (f'Actualización — {nuevo_estatus}', ''))
-    titulo, cuerpo = _render_template(tipo, vars_dict, filas, default_titulo, default_mensaje)
-    _enviar(destinatarios, f'{titulo} — {proyecto}', cuerpo)
+    orden_flujo = {
+        'captacion': 0,
+        'reserva': 1,
+        'separacion': 2,
+        'pagos_atrasados': 3,
+        'inicial': 4,
+        'contra_entrega': 5,
+        'vendida': 6,
+    }
+    es_retroceso = (
+        estatus_anterior in orden_flujo and
+        nuevo_estatus in orden_flujo and
+        orden_flujo[nuevo_estatus] < orden_flujo[estatus_anterior]
+    )
+    if es_retroceso:
+        template_tipo = 'cambio_estatus_actualizacion'
+        default_titulo = 'Actualizacion de estatus'
+        default_mensaje = 'Se ha realizado una correccion en el proceso de la unidad {unidad} a nombre de {cliente}.'
+    else:
+        template_tipo = tipo
+        default_titulo, default_mensaje = defaults.get(
+            nuevo_estatus,
+            ('Actualizacion de estatus', 'Se ha realizado una actualizacion en el proceso de la unidad {unidad} a nombre de {cliente}.')
+        )
+    titulo, cuerpo = _render_template(template_tipo, vars_dict, filas, default_titulo, default_mensaje)
+    _enviar(destinatarios, titulo, cuerpo)
 
 
 def _alerta_separacion_vencida(msg):
     meta = msg.get('metadata', {})
-    cedula = meta.get('cedula', '')
+    cedula = meta.get('cedula') or msg.get('cedula', '')
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
-    unidad = meta.get('unidad_nombre') or meta.get('unidad_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_nombre') or msg.get('unidad_id', ''), msg.get('proyecto_id', ''))
     inmo_id = msg.get('inmobiliaria_id', '')
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
-    dias = meta.get('dias_sin_pago', 30)
+    dias = meta.get('dias_sin_pago') or msg.get('dias_sin_pago', 30)
     cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else cedula
 
     filas = [('Cliente', cliente), ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre)]
@@ -398,7 +499,7 @@ def _alerta_separacion_vencida(msg):
     titulo, cuerpo = _render_template('alerta_separacion_vencida', vars_dict, filas,
         '⚠️ Separación vencida sin pago',
         f'Han transcurrido {dias} días desde la separación sin registrar pago.')
-    _enviar([ADMIN_EMAIL], f'{titulo} — {cedula}', cuerpo)
+    _enviar([ADMIN_EMAIL], titulo, cuerpo)
 
 
 def _cliente_captado(msg):
@@ -411,20 +512,24 @@ def _cliente_captado(msg):
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
     cliente = f'{nombres} {apellidos} ({cedula})'.strip()
     fecha = msg.get('timestamp', '')
-    fecha_fmt = fecha[:19].replace("T", " ") + " UTC" if fecha else ''
+    fecha_fmt = _formatear_fecha_correo(fecha)
 
     filas = [
         ('Nombre', f'{nombres} {apellidos}'), ('Cédula', cedula),
         ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre), ('Fecha', fecha_fmt),
     ]
-    vars_dict = {'cliente': cliente, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre, 'fecha': fecha_fmt}
+    vars_dict = {'cliente': cliente, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
     titulo, cuerpo = _render_template('cliente_captado', vars_dict, filas,
         'Nuevo cliente captado',
         'Se ha registrado un nuevo cliente en el sistema.')
-    _enviar([ADMIN_EMAIL], f'{titulo} — {nombres} {apellidos}', cuerpo)
+    _enviar([ADMIN_EMAIL], titulo, cuerpo)
 
 
 def _exclusividad_vencida(msg):
+    if not _notificacion_activa('exclusividad_vencida'):
+        logger.info('Notificacion exclusividad_vencida desactivada; correo omitido')
+        return
+
     meta = msg.get('metadata', {})
     cedula = meta.get('cedula', '')
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
@@ -438,7 +543,7 @@ def _exclusividad_vencida(msg):
     titulo, cuerpo = _render_template('exclusividad_vencida', vars_dict, filas,
         'Exclusividad de cliente vencida',
         'El período de exclusividad de 3 meses ha expirado. La unidad quedó disponible para otras inmobiliarias.')
-    _enviar([ADMIN_EMAIL] + correos_inmo, f'{titulo} — {cedula}', cuerpo)
+    _enviar([ADMIN_EMAIL] + correos_inmo, titulo, cuerpo)
 
 
 def _intento_duplicado(msg):
@@ -462,4 +567,4 @@ def _intento_duplicado(msg):
     titulo, cuerpo = _render_template('intento_duplicado', vars_dict, filas,
         '⚠️ Intento de captación duplicada bloqueado',
         'Una inmobiliaria intentó captar un cliente que ya tiene exclusividad activa con otra inmobiliaria.')
-    _enviar([ADMIN_EMAIL], f'{titulo} — {cedula}', cuerpo)
+    _enviar([ADMIN_EMAIL], titulo, cuerpo)

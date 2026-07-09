@@ -16,6 +16,8 @@ import CapturaGlobalPage from './pages/captura/CapturaGlobalPage';
 import MfaSetupPage from './pages/auth/MfaSetupPage';
 import MigracionPage from './pages/migracion/MigracionPage';
 import ConfigPage from './pages/config/ConfigPage';
+import CampaniasPage from './pages/campanias/CampaniasPage';
+import InventarioPublicoPage from './pages/inventario/InventarioPublicoPage';
 
 const App = () => (
   <BrowserRouter>
@@ -25,6 +27,7 @@ const App = () => (
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/captura" element={<CapturaPage />} />
         <Route path="/captura-global" element={<CapturaGlobalPage />} />
+        <Route path="/inventario-publico/:proyectoId" element={<InventarioPublicoPage />} />
         <Route path="/mfa-setup" element={<MfaSetupPage />} />
         <Route
           path="/"
@@ -56,7 +59,7 @@ const App = () => (
           <Route
             path="inmobiliarias"
             element={
-              <ProtectedRoute roles={['admin']}>
+              <ProtectedRoute roles={['admin', 'coordinador']}>
                 <InmobiliariasPage />
               </ProtectedRoute>
             }
@@ -72,7 +75,7 @@ const App = () => (
           <Route
             path="sistema/usuarios"
             element={
-              <ProtectedRoute roles={['admin']}>
+              <ProtectedRoute roles={['admin', 'coordinador']}>
                 <UsuariosSistemaPage />
               </ProtectedRoute>
             }
@@ -88,8 +91,16 @@ const App = () => (
           <Route
             path="config"
             element={
-              <ProtectedRoute roles={['admin']}>
+              <ProtectedRoute roles={['admin', 'coordinador']}>
                 <ConfigPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="campanias"
+            element={
+              <ProtectedRoute roles={['admin', 'coordinador', 'supervisor']}>
+                <CampaniasPage />
               </ProtectedRoute>
             }
           />

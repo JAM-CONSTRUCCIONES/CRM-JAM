@@ -6,7 +6,7 @@ import os
 import logging
 
 bedrock_client = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-BEDROCK_MODEL  = 'us.anthropic.claude-3-5-haiku-20241022-v1:0'
+BEDROCK_MODEL  = 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
 logger         = logging.getLogger()
 
 
@@ -19,9 +19,15 @@ def llamar_bedrock(headers, nombres, inmos_excel, inmos_sistema):
         "Eres un asistente de migración de datos inmobiliarios. "
         "Responde SOLO con JSON válido, sin texto adicional.\n\n"
         f"HEADERS DEL EXCEL: {json.dumps(headers)}\n\n"
-        "SCHEMA ESPERADO: unidad, Area, No Cuartos, No. baños, Tipo, Piso, Parqueos, "
-        "NOMBRE CLIENTE, Precios US$, ESTATUS, INMOBILIARIA, FECHA BLOQUEO, "
-        "FECHA FIN BLOQUEO/ PAGO SEPARACION, COMENTARIO\n\n"
+        "SCHEMA ESPERADO: ID Unidad, Etapa, Tipo, Manzana, Piso, Metraje, "
+        "Metraje Terraza, Metraje Patio, Cuartos, Banos, Parqueos, Precio, "
+        "Precio Reserva, Precio Separacion, Precio Inicial, Cuota Monto, "
+        "Cuota Meses, Contra Entrega, Estado, Documento, Cliente Nombre, "
+        "Cliente Telefono, Cliente Correo, Fecha Nacimiento, Pais Residencia, "
+        "Nacionalidad, Inmobiliaria, Estado Proceso, Fecha Bloqueo, "
+        "Fecha Liberacion, Comentario.\n"
+        "Si un header ya coincide exactamente con el schema, conserva ese header. "
+        "Usa column_map solo para headers con nombres diferentes o ambiguos.\n\n"
         f"NOMBRES A SEPARAR (hispanos, 1-2 nombres + 2 apellidos):\n{json.dumps(nombres[:50])}\n\n"
         f"INMOBILIARIAS EN EXCEL: {json.dumps(inmos_excel)}\n"
         f"INMOBILIARIAS EN SISTEMA: {json.dumps(inmos_sistema)}\n\n"

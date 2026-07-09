@@ -188,7 +188,8 @@ export class JamStack extends cdk.Stack {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-proyectos')),
-      timeout: cdk.Duration.seconds(30),
+      // 60s: cada paso del SF de eliminación puede tomar hasta ~50s (schedules en proyectos grandes)
+      timeout: cdk.Duration.seconds(60),
       environment: {
         INVENTARIO_TABLE: inventarioTable.tableName,
         USUARIOS_TABLE: usuariosTable.tableName,
@@ -196,7 +197,8 @@ export class JamStack extends cdk.Stack {
     });
 
     inventarioTable.grantReadWriteData(proyectosLambda);
-    usuariosTable.grantReadData(proyectosLambda);
+    // Necesita escritura para desvincular el proyecto de las inmobiliarias al eliminar
+    usuariosTable.grantReadWriteData(proyectosLambda);
 
     // ─── DYNAMODB jam-clientes ───────────────────────────────────────────────
 
@@ -272,6 +274,14 @@ export class JamStack extends cdk.Stack {
 
     const historialTable = new dynamodb.Table(this, 'JamHistorialBloqueosTable', {
       tableName: resourceName('jam-historial-bloqueos'),
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    const campaniasTable = new dynamodb.Table(this, 'JamCampaniasTable', {
+      tableName: resourceName('jam-campanias'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -401,6 +411,7 @@ export class JamStack extends cdk.Stack {
     proyectosLambda.addEnvironment('HISTORIAL_TABLE', historialTable.tableName);
     proyectosLambda.addEnvironment('SCHEDULER_ROLE_ARN', schedulerRole.roleArn);
     proyectosLambda.addEnvironment('BLOQUEOS_LAMBDA_ARN', bloqueosLambdaArn);
+    proyectosLambda.addEnvironment('CAPTACION_LAMBDA_ARN', captacionLambdaArn);
     historialTable.grantReadWriteData(proyectosLambda);
 
     // Permisos para crear y eliminar schedules en jam-proyectos
@@ -413,6 +424,98 @@ export class JamStack extends cdk.Stack {
       actions: ['iam:PassRole'],
       resources: [schedulerRole.roleArn],
     }));
+
+    // ─── STEP FUNCTION: Eliminar Proyecto ────────────────────────────────────
+    // Soluciona el timeout de 30s al dividir la eliminación en 5 pasos independientes.
+    // Cada paso tiene sus propios logs en /aws/lambda/jam-proyectos (buscar [sf_X]).
+    //
+    // IMPORTANTE: El ARN se construye manualmente ANTES de crear la SF para romper la
+    // dependencia circular (Lambda → SF ARN → SF → Lambda permission → Lambda → ∞).
+    const eliminarProyectoSFArn = `arn:aws:states:${this.region}:${this.account}:stateMachine:${resourceName('jam-eliminar-proyecto')}`;
+    proyectosLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['states:StartExecution'],
+      resources: [eliminarProyectoSFArn],
+    }));
+    proyectosLambda.addEnvironment('ELIMINAR_PROYECTO_SF_ARN', eliminarProyectoSFArn);
+
+    const sfEliminarPreparar = new tasks.LambdaInvoke(this, 'EliminarPreparar', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Valida el proyecto y cuenta unidades/procesos/clientes',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_preparar',
+        'proyecto_id.$': '$.proyecto_id',
+      }),
+      outputPath: '$.Payload',
+    });
+
+    const sfEliminarSchedules = new tasks.LambdaInvoke(this, 'EliminarSchedules', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Cancela todos los schedules de EventBridge del proyecto',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_schedules',
+        'proyecto_id.$': '$.proyecto_id',
+        'total_unidades.$': '$.total_unidades',
+        'total_procesos.$': '$.total_procesos',
+        'total_clientes.$': '$.total_clientes',
+      }),
+      outputPath: '$.Payload',
+      // Puede durar hasta ~50s en proyectos con muchas unidades (era el cuello de botella)
+      taskTimeout: sfn.Timeout.duration(cdk.Duration.seconds(90)),
+    });
+
+    const sfEliminarDesvincular = new tasks.LambdaInvoke(this, 'EliminarDesvincular', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Marca procesos y clientes como desvinculados',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_desvincular',
+        'proyecto_id.$': '$.proyecto_id',
+        'total_unidades.$': '$.total_unidades',
+        'schedules_cancelados.$': '$.schedules_cancelados',
+      }),
+      outputPath: '$.Payload',
+    });
+
+    const sfEliminarInventario = new tasks.LambdaInvoke(this, 'EliminarInventario', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Borra historial de bloqueos y todas las unidades del inventario',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_inventario',
+        'proyecto_id.$': '$.proyecto_id',
+        'total_unidades.$': '$.total_unidades',
+        'schedules_cancelados.$': '$.schedules_cancelados',
+        'procesos_desvinculados.$': '$.procesos_desvinculados',
+        'clientes_desvinculados.$': '$.clientes_desvinculados',
+      }),
+      outputPath: '$.Payload',
+    });
+
+    const sfEliminarFinalizar = new tasks.LambdaInvoke(this, 'EliminarFinalizar', {
+      lambdaFunction: proyectosLambda,
+      comment: 'Soft-delete del proyecto y desvinculación de inmobiliarias',
+      payload: sfn.TaskInput.fromObject({
+        action: 'sf_eliminar_finalizar',
+        'proyecto_id.$': '$.proyecto_id',
+        'total_unidades.$': '$.total_unidades',
+        'schedules_cancelados.$': '$.schedules_cancelados',
+        'procesos_desvinculados.$': '$.procesos_desvinculados',
+        'clientes_desvinculados.$': '$.clientes_desvinculados',
+        'inventario_eliminado.$': '$.inventario_eliminado',
+        'historial_eliminado.$': '$.historial_eliminado',
+      }),
+      outputPath: '$.Payload',
+    });
+
+    const eliminarProyectoSF = new sfn.StateMachine(this, 'EliminarProyectoSF', {
+      stateMachineName: resourceName('jam-eliminar-proyecto'),
+      definitionBody: sfn.DefinitionBody.fromChainable(
+        sfEliminarPreparar
+          .next(sfEliminarSchedules)
+          .next(sfEliminarDesvincular)
+          .next(sfEliminarInventario)
+          .next(sfEliminarFinalizar)
+      ),
+      timeout: cdk.Duration.minutes(10),
+    });
 
     // ─── LAMBDA jam-crm ──────────────────────────────────────────────────────
 
@@ -428,16 +531,30 @@ export class JamStack extends cdk.Stack {
         CLIENTES_TABLE: clientesTable.tableName,
         PROCESOS_TABLE: procesosTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,
+        USUARIOS_TABLE: usuariosTable.tableName,
+        HISTORIAL_TABLE: historialTable.tableName,
         SQS_URL: notificacionesQueue.queueUrl,
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         CRM_LAMBDA_ARN: crmLambdaArn,
+        BLOQUEOS_LAMBDA_ARN: bloqueosLambdaArn,
+        CAPTACION_LAMBDA_ARN: captacionLambdaArn,
       },
     });
 
-    clientesTable.grantReadData(crmLambda);
+    clientesTable.grantReadWriteData(crmLambda);
+    usuariosTable.grantReadData(crmLambda);
     procesosTable.grantReadWriteData(crmLambda);
     inventarioTable.grantReadWriteData(crmLambda);
+    historialTable.grantReadWriteData(crmLambda);
     notificacionesQueue.grantSendMessages(crmLambda);
+    crmLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:TransactWriteItems'],
+      resources: [
+        clientesTable.tableArn,
+        procesosTable.tableArn,
+        inventarioTable.tableArn,
+      ],
+    }));
 
     crmLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['scheduler:CreateSchedule', 'scheduler:DeleteSchedule'],
@@ -452,6 +569,32 @@ export class JamStack extends cdk.Stack {
     schedulerRole.addToPolicy(new iam.PolicyStatement({
       actions: ['lambda:InvokeFunction'],
       resources: [crmLambdaArn],
+    }));
+
+    // ─── LAMBDA jam-campanias ────────────────────────────────────────────────
+
+    const campaniasLambda = new lambda.Function(this, 'JamCampaniasLambda', {
+      functionName: resourceName('jam-campanias'),
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-campanias')),
+      timeout: cdk.Duration.seconds(60),
+      environment: {
+        CLIENTES_TABLE: clientesTable.tableName,
+        PROCESOS_TABLE: procesosTable.tableName,
+        INVENTARIO_TABLE: inventarioTable.tableName,
+        CAMPANIAS_TABLE: campaniasTable.tableName,
+        FROM_EMAIL: notificationEmail,
+      },
+    });
+
+    clientesTable.grantReadData(campaniasLambda);
+    procesosTable.grantReadData(campaniasLambda);
+    inventarioTable.grantReadData(campaniasLambda);
+    campaniasTable.grantReadWriteData(campaniasLambda);
+    campaniasLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: ['*'],
     }));
 
     // ─── LAMBDA jam-transferir-cliente ───────────────────────────────────────
@@ -702,6 +845,7 @@ def handler(event, context):
     const bloqueosLambdaIntegration = new apigateway.LambdaIntegration(bloqueosLambda);
     const captacionLambdaIntegration = new apigateway.LambdaIntegration(captacionLambda);
     const crmLambdaIntegration = new apigateway.LambdaIntegration(crmLambda);
+    const campaniasLambdaIntegration = new apigateway.LambdaIntegration(campaniasLambda);
 
     // /auth
     const authResource = api.root.addResource('auth');
@@ -1058,6 +1202,30 @@ def handler(event, context):
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    // /admin/campanias
+    const adminCampaniasResource = adminResource.addResource('campanias');
+    adminCampaniasResource.addResource('preview').addMethod('POST', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    adminCampaniasResource.addResource('enviar').addMethod('POST', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    adminCampaniasResource.addResource('historial').addMethod('GET', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    const adminCampaniasTemplatesResource = adminCampaniasResource.addResource('templates');
+    adminCampaniasTemplatesResource.addMethod('GET', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    adminCampaniasTemplatesResource.addResource('{template_id}').addMethod('PUT', campaniasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     // /admin/procesos
     adminResource.addResource('procesos').addMethod('GET', crmLambdaIntegration, {
       authorizer: cognitoAuthorizer,
@@ -1169,6 +1337,10 @@ def handler(event, context):
     authLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
     authLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
 
+    assetsBucket.grantReadWrite(campaniasLambda);
+    campaniasLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
+    campaniasLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
+
     // Permisos: proyectosLambda puede leer/escribir en archivos (Excel migrations)
     archivosBucket.grantReadWrite(proyectosLambda);
     proyectosLambda.addEnvironment('ARCHIVOS_BUCKET', archivosBucket.bucketName);
@@ -1186,8 +1358,8 @@ def handler(event, context):
     proyectosLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
       resources: [
-        'arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0',
-        'arn:aws:bedrock:us-east-1:*:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0',
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0',
+        'arn:aws:bedrock:us-east-1:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0',
       ],
     }));
 
@@ -1201,8 +1373,11 @@ def handler(event, context):
       description: 'openpyxl para parseo de archivos Excel',
     });
 
-    // Agregar layer de openpyxl a jam-proyectos para exportación de inventario
+    // Agregar layer de openpyxl a lambdas que generan exportaciones Excel
     proyectosLambda.addLayers(openpyxlLayer);
+    captacionLambda.addLayers(openpyxlLayer);
+    archivosBucket.grantReadWrite(captacionLambda);
+    captacionLambda.addEnvironment('ARCHIVOS_BUCKET', archivosBucket.bucketName);
 
     // ─── LAMBDA jam-excel-parser ─────────────────────────────────────────────
     // Lambda separada para parsear Excel — timeout largo, disparada por evento S3
@@ -1235,8 +1410,8 @@ def handler(event, context):
     excelParserLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
       resources: [
-        'arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0',
-        'arn:aws:bedrock:us-east-1:*:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0',
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0',
+        'arn:aws:bedrock:us-east-1:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0',
       ],
     }));
 
@@ -1277,6 +1452,7 @@ def handler(event, context):
         backup.BackupResource.fromDynamoDbTable(procesosTable),
         backup.BackupResource.fromDynamoDbTable(historialEstatusTable),
         backup.BackupResource.fromDynamoDbTable(historialTable),
+        backup.BackupResource.fromDynamoDbTable(campaniasTable),
       ],
     });
 

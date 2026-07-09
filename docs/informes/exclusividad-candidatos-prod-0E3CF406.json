@@ -1,0 +1,2666 @@
+﻿{
+    "stage":  "prod",
+    "proyecto_id":  "0E3CF406",
+    "clientes_table":  "jam-clientes-prod",
+    "procesos_table":  "jam-procesos-prod",
+    "total_procesos_avanzados":  201,
+    "total_candidatos":  156,
+    "creado_en":  "2026-06-25T20:30:43.2035422Z",
+    "candidatos":  [
+                       {
+                           "cedula":  "MIGPDF0BC7DE141",
+                           "cliente":  "ELBA MIOZOTY APONTE LORENZO",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-19T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-19T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-N-101"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE141-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE141#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE029",
+                           "cliente":  "OLIVER NORT DE JESUS RICARDO Y LIANLLY MAIRINI URIBE GUZMAN",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-17T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-17T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-D-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE029-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE029#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE118",
+                           "cliente":  "LISARDO NATALIS MARTINEZ PICHARDO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-05T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-05T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE118-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE118#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE030",
+                           "cliente":  "RICHARD FRANCISCO MATOS PLATA",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-01T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-01T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-D-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE030-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE030#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406008",
+                           "cliente":  "JAMILET ASHLEY SANTANA",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-08T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-08T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406008-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406008#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406003",
+                           "cliente":  "YERMY DAVID RODRIGUEZ MARTINEZ",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-08T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-08T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-103"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406003-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406003#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE041",
+                           "cliente":  "JENNY DANILDA ABAD VASQUEZ",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-24T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-24T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-F-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE041-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE041#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE162",
+                           "cliente":  "CHRISTOPH RAMON MADDEN",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-25T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-25T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-�-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE162-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE162#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "PAR247386",
+                           "cliente":  "ANGEL ARIEL FELIZ CUEVAS",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T18:53:44.525315+00:00",
+                           "fecha_vencimiento":  "2026-09-24T18:53:44.525315+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-B-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-PAR247386-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#PAR247386#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE035",
+                           "cliente":  "YESSICA ROSSELY BRAZOBAN BRAZOBAN",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-03-31T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-06-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-E-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE035-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE035#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE129",
+                           "cliente":  "QUISANI MERCEDES BATISTA DE OLEO",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-24T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-24T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE129-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE129#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE020",
+                           "cliente":  "EIMY PAMELA MOYA ALCANTARA",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-10T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-10T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-C-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE020-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE020#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406004",
+                           "cliente":  "DEYANIRA ESTEVEZ CACERES",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-104"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406004-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406004#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE058",
+                           "cliente":  "ROBERT STARLING DE LEON VALENZUELA Y LEIDY ELIZABTH TAJADA MARTINEZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-21T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-21T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-H-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE058-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE058#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406028",
+                           "cliente":  "IULISKA JOSEFINA RIVAS SANTOS",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-21T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-21T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-S-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406028-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406028#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE120",
+                           "cliente":  "ERIKA YAHIRA TEJEDA",
+                           "inmobiliaria_id":  "3AA41C60",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-11T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-11T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-304"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE120-3AA41C60-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE120#3AA41C60",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406017",
+                           "cliente":  "WENDY VALDEZ HERASME",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406017-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406017#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "01800510933",
+                           "cliente":  "AIDA LUZ MEDRANO MENDEZ",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T18:47:50.344901+00:00",
+                           "fecha_vencimiento":  "2026-09-24T18:47:50.344901+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-A-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-01800510933-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#01800510933#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE113",
+                           "cliente":  "MARGARITA ROSA REYES HIRALDO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-104"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE113-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE113#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406006",
+                           "cliente":  "RICARDO ALEJANDRINO FERRERAS MENDEZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-16T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-16T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406006-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406006#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "0930605020",
+                           "cliente":  "LEONEL SOSA RODRIGUEZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-27T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-27T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-K-304"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-0930605020-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#0930605020#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE155",
+                           "cliente":  "SAEDY ALFREDO BISONO DIAZ Y DEYSI CAROLINA TAPIA ENCARNACION",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-24T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-24T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-�-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE155-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE155#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE088",
+                           "cliente":  "INAYELIN ESTHER LORENZO MEDINA",
+                           "inmobiliaria_id":  "B2701A95",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-09T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-09T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-J-303"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE088-B2701A95-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE088#B2701A95",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "229763576",
+                           "cliente":  "RIGAUBERT YVRANCE PERCY",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-24T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-24T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "A-K-104"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-229763576-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#229763576#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE135",
+                           "cliente":  "JUSTINE ANTONIA CABASSA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-27T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-27T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE135-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE135#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "00112051875",
+                           "cliente":  "YAMILKA ARIAS GALVA",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-I-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-00112051875-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#00112051875#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE150",
+                           "cliente":  "CAROLA DE JESUS GENAO Y LUIS ALBERTO MARTE ALGARROBO",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-09T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-09T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-N-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE150-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE150#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406022",
+                           "cliente":  "EDDY BENJAMIN CASTILLO TEJADA",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-10T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-10T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-304"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406022-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406022#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406010",
+                           "cliente":  "FRANCISCA YONELY PEREZ FERNANDEZ",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-09T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-09T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-304"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406010-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406010#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "0011839486",
+                           "cliente":  "PABLO JUNIOR ENCARNACION GARCIA FRANKLYN MACKENSI CAPELLAN GUZMAN Y JORGE LUIS CAPELLAN GUZMAN",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-K-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-0011839486-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#0011839486#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406020",
+                           "cliente":  "WANDA LESSITTE VALDEZ HERASME",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-11T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-11T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406020-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406020#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE145",
+                           "cliente":  "RAFAEL EMILIO MOTA HERNANDEZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-13T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-13T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-N-204"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE145-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE145#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "00116579459",
+                           "cliente":  "LAURA MARINA SANTANA DISLA",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-02T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-02T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-K-303"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-00116579459-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#00116579459#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "09300682722",
+                           "cliente":  "ESTEFANY LISVETH SIERRA FERRERAS",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-14T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-14T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-J-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-09300682722-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#09300682722#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406024",
+                           "cliente":  "ELISSETH JOELY MELENCIANO BATISTA",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-18T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-18T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406024-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406024#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE123",
+                           "cliente":  "ROLANDO RIGOBERTO VARGAS GUERRERO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-30T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE123-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE123#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "22301403097",
+                           "cliente":  "ZOILA MADELIN PUJOLS DE LOS SANTOS",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-J-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-22301403097-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#22301403097#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE134",
+                           "cliente":  "ROSILENI ALMONTE MOYA",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-17T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-17T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-303"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE134-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE134#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE121",
+                           "cliente":  "MARCO ALESSANDRO MARQUEZ ABAD",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-04T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-04T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE121-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE121#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40232230256",
+                           "cliente":  "DARLIN GABRIEL ALMANZAR BURGOS Y JULIKA VALESKA SANTANA TAVAREZ",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-01T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-01T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "inicial"
+                                               ],
+                           "unidades":  [
+                                            "A-K-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40232230256-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40232230256#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE161",
+                           "cliente":  "JERONE ANTONIO BROWN",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-25T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-25T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-�-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE161-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE161#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE060",
+                           "cliente":  "RUDIS MORA ALMANZAR",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-19T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-19T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-H-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE060-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE060#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40220092536",
+                           "cliente":  "JOEL DANIEL GARCIA COMAS",
+                           "inmobiliaria_id":  "3AA41C60",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T19:15:49.304021+00:00",
+                           "fecha_vencimiento":  "2026-09-24T19:15:49.304021+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-�-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40220092536-3AA41C60-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40220092536#3AA41C60",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE159",
+                           "cliente":  "KARINA ISABEL HOLGUIN ALVARADO",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-23T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-23T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-�-304"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE159-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE159#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "583546121",
+                           "cliente":  "NELIS CABAN",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-03-30T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-06-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "inicial"
+                                               ],
+                           "unidades":  [
+                                            "A-J-203"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-583546121-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#583546121#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE138",
+                           "cliente":  "AYLING ALTAGRACIA ABREU MONTE DE OCA",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-24T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-24T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE138-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE138#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE050",
+                           "cliente":  "RONNY ROQUE PADILLA",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-07T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-07T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-G-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE050-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE050#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE042",
+                           "cliente":  "KAREN NAZARETH GUZMAN REYES Y LUIS ALEXANDER RODRIGUEZ QUINTANA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-30T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-F-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE042-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE042#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE116",
+                           "cliente":  "ALEJANDRINA BRATINIL GARCIA DE HANDFIELD",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-17T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-17T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-203"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE116-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE116#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE004",
+                           "cliente":  "LILIANA DE LA CRUZ MENDOZA DIOGENES ROJAS HERNANDEZ Y NESTOR DANIEL RAMON DE LA CRUZ",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-03-28T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-06-28T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-A-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE004-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE004#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE010",
+                           "cliente":  "CARMEN ROSALBA PUJOLS LUCIANO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-19T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-19T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-B-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE010-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE010#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406016",
+                           "cliente":  "JUANNY JHUDIEL ALVAREZ NAVA",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-09T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-09T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406016-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406016#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE022",
+                           "cliente":  "ANA ROSA NAZARINA ORTIZ ARACENA Y JUAN ANTONIO ORTIZ ARACENA",
+                           "inmobiliaria_id":  "8F02F676",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-26T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-26T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-C-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE022-8F02F676-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE022#8F02F676",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406007",
+                           "cliente":  "ANNY ESTELA LOPEZ GONZALEZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-203"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406007-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406007#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406025",
+                           "cliente":  "MELYSSA MERCEDES PEREZ SOBA",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-05T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-05T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406025-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406025#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE056",
+                           "cliente":  "RAFAEL LUIS PEREZ BRAZOBAN",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-26T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-26T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-H-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE056-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE056#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406021",
+                           "cliente":  "JASSON ARTURO MEJIA MARTINEZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-08T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-08T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-303"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406021-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406021#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE012",
+                           "cliente":  "SORY ALTAGRACIA DE LOS SANTOS DE LOS SANTOS",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-19T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-19T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-B-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE012-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE012#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE038",
+                           "cliente":  "DOMINGO SEPULVEDA FRIAS",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-28T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-28T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-E-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE038-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE038#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE111",
+                           "cliente":  "ZAIDA JEANNETTE MARTINEZ GUTIERREZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-21T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-21T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE111-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE111#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE036",
+                           "cliente":  "RAFFY ESMIEL MARTINEZ JAQUEZ",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-02T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-02T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-E-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE036-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE036#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406023",
+                           "cliente":  "EROLIN ESTREISY ALVAREZ ALMONTE",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406023-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406023#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406012",
+                           "cliente":  "ENOCK PORSENAT",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406012-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406012#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40213009810",
+                           "cliente":  "KIARA CHAVEZ DE MIR",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-07T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-07T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-J-304"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40213009810-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40213009810#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE124",
+                           "cliente":  "SCARLET CASTRO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-30T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE124-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE124#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40226011696",
+                           "cliente":  "EMILIANO ZAPATA ZARMONA",
+                           "inmobiliaria_id":  "B2701A95",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-09T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-09T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-K-204"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40226011696-B2701A95-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40226011696#B2701A95",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE025",
+                           "cliente":  "LUISANA JOSEFINA JAQUEZ RAMIREZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-03-31T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-06-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-D-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE025-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE025#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE024",
+                           "cliente":  "RAFAEL FRANTI GONZALEZ PEREZ",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-03-30T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-06-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-D-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE024-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE024#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "00112185558",
+                           "cliente":  "PATRICIA ELIZABETH BAEZ FABIAN",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-23T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-23T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "A-J-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-00112185558-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#00112185558#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE037",
+                           "cliente":  "MELISSA SANCHEZ ACOSTA",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-23T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-23T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-E-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE037-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE037#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "03105344455",
+                           "cliente":  "LUIS CARLOS MARTINEZ MARTINEZ",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-07T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-07T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "inicial"
+                                               ],
+                           "unidades":  [
+                                            "A-K-103"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-03105344455-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#03105344455#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40210118523",
+                           "cliente":  "NIURKA CESARINA FERNANDEZ MENDEZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T18:57:32.025991+00:00",
+                           "fecha_vencimiento":  "2026-09-24T18:57:32.025991+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "B-G-101"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40210118523-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40210118523#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE160",
+                           "cliente":  "CARMEN ROSA DE LA CRUZ DE JESUS",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-07T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-07T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-�-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE160-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE160#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE151",
+                           "cliente":  "ROLANDO RIGOBERTO VARGAS GUERRERO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-25T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-25T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-N-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE151-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE151#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE046",
+                           "cliente":  "ALTAGRACIA CEVERINO POLANCO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-21T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-21T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-F-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE046-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE046#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE158",
+                           "cliente":  "NAYELIS NICOLE VALDEZ",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-21T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-21T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-�-303"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE158-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE158#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406018",
+                           "cliente":  "JUANA ZUNILDA SUAZO",
+                           "inmobiliaria_id":  "B2701A95",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-11T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-11T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-203"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406018-B2701A95-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406018#B2701A95",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE139",
+                           "cliente":  "JONATAN ALFONSO MANCEBO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-27T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-27T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE139-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE139#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE133",
+                           "cliente":  "CAONABO JAVIER RAVELO OLIVER",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-18T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-18T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE133-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE133#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406005",
+                           "cliente":  "JASSIEL VALDEZ VALDEZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-08T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-08T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406005-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406005#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE122",
+                           "cliente":  "JAIME JUNIOR URIBE ROJAS",
+                           "inmobiliaria_id":  "E04A9709",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-10T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-10T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE122-E04A9709-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE122#E04A9709",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40256255353",
+                           "cliente":  "CAONABO JAVIER RAVELO OLIVER",
+                           "inmobiliaria_id":  "B2701A95",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T19:12:59.945461+00:00",
+                           "fecha_vencimiento":  "2026-09-24T19:12:59.945461+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-�-101"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40256255353-B2701A95-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40256255353#B2701A95",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "01001203205",
+                           "cliente":  "YOSILANNY LIBELIS LOPEZ DE FREITES",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-03-30T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-06-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "inicial"
+                                               ],
+                           "unidades":  [
+                                            "A-J-204"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-01001203205-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#01001203205#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "00112524103",
+                           "cliente":  "FRANCISCO ANTONIO CRUZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T19:09:40.708165+00:00",
+                           "fecha_vencimiento":  "2026-09-24T19:09:40.708165+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-N-103"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-00112524103-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#00112524103#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "22301012849",
+                           "cliente":  "ANNY ESTEFANI MORA VILLALONA",
+                           "inmobiliaria_id":  "B2701A95",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-21T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-21T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-J-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-22301012849-B2701A95-0E3CF406",
+                           "cliente_pk":  "CLIENTE#22301012849#B2701A95",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE027",
+                           "cliente":  "YANIL BELEN MARTE",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-26T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-26T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-D-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE027-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE027#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406026",
+                           "cliente":  "ROSSY PATRICIA GOMEZ BRITO",
+                           "inmobiliaria_id":  "9C67C3A9",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-22T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-22T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-S-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406026-9C67C3A9-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406026#9C67C3A9",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "22301567230",
+                           "cliente":  "JOEL MARTE PEREZ",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "inicial"
+                                               ],
+                           "unidades":  [
+                                            "A-I-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-22301567230-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#22301567230#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE152",
+                           "cliente":  "NAROLY NAYELY PEREZ BRAZOBAN",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-26T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-26T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-N-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE152-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE152#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "681100974",
+                           "cliente":  "CHRISNEL VERNOT",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-28T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-28T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "A-J-104"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-681100974-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#681100974#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE136",
+                           "cliente":  "CRISTOPHER MARIANO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-24T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-24T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-304"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE136-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE136#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE143",
+                           "cliente":  "BESAVET ELIZABETH VASQUEZ MEJIA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-17T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-17T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-N-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE143-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE143#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE157",
+                           "cliente":  "DOLY MARIA ABREU DE LOS SANTOS",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-12T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-12T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-�-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE157-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE157#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406001",
+                           "cliente":  "BEATRIZ DEL CARMEN INFANTE MENDEZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-10T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-10T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-101"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406001-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406001#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE130",
+                           "cliente":  "MARIA TERESA HERNANDEZ GALVAN",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-25T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-25T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-203"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE130-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE130#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE127",
+                           "cliente":  "ELIZABETH AILYN CAEBALLOS SOTO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-12T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-12T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-103"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE127-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE127#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406011",
+                           "cliente":  "INDHIRA ALTAGRACIA VENTURA DE MARTINEZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-05T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-05T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406011-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406011#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40219174238",
+                           "cliente":  "GENESIS FABIOLA CACERES CAMPUSANO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-10T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-10T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-J-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40219174238-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40219174238#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40224599874",
+                           "cliente":  "DIANA REYES",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T19:02:22.966679+00:00",
+                           "fecha_vencimiento":  "2026-09-24T19:02:22.966679+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "A-I-102",
+                                            "A-I-201",
+                                            "A-K-202",
+                                            "C-L-303"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40224599874-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40224599874#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE044",
+                           "cliente":  "ELIZABETH DE LA CRUZ JEREZ",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-F-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE044-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE044#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE125",
+                           "cliente":  "WILMER ALMANZAR PEGUERO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-26T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-26T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-101"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE125-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE125#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40221075605",
+                           "cliente":  "ANA ESTHER CALDERON ORTIZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-03-31T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-06-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "A-J-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40221075605-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40221075605#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE148",
+                           "cliente":  "CEMIRAMIS YOKASTA VASQUEZ RAMON",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-21T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-21T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-N-304"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE148-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE148#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE057",
+                           "cliente":  "JOSE ALBERTO POLANCO ESTEVEZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-26T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-26T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-H-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE057-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE057#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "00103004255",
+                           "cliente":  "DILANIA ALTAGRACIA MEJIA VARGAS",
+                           "inmobiliaria_id":  "3AA41C60",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T19:08:33.828330+00:00",
+                           "fecha_vencimiento":  "2026-09-24T19:08:33.828330+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-N-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-00103004255-3AA41C60-0E3CF406",
+                           "cliente_pk":  "CLIENTE#00103004255#3AA41C60",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE119",
+                           "cliente":  "RITA MERCEDES ACEVEDO ABREU",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-05T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-05T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE119-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE119#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406027",
+                           "cliente":  "ROSSY PATRICIA GOMEZ BRITO",
+                           "inmobiliaria_id":  "9C67C3A9",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-22T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-22T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-S-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406027-9C67C3A9-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406027#9C67C3A9",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE149",
+                           "cliente":  "ANNY ALTAGRACIA GALVAN MARTINEZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-09T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-09T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-N-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE149-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE149#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE052",
+                           "cliente":  "YOHEIDY MOSQUEA REGALADO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-11T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-11T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-G-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE052-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE052#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406009",
+                           "cliente":  "MILLY MATEO SUERO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-05T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-05T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-303"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406009-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406009#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "708679087",
+                           "cliente":  "SORAIDA DOMINGA PEREZ DE ORTIZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-23T20:38:53.048172+00:00",
+                           "fecha_vencimiento":  "2026-09-23T20:38:53.048172+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-S-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-708679087-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#708679087#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE055",
+                           "cliente":  "DEISY MARGARITA PINALES CHALAS",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-22T16:13:20.471787+00:00",
+                           "fecha_vencimiento":  "2026-09-22T16:13:20.471787+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-H-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE055-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE055#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE144",
+                           "cliente":  "CARLA VICTORIA CABRERA",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-11T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-11T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-N-203"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE144-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE144#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "00200284636",
+                           "cliente":  "CARLOS LINARES CEBALLOS",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-08T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-08T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "inicial"
+                                               ],
+                           "unidades":  [
+                                            "A-K-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-00200284636-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#00200284636#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE033",
+                           "cliente":  "PABLO JUNIOR ENCARNACION GARCIA FRANKLYN MACKENSI CAPELLAN GUZMAN Y JORGE LUIS CAPELLAN GUZMAN",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-E-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE033-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE033#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "R06183262",
+                           "cliente":  "HENRI DE LOS SANTOS CUEVAS",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-10T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-10T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-K-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-R06183262-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#R06183262#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE112",
+                           "cliente":  "JOSE FRANCISCO Y AGUSTINA ESTRELLA DE FRANCISCO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-22T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-22T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-103"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE112-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE112#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE043",
+                           "cliente":  "LIZ YAZMIN CASTRO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-11T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-11T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-F-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE043-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE043#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE117",
+                           "cliente":  "CARMEN YOLANDA ECHAVARRIA PEREZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-18T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-18T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-L-204"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE117-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE117#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE034",
+                           "cliente":  "XAYMARIE NARVAEZ FIGUEROA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-E-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE034-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE034#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE051",
+                           "cliente":  "YESSICA MARIA GALAN SENCION Y YORIBEL SANTANA NERE",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-23T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-23T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-G-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE051-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE051#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE154",
+                           "cliente":  "MIGUELINA MONTERO ENCARNACION",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-�-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE154-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE154#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406002",
+                           "cliente":  "QUIRINO ANTONIO FAMILIA MONTERO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-08T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-08T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406002-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406002#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "02200159487",
+                           "cliente":  "ALCIRA CUEVAS JIMENEZ",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-21T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-21T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "A-K-203"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-02200159487-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#02200159487#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406013",
+                           "cliente":  "JOSWALD LEONARDO MARTINEZ BAUTISTA",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-24T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-24T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406013-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406013#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE153",
+                           "cliente":  "INGRID MARGARITA MENDEZ DEL MONTE",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-13T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-13T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-�-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE153-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE153#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE132",
+                           "cliente":  "LEONARDO ANTONIO TELLERIA SUERO Y SARAH ESTHER FRIAS DE TELLERIA",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-18T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-18T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE132-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE132#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE142",
+                           "cliente":  "AMBIMAR STERCHI MOREL",
+                           "inmobiliaria_id":  "B2701A95",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-N-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE142-B2701A95-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE142#B2701A95",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE131",
+                           "cliente":  "AURIS MERCEDES PAREDES SOLIS",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-28T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-28T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-204"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE131-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE131#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE003",
+                           "cliente":  "MILEYDI ANDREINA LARA DE LOS SANTOS",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-27T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-27T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-A-201"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE003-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE003#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE140",
+                           "cliente":  "NURILENNY BAEZ BOCIO",
+                           "inmobiliaria_id":  "28EF6B83",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-25T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-25T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE140-28EF6B83-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE140#28EF6B83",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE137",
+                           "cliente":  "GISSEL BEXAME MELO HERRERA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-24T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-24T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE137-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE137#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE007",
+                           "cliente":  "ROBERTO DE LOS SANTOS MANZANILLO",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-27T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-27T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-A-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE007-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE007#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40249077286",
+                           "cliente":  "CHRISTIAN SIERRA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-23T19:48:08.256930+00:00",
+                           "fecha_vencimiento":  "2026-09-23T19:48:08.256930+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-�-204"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40249077286-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40249077286#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE061",
+                           "cliente":  "GREYMY ESMIT PE�A DE LA CRUZ",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-15T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-15T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-H-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE061-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE061#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406019",
+                           "cliente":  "ERICK ALEXIS PEREZ ROMERO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-29T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-29T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406019-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406019#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE126",
+                           "cliente":  "DANIEL ALEXANDER BELEN",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-28T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-28T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-M-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE126-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE126#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE045",
+                           "cliente":  "LUZ MEIRY SEVERINO RAMIREZ Y RONALD ENRIQUE SANCHEZ LEON",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-17T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-17T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-F-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE045-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE045#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "22301403444",
+                           "cliente":  "DANIEL ESTEBAN DAVIS GARCIA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-27T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-27T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "A-J-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-22301403444-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#22301403444#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE059",
+                           "cliente":  "BEATRIZ MARTINEZ OGANDO",
+                           "inmobiliaria_id":  "B2701A95",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-11T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-11T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-H-302"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE059-B2701A95-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE059#B2701A95",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406029",
+                           "cliente":  "CAROLINA GUERRERO PADRON",
+                           "inmobiliaria_id":  "18CBEF85",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-18T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-18T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-S-403"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406029-18CBEF85-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406029#18CBEF85",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE053",
+                           "cliente":  "SCARLET JARITZA RAMIREZ ALBRINCOLE",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-13T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-13T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-G-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE053-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE053#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "02700504315",
+                           "cliente":  "LEONEL MAYOVANEX MOTA REYES",
+                           "inmobiliaria_id":  "CC3FC7CD",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-10T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-10T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "A-K-402"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-02700504315-CC3FC7CD-0E3CF406",
+                           "cliente_pk":  "CLIENTE#02700504315#CC3FC7CD",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE021",
+                           "cliente":  "OSMAYLIN RIVERA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-17T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-17T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-C-401"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE021-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE021#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE054",
+                           "cliente":  "ESTEFANY ALTAGRACIA LOPEZ MONOGRO",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-H-101"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE054-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE054#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406015",
+                           "cliente":  "ALTAGRACIA CUELLO",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-18T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-18T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-R-103"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406015-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406015#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE156",
+                           "cliente":  "MELVIN AUGUSTO MARTINEZ ROJAS Y ANA MARIA ABREU DE LOS SANTOS",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-12T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-12T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-�-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE156-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE156#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40240111795",
+                           "cliente":  "YOCAIRA PAMELA PEREZ DEL ORBE",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-07T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-07T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "inicial"
+                                               ],
+                           "unidades":  [
+                                            "A-J-101"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40240111795-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40240111795#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE048",
+                           "cliente":  "BIENVENIDA SANCHEZ MARTINEZ",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-30T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-30T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-G-102"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE048-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE048#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGP0E3CF406014",
+                           "cliente":  "ONANEY SANCHEZ MATOS",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-16T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-09-16T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "D-Q-404"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGP0E3CF406014-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGP0E3CF406014#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40232372835",
+                           "cliente":  "CHRISTOPHER DANIEL MEDINA DE LA CRUZ",
+                           "inmobiliaria_id":  "B12ADBC9",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T19:14:31.043193+00:00",
+                           "fecha_vencimiento":  "2026-09-24T19:14:31.043193+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-�-203"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40232372835-B12ADBC9-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40232372835#B12ADBC9",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "03700601366",
+                           "cliente":  "MARIBEL NU�EZ ROSARIO",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T19:10:54.606602+00:00",
+                           "fecha_vencimiento":  "2026-09-24T19:10:54.606602+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-N-104"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-03700601366-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#03700601366#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE019",
+                           "cliente":  "JOSE UJANEL URE�A URE�A Y PAMELA FRANCHEZCA MENDEZ ESPINOSA",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-04-01T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-07-01T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-C-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE019-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE019#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE146",
+                           "cliente":  "INGRID DEL CARMEN FERNANDEZ MARTE",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-11T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-11T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "separacion"
+                                               ],
+                           "unidades":  [
+                                            "C-N-301"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE146-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE146#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "MIGPDF0BC7DE147",
+                           "cliente":  "RICHARD PERALTA GALVEZ",
+                           "inmobiliaria_id":  "10652D3B",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-05-20T00:00:00+00:00",
+                           "fecha_vencimiento":  "2026-08-20T00:00:00+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "C-N-303"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-MIGPDF0BC7DE147-10652D3B-0E3CF406",
+                           "cliente_pk":  "CLIENTE#MIGPDF0BC7DE147#10652D3B",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       },
+                       {
+                           "cedula":  "40213007517",
+                           "cliente":  "HUASKARINA ALEXANDRA FELIX ZORRILLA",
+                           "inmobiliaria_id":  "FD224023",
+                           "proyecto_id":  "0E3CF406",
+                           "fecha_captacion":  "2026-06-24T19:00:57.146396+00:00",
+                           "fecha_vencimiento":  "2026-09-24T19:00:57.146396+00:00",
+                           "estados_proceso":  [
+                                                   "reserva"
+                                               ],
+                           "unidades":  [
+                                            "B-G-202"
+                                        ],
+                           "schedule_exclusividad":  "exclusividad-40213007517-FD224023-0E3CF406",
+                           "cliente_pk":  "CLIENTE#40213007517#FD224023",
+                           "cliente_sk":  "PROYECTO#0E3CF406"
+                       }
+                   ]
+}

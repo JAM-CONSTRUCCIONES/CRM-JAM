@@ -112,12 +112,19 @@ export interface Bloqueo {
 export type EstadoCliente = 'captacion' | 'reserva' | 'separacion' | 'inicial' | 'pagos_atrasados' | 'contra_entrega' | 'vendida' | 'desvinculado';
 
 export interface HistorialProcesoEntry {
-  estatus_anterior: string;
-  estatus_nuevo: string;
+  tipo?: 'cambio_estatus' | 'traspaso_cliente';
+  estatus_anterior?: string;
+  estatus_nuevo?: string;
   ejecutado_por: string;
   ejecutado_por_nombre: string;
   notificacion_enviada: boolean;
   timestamp: string;
+  cedula_anterior?: string;
+  cliente_anterior_nombre?: string;
+  cedula_nueva?: string;
+  cliente_nuevo_nombre?: string;
+  justificacion?: string;
+  estado_proceso?: string;
 }
 
 export interface Proceso {
@@ -155,4 +162,13 @@ export interface Cliente {
   exclusividad_activa: boolean;
   fecha_captacion: string;
   fecha_vencimiento: string;
+}
+
+export interface ClienteProyecto extends Cliente {
+  estatus: EstadoCliente | 'sin_unidad' | string;
+  estatus_label?: string;
+  unidad_id?: string;
+  unidad_nombre?: string;
+  proceso_pk?: string;
+  proceso_sk?: string;
 }

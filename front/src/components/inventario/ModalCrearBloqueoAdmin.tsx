@@ -5,6 +5,8 @@ import dayjs from 'dayjs';
 import type { Unidad, Cliente } from '../../types';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import { buscarClientesAdmin } from '../../services/clientes.service';
+import { clienteFieldNormalizers, clienteFormRules } from '../../utils/clientesValidation';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../common/CatalogoClienteFields';
 
 const { Text } = Typography;
 
@@ -176,7 +178,7 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
       {/* Info de la unidad */}
       {unidad && (
         <div style={{
-          background: '#e6f4ff', border: '1px solid #91caff', borderRadius: 8,
+          background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8,
           padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <LockOutlined style={{ color: '#1677ff', fontSize: 16 }} />
@@ -234,7 +236,7 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
         {/* Mostrar inmobiliaria seleccionada */}
         {inmobiliariaActual && (
           <div style={{
-            background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8,
+            background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8,
             padding: '8px 12px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <BankOutlined style={{ color: '#52c41a', fontSize: 14 }} />
@@ -329,7 +331,7 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 {/* Mostrar cliente seleccionado */}
                 {clienteSeleccionado && (
                   <div style={{
-                    background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8,
+                    background: 'var(--panel-soft-bg)', border: '1px solid #52c41a', borderRadius: 8,
                     padding: '10px 14px', marginTop: 12,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -357,18 +359,18 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                   style={{ marginBottom: 16 }}
                 />
                 
-                <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true, message: 'Requerido' }]}>
-                  <Input placeholder="V-12345678" />
+                <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}>
+                  <Input placeholder="12345678 o AB123456" />
                 </Form.Item>
                 
                 <Row gutter={12}>
                   <Col span={12}>
-                    <Form.Item name="nombres" label="Nombres" rules={[{ required: true, message: 'Requerido' }]}>
+                    <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}>
                       <Input />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true, message: 'Requerido' }]}>
+                    <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}>
                       <Input />
                     </Form.Item>
                   </Col>
@@ -376,13 +378,13 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 
                 <Row gutter={12}>
                   <Col span={12}>
-                    <Form.Item name="correo" label="Correo">
-                      <Input type="email" />
+                    <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}>
+                      <Input type="email" placeholder="correo@ejemplo.com" />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item name="telefono" label="Teléfono">
-                      <Input placeholder="+58 412 0000000" />
+                    <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}>
+                      <Input inputMode="numeric" placeholder="584120000000" />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -392,24 +394,18 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 </Form.Item>
                 
                 <Form.Item name="estado_civil" label="Estado civil">
-                  <Select allowClear placeholder="Selecciona">
-                    <Select.Option value="soltero">Soltero/a</Select.Option>
-                    <Select.Option value="casado">Casado/a</Select.Option>
-                    <Select.Option value="divorciado">Divorciado/a</Select.Option>
-                    <Select.Option value="viudo">Viudo/a</Select.Option>
-                    <Select.Option value="union_libre">Unión libre</Select.Option>
-                  </Select>
+                  <EstadoCivilSelect />
                 </Form.Item>
                 
                 <Row gutter={12}>
                   <Col span={12}>
                     <Form.Item name="nacionalidad" label="Nacionalidad">
-                      <Input />
+                      <NacionalidadSelect />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
                     <Form.Item name="pais_residencia" label="País de residencia">
-                      <Input />
+                      <PaisResidenciaSelect />
                     </Form.Item>
                   </Col>
                 </Row>

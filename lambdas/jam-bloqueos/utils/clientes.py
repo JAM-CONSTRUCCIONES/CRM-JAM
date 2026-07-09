@@ -2,6 +2,7 @@
 import boto3
 import json
 import os
+import re
 from datetime import datetime, timezone, date
 from boto3.dynamodb.conditions import Key, Attr
 
@@ -9,6 +10,28 @@ dynamodb = boto3.resource('dynamodb')
 scheduler_client = boto3.client('scheduler')
 
 MESES_EXCLUSIVIDAD = 3
+EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
+CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ .-]+$')
+PAISES_VALIDOS = {
+    'Alemania', 'Argentina', 'Australia', 'Belgica', 'Bolivia', 'Brasil', 'Canada',
+    'Chile', 'China', 'Colombia', 'Corea del Sur', 'Costa Rica', 'Cuba', 'Ecuador',
+    'El Salvador', 'Espana', 'Estados Unidos', 'Francia', 'Guatemala', 'Haiti',
+    'Honduras', 'India', 'Italia', 'Japon', 'Marruecos', 'Mexico', 'Nicaragua',
+    'Nigeria', 'Paises Bajos', 'Panama', 'Paraguay', 'Peru', 'Portugal',
+    'Puerto Rico', 'Reino Unido', 'Republica Dominicana', 'Rusia', 'Sudafrica',
+    'Suiza', 'Uruguay', 'Venezuela',
+}
+NACIONALIDADES_VALIDAS = {
+    'Alemana', 'Argentina', 'Australiana', 'Belga', 'Boliviana', 'Brasilena',
+    'Britanica', 'Canadiense', 'Chilena', 'China', 'Colombiana', 'Costarricense',
+    'Cubana', 'Dominicana', 'Ecuatoriana', 'Espanola', 'Estadounidense',
+    'Francesa', 'Guatemalteca', 'Haitiana', 'Hondurena', 'India', 'Italiana',
+    'Japonesa', 'Marroqui', 'Mexicana', 'Neerlandesa', 'Nicaraguense',
+    'Nigeriana', 'Panamena', 'Paraguaya', 'Peruana', 'Portuguesa',
+    'Puertorriquena', 'Rusa', 'Salvadorena', 'Sudafricana', 'Surcoreana',
+    'Suiza', 'Uruguaya', 'Venezolana',
+}
 
 
 def _now():
@@ -22,6 +45,73 @@ def _calcular_edad(fecha_nacimiento: str):
         return hoy.year - nacimiento.year - ((hoy.month, hoy.day) < (nacimiento.month, nacimiento.day))
     except (ValueError, TypeError):
         return None
+
+
+def _clean_spaces(value):
+    return ' '.join(str(value or '').strip().split())
+
+
+def _normalizar_nombre(value):
+    return _clean_spaces(value).upper()
+
+
+def _normalizar_cedula(value):
+    cedula = _clean_spaces(value).upper()
+    if not cedula:
+        return ''
+    if not DOCUMENTO_RE.match(cedula):
+        raise ValueError('La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos')
+    return cedula
+
+
+def _normalizar_correo(value):
+    correo = _clean_spaces(value).lower()
+    if not correo:
+        return ''
+    if not EMAIL_RE.match(correo):
+        raise ValueError('El correo debe tener un formato valido y dominio con punto')
+    return correo
+
+
+def _normalizar_telefono(value):
+    raw = _clean_spaces(value)
+    if not raw:
+        return ''
+    if not raw.isdigit():
+        raise ValueError('El telefono solo debe contener numeros')
+    return raw
+
+
+def _validar_catalogos_cliente(data):
+    nacionalidad = _clean_spaces(data.get('nacionalidad'))
+    pais_residencia = _clean_spaces(data.get('pais_residencia'))
+    if nacionalidad and not CATALOGO_TEXTO_RE.match(nacionalidad):
+        raise ValueError('Selecciona una nacionalidad valida')
+    if pais_residencia and not CATALOGO_TEXTO_RE.match(pais_residencia):
+        raise ValueError('Selecciona un pais de residencia valido')
+    if 'nacionalidad' in data:
+        data['nacionalidad'] = nacionalidad
+    if 'pais_residencia' in data:
+        data['pais_residencia'] = pais_residencia
+
+
+def _normalizar_datos_cliente(datos_cliente):
+    data = dict(datos_cliente or {})
+    try:
+        if 'nombres' in data:
+            data['nombres'] = _normalizar_nombre(data.get('nombres'))
+        if 'apellidos' in data:
+            data['apellidos'] = _normalizar_nombre(data.get('apellidos'))
+        if 'cedula' in data:
+            data['cedula'] = _normalizar_cedula(data.get('cedula'))
+        if 'correo' in data:
+            data['correo'] = _normalizar_correo(data.get('correo'))
+        if 'telefono' in data:
+            data['telefono'] = _normalizar_telefono(data.get('telefono'))
+        _validar_catalogos_cliente(data)
+    except ValueError as exc:
+        return None, str(exc)
+    return data, None
 
 
 def _add_months(dt: datetime, months: int) -> datetime:
@@ -87,6 +177,9 @@ def registrar_cliente_y_proceso(
 
     clientes = dynamodb.Table(clientes_table)
     procesos = dynamodb.Table(procesos_table)
+    datos_cliente, error = _normalizar_datos_cliente(datos_cliente)
+    if error:
+        return False, error
 
     # Normalizar proyecto_id (sin prefijo)
     proyecto_id = proyecto_id.replace('PROYECTO#', '') if proyecto_id else proyecto_id

@@ -2,38 +2,60 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Typography, Table, Tag, Button, Modal, Form, Input, Select,
   DatePicker, message, Space, Tooltip, Spin, Grid, Alert, Progress,
+  Row, Col,
 } from 'antd';
 import {
   PlusOutlined, ReloadOutlined, UserOutlined, HistoryOutlined,
-  SwapOutlined, SearchOutlined, EditOutlined, EyeOutlined, BankOutlined,
-  ClockCircleOutlined, DeleteOutlined,
+  SwapOutlined, SearchOutlined, EditOutlined, BankOutlined,
+  ClockCircleOutlined, DeleteOutlined, ArrowLeftOutlined, AppstoreOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
   getClientes, getClientesAdmin, buscarClienteAdmin, buscarClientesAdmin,
   registrarCliente, actualizarClienteAdmin, transferirClienteInmobiliaria,
-  eliminarClienteAdmin, cambiarCedula,
+  eliminarClienteAdmin, cambiarCedula, exportarClientesProyecto,
 } from '../../services/clientes.service';
 import { getProcesosCliente, getMisProcesos, cambiarEstatus } from '../../services/crm.service';
 import { getProyectos } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import { useAuthContext } from '../../context/AuthContext';
-import type { Cliente, Proyecto, Proceso } from '../../types';
+import type { Cliente, Proyecto, Proceso, ClienteProyecto } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
-import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION } from '../../constants/estados';
+import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
+import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { useBreakpoint } = Grid;
 
+const ESTATUS_CLIENTE_OPTIONS = [
+  { value: 'sin_unidad_actual', label: 'Sin unidad actual' },
+  { value: 'captacion', label: ESTADO_PROCESO_LABEL.captacion },
+  { value: 'reserva', label: ESTADO_PROCESO_LABEL.reserva },
+  { value: 'separacion', label: ESTADO_PROCESO_LABEL.separacion },
+  { value: 'inicial', label: ESTADO_PROCESO_LABEL.inicial },
+  { value: 'pagos_atrasados', label: ESTADO_PROCESO_LABEL.pagos_atrasados },
+  { value: 'contra_entrega', label: ESTADO_PROCESO_LABEL.contra_entrega },
+  { value: 'vendida', label: ESTADO_PROCESO_LABEL.vendida },
+];
+
 // Función para calcular días restantes de exclusividad
-const calcularDiasRestantes = (fechaVencimiento: string): number => {
+const fechaValida = (fecha?: string | null): boolean => !!fecha && dayjs(fecha).isValid();
+
+const formatFecha = (fecha?: string | null, formato = 'DD/MM/YYYY'): string =>
+  fechaValida(fecha) ? dayjs(fecha).format(formato) : 'Sin fecha';
+
+const calcularDiasRestantes = (fechaVencimiento?: string | null): number => {
+  if (!fechaValida(fechaVencimiento)) return 0;
   const ahora = new Date();
-  const vencimiento = new Date(fechaVencimiento);
+  const vencimiento = new Date(fechaVencimiento as string);
   const diff = vencimiento.getTime() - ahora.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  const dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
+  return Number.isFinite(dias) ? dias : 0;
 };
 
 // Función para obtener color según días restantes
@@ -44,39 +66,25 @@ const getColorExclusividad = (dias: number): string => {
   return '#52c41a'; // Verde - más de 1 mes
 };
 
-interface ClienteAgrupado {
-  cedula: string;
-  nombres: string;
-  apellidos: string;
-  registros: Cliente[];  // uno por proyecto/inmobiliaria
-}
-
-function agruparPorCedula(lista: Cliente[]): ClienteAgrupado[] {
-  const map = new Map<string, ClienteAgrupado>();
-  for (const c of lista) {
-    if (!map.has(c.cedula)) {
-      map.set(c.cedula, { cedula: c.cedula, nombres: c.nombres, apellidos: c.apellidos, registros: [] });
-    }
-    map.get(c.cedula)!.registros.push(c);
-  }
-  return Array.from(map.values());
-}
-
 const ClientesPage = () => {
   const { usuario } = useAuthContext();
   const isAdmin = usuario?.rol !== 'inmobiliaria';
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  // Lista plana de clientes (para inmobiliaria) o agrupada (para admin)
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  // Lista plana de clientes del proyecto seleccionado
+  const [clientes, setClientes] = useState<ClienteProyecto[]>([]);
   const [nextToken, setNextToken] = useState<string | undefined>();
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [proyectoFiltro, setProyectoFiltro] = useState<string | undefined>();
+  const [proyectoSeleccionado, setProyectoSeleccionado] = useState<Proyecto | null>(null);
+  const [vista, setVista] = useState<'proyectos' | 'clientes'>('proyectos');
   const [inmoFiltro, setInmoFiltro] = useState<string | undefined>();
+  const [estatusFiltro, setEstatusFiltro] = useState<string | undefined>();
   const [modoVista, setModoVista] = useState<'lista' | 'busqueda'>('lista');
   const [tipoBusqueda, setTipoBusqueda] = useState<'nombre' | 'cedula'>('nombre');
 
@@ -112,6 +120,9 @@ const ClientesPage = () => {
   const [clienteCedula, setClienteCedula] = useState<Cliente | null>(null);
   const [nuevaCedula, setNuevaCedula] = useState('');
   const [cambiandoCedula, setCambiandoCedula] = useState(false);
+  const normalizarNuevaCedula = (value: string) => value.trim().toUpperCase();
+  const nuevaCedulaNormalizada = normalizarNuevaCedula(nuevaCedula);
+  const nuevaCedulaInvalida = !!nuevaCedulaNormalizada && !/^[A-Z0-9]+$/.test(nuevaCedulaNormalizada);
 
   // Modal eliminar cliente
   const [eliminarModal, setEliminarModal] = useState(false);
@@ -122,18 +133,22 @@ const ClientesPage = () => {
   const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const cargar = useCallback(async (proyId?: string, inmoId?: string, token?: string) => {
+    if (!proyId) {
+      setClientes([]);
+      setNextToken(undefined);
+      return;
+    }
     setLoading(true);
     try {
       if (isAdmin) {
         const data = await getClientesAdmin(
-          proyId || inmoId ? { proyecto_id: proyId, inmobiliaria_id: inmoId, next_token: token }
-            : { next_token: token }
+          { proyecto_id: proyId, inmobiliaria_id: inmoId, next_token: token, vista: 'proyecto' }
         );
         setClientes(prev => token ? [...prev, ...data.items] : data.items);
         setNextToken(data.next_token);
       } else {
-        const data = await getClientes(proyId);
-        setClientes(data);
+        const data = await getClientes(proyId, true);
+        setClientes(data as ClienteProyecto[]);
       }
     } catch { message.error('Error al cargar clientes'); }
     finally { setLoading(false); }
@@ -142,8 +157,7 @@ const ClientesPage = () => {
   useEffect(() => {
     getProyectos().then(setProyectos).catch(() => {});
     if (isAdmin) getInmobiliarias().then(setInmobiliarias).catch(() => {});
-    cargar();
-  }, [cargar, isAdmin]);
+  }, [isAdmin]);
 
   const proyectoNombre = (id: string) => proyectos.find(p => p.proyecto_id === id)?.nombre ?? id;
   const inmoNombre = (id: string) => {
@@ -155,6 +169,48 @@ const ClientesPage = () => {
     )?.nombre ?? id;
   };
 
+  const seleccionarProyecto = (proyecto: Proyecto) => {
+    setProyectoSeleccionado(proyecto);
+    setProyectoFiltro(proyecto.proyecto_id);
+    setVista('clientes');
+    setBusqueda('');
+    setEstatusFiltro(undefined);
+    setModoVista('lista');
+    setNextToken(undefined);
+    cargar(proyecto.proyecto_id, inmoFiltro);
+  };
+
+  const volverAProyectos = () => {
+    setVista('proyectos');
+    setProyectoSeleccionado(null);
+    setProyectoFiltro(undefined);
+    setClientes([]);
+    setBusqueda('');
+    setEstatusFiltro(undefined);
+    setModoVista('lista');
+    setNextToken(undefined);
+  };
+
+  const handleExportarClientes = async () => {
+    if (!proyectoFiltro) return;
+    setExportando(true);
+    try {
+      const result = await exportarClientesProyecto(proyectoFiltro, isAdmin, inmoFiltro);
+      message.success(`Descargando ${result.total_clientes} clientes...`);
+      const link = document.createElement('a');
+      link.href = result.download_url;
+      link.download = result.filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      message.error(err?.message || 'Error al exportar clientes');
+    } finally {
+      setExportando(false);
+    }
+  };
+
   // Manejar búsqueda con lógica híbrida
   const handleBusqueda = (valor: string) => {
     setBusqueda(valor);
@@ -162,6 +218,11 @@ const ClientesPage = () => {
     // Limpiar timer anterior
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+    }
+
+    if (proyectoFiltro) {
+      setModoVista('lista');
+      return;
     }
     
     // Sin búsqueda: volver a modo lista
@@ -190,7 +251,7 @@ const ClientesPage = () => {
           proyectoFiltro,
           inmoFiltro
         );
-        setClientes(resultados);
+        setClientes(resultados as ClienteProyecto[]);
         setNextToken(undefined); // No hay paginación en búsqueda
       } catch {
         message.error('Error en la búsqueda');
@@ -225,17 +286,47 @@ const ClientesPage = () => {
   // }, [modoVista, busqueda, tipoBusqueda, proyectoFiltro, inmoFiltro, cargar]);
 
   // Filtro local por búsqueda (solo para búsquedas de 1 carácter)
-  const clientesFiltrados = (busqueda.trim().length === 1 && modoVista === 'lista')
-    ? clientes.filter(c =>
-        c.cedula.toLowerCase().includes(busqueda.toLowerCase()) ||
-        `${c.nombres} ${c.apellidos}`.toLowerCase().includes(busqueda.toLowerCase())
-      )
-    : clientes;
+  const normalizarEstatus = (value?: string) => (value || '').trim().toLowerCase();
 
-  // Agrupados por cédula para admin
-  const agrupados = isAdmin ? agruparPorCedula(clientesFiltrados) : [];
+  const clienteCoincideBusqueda = (c: ClienteProyecto) => {
+    const texto = busqueda.trim().toLowerCase();
+    if (!texto || modoVista !== 'lista') return true;
+    return (
+      c.cedula.toLowerCase().includes(texto) ||
+      `${c.nombres} ${c.apellidos}`.toLowerCase().includes(texto) ||
+      (c.unidad_nombre || c.unidad_id || '').toLowerCase().includes(texto) ||
+      (c.estatus_label || c.estatus || '').toLowerCase().includes(texto)
+    );
+  };
+
+  const clienteCoincideEstatus = (c: ClienteProyecto) => {
+    if (!estatusFiltro) return true;
+    const estatus = normalizarEstatus(c.estatus);
+    if (estatusFiltro === 'sin_unidad_actual') {
+      return estatus === 'sin_unidad' || estatus === 'desvinculado';
+    }
+    return estatus === normalizarEstatus(estatusFiltro);
+  };
+
+  const clientesFiltrados = clientes.filter(c =>
+    clienteCoincideBusqueda(c) && clienteCoincideEstatus(c)
+  );
 
   // Abrir drawer de detalle por cédula (admin)
+  const valorDetalle = (value?: string | number | null) => {
+    const texto = String(value ?? '').trim();
+    return texto || 'Sin dato';
+  };
+
+  const DetalleCampo = ({ label, value, strong = false }: { label: string; value?: string | number | null; strong?: boolean }) => (
+    <div>
+      <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase' }}>{label}</Text>
+      <div>
+        <Text strong={strong} type={value ? undefined : 'secondary'}>{valorDetalle(value)}</Text>
+      </div>
+    </div>
+  );
+
   const abrirDetalleCedula = async (cedula: string) => {
     setDrawerCedula(cedula);
     setDrawerRegistros([]);
@@ -268,26 +359,60 @@ const ClientesPage = () => {
 
   const abrirEditar = (registro: Cliente) => {
     setEditarRegistro(registro);
+    formEditar.resetFields();
     formEditar.setFieldsValue({
-      nombres: registro.nombres, apellidos: registro.apellidos,
-      correo: registro.correo, telefono: registro.telefono,
-      estado_civil: registro.estado_civil, nacionalidad: registro.nacionalidad,
-      pais_residencia: registro.pais_residencia,
-      fecha_nacimiento: registro.fecha_nacimiento ? dayjs(registro.fecha_nacimiento) : undefined,
+      nombres: registro.nombres ?? '',
+      apellidos: registro.apellidos ?? '',
+      correo: registro.correo ?? '',
+      telefono: registro.telefono ?? '',
+      estado_civil: registro.estado_civil ?? null,
+      nacionalidad: registro.nacionalidad ?? null,
+      pais_residencia: registro.pais_residencia ?? null,
+      fecha_nacimiento: registro.fecha_nacimiento ? dayjs(registro.fecha_nacimiento) : null,
     });
     setEditarModal(true);
   };
 
   const handleEditar = async (values: any) => {
     if (!editarRegistro) return;
+    const payload = {
+      ...normalizeClientePayload(values),
+      fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
+    };
     try {
-      await actualizarClienteAdmin(editarRegistro.cedula, editarRegistro.proyecto_id, editarRegistro.inmobiliaria_id, {
-        ...values,
-        fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
-      });
+      const respuesta = await actualizarClienteAdmin(editarRegistro.cedula, editarRegistro.proyecto_id, editarRegistro.inmobiliaria_id, payload);
+      const datosActualizados = respuesta.cliente ? { ...payload, ...respuesta.cliente } : payload;
       message.success('Cliente actualizado');
       setEditarModal(false);
-      if (drawerCedula) abrirDetalleCedula(drawerCedula);
+      setEditarRegistro(null);
+
+      setClientes(prev => prev.map(cliente => (
+        cliente.cedula === editarRegistro.cedula &&
+        cliente.proyecto_id === editarRegistro.proyecto_id &&
+        cliente.inmobiliaria_id === editarRegistro.inmobiliaria_id
+          ? { ...cliente, ...datosActualizados }
+          : cliente
+      )));
+      setDrawerRegistros(prev => prev.map(registro => (
+        registro.cedula === editarRegistro.cedula &&
+        registro.proyecto_id === editarRegistro.proyecto_id &&
+        registro.inmobiliaria_id === editarRegistro.inmobiliaria_id
+          ? { ...registro, ...datosActualizados }
+          : registro
+      )));
+      setDrawerCliente(prev => (
+        prev &&
+        prev.cedula === editarRegistro.cedula &&
+        prev.proyecto_id === editarRegistro.proyecto_id &&
+        prev.inmobiliaria_id === editarRegistro.inmobiliaria_id
+          ? { ...prev, ...datosActualizados }
+          : prev
+      ));
+
+      if (modoVista === 'lista') {
+        await cargar(proyectoFiltro, inmoFiltro);
+      }
+      if (drawerCedula) await abrirDetalleCedula(drawerCedula);
     } catch (err: any) {
       console.error('Error al actualizar cliente:', err);
       // El mensaje ya viene procesado por handleApiError en api.ts
@@ -316,11 +441,14 @@ const ClientesPage = () => {
 
   const handleRegistrar = async (values: any) => {
     try {
-      await registrarCliente({ ...values, fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined });
+      await registrarCliente({
+        ...normalizeClientePayload(values),
+        fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
+      });
       message.success('Cliente registrado');
       setModalOpen(false); form.resetFields();
       setNextToken(undefined);
-      cargar(proyectoFiltro);
+      cargar(proyectoFiltro, inmoFiltro);
     } catch (err: any) {
       console.error('Error al registrar cliente:', err);
       // El mensaje ya viene procesado por handleApiError en api.ts
@@ -353,9 +481,13 @@ const ClientesPage = () => {
 
   const handleCambiarCedula = async () => {
     if (!clienteCedula || !nuevaCedula.trim()) return;
+    if (nuevaCedulaInvalida) {
+      message.warning('La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos');
+      return;
+    }
     setCambiandoCedula(true);
     try {
-      await cambiarCedula(clienteCedula.cedula, nuevaCedula.trim());
+      await cambiarCedula(clienteCedula.cedula, nuevaCedulaNormalizada);
       message.success('Cambio de cédula iniciado. Actualizando datos en 5 segundos...');
       setCedulaModal(false);
       setClienteCedula(null);
@@ -464,96 +596,103 @@ const ClientesPage = () => {
     }
   };
 
-  // ── Columnas tabla admin (agrupada por cédula) ──
-  const columnasAdmin = [
-    {
-      title: 'Cliente', key: 'cliente',
-      render: (_: unknown, r: ClienteAgrupado) => (
-        <div>
-          <Text strong>{r.nombres} {r.apellidos}</Text>
-          <br /><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text>
-        </div>
-      ),
-    },
-    ...(!isMobile ? [
-      {
-        title: 'Proyectos', key: 'proyectos',
-        render: (_: unknown, r: ClienteAgrupado) => (
-          <Space wrap>
-            {r.registros.map(reg => (
-              <Tag key={`${reg.pk}#${reg.sk}`} color={reg.exclusividad_activa ? 'blue' : 'default'}>
-                {proyectoNombre(reg.proyecto_id)}
-              </Tag>
-            ))}
-          </Space>
-        ),
-      },
-      {
-        title: 'Inmobiliarias', key: 'inmos',
-        render: (_: unknown, r: ClienteAgrupado) => {
-          const unicas = [...new Set(r.registros.map(reg => reg.inmobiliaria_id))];
-          return <Space wrap>{unicas.map(id => <Tag key={id}>{inmoNombre(id)}</Tag>)}</Space>;
-        },
-      },
-    ] : []),
-    {
-      title: '', key: 'acciones', width: 48,
-      render: (_: unknown, r: ClienteAgrupado) => (
-        <EyeOutlined style={{ color: '#1677ff', fontSize: 16 }} onClick={() => abrirDetalleCedula(r.cedula)} />
-      ),
-    },
-  ];
 
-  // ── Columnas tabla inmobiliaria ──
-  const columnasInmo = [
+
+  const renderEstatusCliente = (r: ClienteProyecto) => {
+    if (r.estatus === 'sin_unidad') return <Tag color="orange">Sin unidad</Tag>;
+    return (
+      <Tooltip title={ESTADO_PROCESO_DESCRIPCION[r.estatus] || r.estatus}>
+        <Tag color={ESTADO_PROCESO_COLOR[r.estatus] ?? 'default'}>
+          {ESTADO_PROCESO_LABEL[r.estatus] ?? r.estatus_label ?? r.estatus}
+        </Tag>
+      </Tooltip>
+    );
+  };
+
+  const columnasProyecto = [
     {
       title: 'Cliente', key: 'cliente',
-      render: (_: unknown, r: Cliente) => (
+      render: (_: unknown, r: ClienteProyecto) => (
         <div>
           <Text strong>{r.nombres} {r.apellidos}</Text>
           <br /><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text>
         </div>
       ),
     },
-    { title: 'Proyecto', key: 'proyecto', render: (_: unknown, r: Cliente) => proyectoNombre(r.proyecto_id) },
     {
-      title: 'Exclusividad', key: 'excl',
-      render: (_: unknown, r: Cliente) => {
-        if (!r.exclusividad_activa) {
-          return <Tag color="default">Vencida</Tag>;
-        }
-        const diasRestantes = calcularDiasRestantes(r.fecha_vencimiento);
-        const color = getColorExclusividad(diasRestantes);
-        return (
-          <Tooltip title={`Vence: ${dayjs(r.fecha_vencimiento).format('DD/MM/YYYY HH:mm')}`}>
-            <Tag color={color} icon={<ClockCircleOutlined />}>
-              {diasRestantes > 0 ? `${diasRestantes} día${diasRestantes !== 1 ? 's' : ''}` : 'Vencida'}
-            </Tag>
-          </Tooltip>
-        );
-      },
+      title: 'Unidad', key: 'unidad',
+      render: (_: unknown, r: ClienteProyecto) => (
+        r.unidad_nombre || r.unidad_id
+          ? <Tag color="geekblue">{r.unidad_nombre || r.unidad_id}</Tag>
+          : <Text type="secondary">Sin unidad</Text>
+      ),
     },
-    { title: 'Captado', dataIndex: 'fecha_captacion', key: 'fc', render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
-    { title: '', key: 'acc', render: (_: unknown, r: Cliente) => <Button size="small" type="link" onClick={() => abrirDrawerInmo(r)}>Ver detalle</Button> },
+    {
+      title: 'Estatus',
+      key: 'estatus',
+      render: (_: unknown, r: ClienteProyecto) => renderEstatusCliente(r),
+    },
+    ...(isAdmin && !isMobile ? [{
+      title: 'Inmobiliaria', key: 'inmo',
+      render: (_: unknown, r: ClienteProyecto) => inmoNombre(r.inmobiliaria_id),
+    }] : []),
+    { title: 'Captado', dataIndex: 'fecha_captacion', key: 'fc', render: (v: string) => formatFecha(v) },
+    {
+      title: '', key: 'acciones', width: 92,
+      render: (_: unknown, r: ClienteProyecto) => (
+        <Button size="small" type="link" onClick={(e) => {
+          e.stopPropagation();
+          isAdmin ? abrirDetalleCedula(r.cedula) : abrirDrawerInmo(r);
+        }}>
+          Ver detalle
+        </Button>
+      ),
+    },
   ];
 
   return (
     <div>
       {/* Header */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 10 : 0 }}>
-          <Title level={4} style={{ margin: 0 }}>Clientes</Title>
-          <Space>
-            <Tooltip title="Actualizar">
-              <Button icon={<ReloadOutlined />} onClick={() => { setNextToken(undefined); cargar(proyectoFiltro, inmoFiltro); }} loading={loading} />
-            </Tooltip>
-            {!isAdmin && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'stretch' : 'center',
+          marginBottom: isMobile ? 10 : 0,
+          gap: 12,
+          flexDirection: isMobile ? 'column' : 'row',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            {vista === 'clientes' && (
+              <Tooltip title="Volver a proyectos">
+                <Button icon={<ArrowLeftOutlined />} onClick={volverAProyectos} />
+              </Tooltip>
+            )}
+            <Title level={4} style={{ margin: 0, wordBreak: 'normal', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
+              {vista === 'proyectos' ? 'Clientes' : proyectoSeleccionado?.nombre ?? 'Clientes'}
+            </Title>
+          </div>
+          <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
+            {vista === 'clientes' && (
+              <>
+                <Tooltip title="Exportar clientes en Excel">
+                  <Button icon={<DownloadOutlined />} onClick={handleExportarClientes} loading={exportando} style={{ flex: isMobile ? '1 1 120px' : undefined }}>
+                    {isMobile ? '' : 'Exportar clientes'}
+                  </Button>
+                </Tooltip>
+                <Tooltip title="Actualizar">
+                  <Button icon={<ReloadOutlined />} onClick={() => { setNextToken(undefined); cargar(proyectoFiltro, inmoFiltro); }} loading={loading} />
+                </Tooltip>
+              </>
+            )}
+            {!isAdmin && vista === 'clientes' && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.setFieldsValue({ proyecto_id: proyectoFiltro }); setModalOpen(true); }} style={{ flex: isMobile ? '1 1 140px' : undefined }}>
                 {isMobile ? '' : 'Registrar cliente'}
               </Button>
             )}
           </Space>
         </div>
+        {vista === 'clientes' && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
           <Select 
             value={tipoBusqueda} 
@@ -572,10 +711,23 @@ const ClientesPage = () => {
             allowClear 
             onClear={() => handleBusqueda('')} 
           />
+          <Select
+            allowClear
+            placeholder="Estatus"
+            style={{ width: isMobile ? '100%' : 190 }}
+            value={estatusFiltro}
+            onChange={setEstatusFiltro}
+            options={ESTATUS_CLIENTE_OPTIONS}
+          />
           <Select allowClear placeholder="Proyecto" style={{ width: isMobile ? '100%' : 180 }}
             value={proyectoFiltro}
             onChange={(v) => { 
+              if (!v) {
+                volverAProyectos();
+                return;
+              }
               setProyectoFiltro(v); 
+              setProyectoSeleccionado(proyectos.find(p => p.proyecto_id === v) ?? null);
               setNextToken(undefined); 
               
               // Si estamos en modo búsqueda, re-ejecutar con el nuevo filtro
@@ -587,7 +739,7 @@ const ClientesPage = () => {
                   v,  // Usar el nuevo valor directamente
                   inmoFiltro
                 ).then(resultados => {
-                  setClientes(resultados);
+                  setClientes(resultados as ClienteProyecto[]);
                   setNextToken(undefined);
                 }).catch(() => {
                   message.error('Error en la búsqueda');
@@ -616,7 +768,7 @@ const ClientesPage = () => {
                     proyectoFiltro,
                     v  // Usar el nuevo valor directamente
                   ).then(resultados => {
-                    setClientes(resultados);
+                    setClientes(resultados as ClienteProyecto[]);
                     setNextToken(undefined);
                   }).catch(() => {
                     message.error('Error en la búsqueda');
@@ -631,10 +783,62 @@ const ClientesPage = () => {
             </Select>
           )}
         </div>
+        )}
       </div>
 
+      {vista === 'proyectos' && (
+        <Row gutter={[20, 20]}>
+          {proyectos.map(p => (
+            <Col key={p.proyecto_id} xs={24} sm={12} md={8} lg={6}>
+              <div
+                style={{
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  background: 'var(--panel-bg)',
+                  border: '1px solid var(--app-border)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  transition: 'box-shadow 0.2s, transform 0.2s',
+                }}
+                onClick={() => seleccionarProyecto(p)}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
+                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+                }}
+              >
+                <div style={{
+                  height: 160,
+                  background: p.imagen_url ? undefined : projectGradient(p.nombre),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}>
+                  {p.imagen_url ? (
+                    <img src={p.imagen_url} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <AppstoreOutlined style={{ fontSize: 48, color: 'rgba(255,255,255,0.5)' }} />
+                  )}
+                </div>
+                <div style={{ padding: '14px 16px 16px' }}>
+                  <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>{p.nombre}</Text>
+                  {p.descripcion && (
+                    <Text type="secondary" style={{ fontSize: 13 }} ellipsis={{ tooltip: p.descripcion }}>{p.descripcion}</Text>
+                  )}
+                </div>
+              </div>
+            </Col>
+          ))}
+        </Row>
+      )}
+
       {/* Banner de modo búsqueda */}
-      {modoVista === 'busqueda' && (
+      {vista === 'clientes' && modoVista === 'busqueda' && (
         <Alert
           message={
             <span>
@@ -656,53 +860,34 @@ const ClientesPage = () => {
         />
       )}
 
-      {/* Tabla/Cards admin — agrupada por cédula */}
-      {isAdmin && (
+            {/* Tabla/Cards admin */}
+      {vista === 'clientes' && isAdmin && (
         <>
           {isMobile ? (
             <div>
-              {loading && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>}
-              {!loading && agrupados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin clientes</div>}
-              {agrupados.map(r => (
-                <div key={r.cedula} onClick={() => abrirDetalleCedula(r.cedula)}
-                  style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
+              {loading && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>}
+              {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sin clientes</div>}
+              {clientesFiltrados.map(r => (
+                <div key={`${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} onClick={() => abrirDetalleCedula(r.cedula)}
+                  style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.16)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <Text strong style={{ fontSize: 15 }}>{r.nombres} {r.apellidos}</Text>
                       <div><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text></div>
                     </div>
-                    <EyeOutlined style={{ color: '#1677ff', fontSize: 18, marginTop: 2 }} />
+                    {renderEstatusCliente(r)}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                    {r.registros.map(reg => {
-                      const diasRestantes = reg.exclusividad_activa ? calcularDiasRestantes(reg.fecha_vencimiento) : 0;
-                      const color = reg.exclusividad_activa ? getColorExclusividad(diasRestantes) : 'default';
-                      return (
-                        <Tooltip 
-                          key={`${reg.pk}#${reg.sk}`}
-                          title={
-                            reg.exclusividad_activa 
-                              ? `${proyectoNombre(reg.proyecto_id)} - ${diasRestantes} días restantes`
-                              : `${proyectoNombre(reg.proyecto_id)} - Exclusividad vencida`
-                          }
-                        >
-                          <Tag color={color} style={{ margin: 0 }}>
-                            {proyectoNombre(reg.proyecto_id)}
-                            {reg.exclusividad_activa && diasRestantes > 0 && (
-                              <span style={{ marginLeft: 4, fontSize: 10 }}>({diasRestantes}d)</span>
-                            )}
-                          </Tag>
-                        </Tooltip>
-                      );
-                    })}
+                    {r.unidad_nombre || r.unidad_id ? <Tag color="geekblue">{r.unidad_nombre || r.unidad_id}</Tag> : <Tag>Sin unidad</Tag>}
+                    <Text type="secondary" style={{ fontSize: 12 }}>{inmoNombre(r.inmobiliaria_id)}</Text>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <Table
-              dataSource={agrupados} columns={columnasAdmin}
-              rowKey="cedula" loading={loading}
+              dataSource={clientesFiltrados} columns={columnasProyecto}
+              rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
               pagination={false} locale={{ emptyText: 'Sin clientes' }}
               onRow={r => ({ onClick: () => abrirDetalleCedula(r.cedula), style: { cursor: 'pointer' } })}
               scroll={{ x: true }}
@@ -717,45 +902,34 @@ const ClientesPage = () => {
       )}
 
       {/* Tabla/Cards inmobiliaria */}
-      {!isAdmin && (
+      {vista === 'clientes' && !isAdmin && (
         isMobile ? (
           <div>
-            {loading && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>}
-            {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin clientes</div>}
+            {loading && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>}
+            {!loading && clientesFiltrados.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sin clientes</div>}
             {clientesFiltrados.map(r => (
-              <div key={`${r.pk}#${r.sk}`} onClick={() => abrirDrawerInmo(r)}
-                style={{ background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
+              <div key={`${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} onClick={() => abrirDrawerInmo(r)}
+                style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.16)', marginBottom: 10, padding: '14px 16px', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <Text strong style={{ fontSize: 15 }}>{r.nombres} {r.apellidos}</Text>
                     <div><Text type="secondary" style={{ fontSize: 12 }}>{r.cedula}</Text></div>
                   </div>
-                  {r.exclusividad_activa ? (
-                    (() => {
-                      const diasRestantes = calcularDiasRestantes(r.fecha_vencimiento);
-                      const color = getColorExclusividad(diasRestantes);
-                      return (
-                        <Tag color={color} icon={<ClockCircleOutlined />} style={{ margin: 0 }}>
-                          {diasRestantes > 0 ? `${diasRestantes}d` : 'Vencida'}
-                        </Tag>
-                      );
-                    })()
-                  ) : (
-                    <Tag style={{ margin: 0 }}>Vencida</Tag>
-                  )}
+                  {renderEstatusCliente(r)}
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {r.unidad_nombre || r.unidad_id ? <Tag color="geekblue">{r.unidad_nombre || r.unidad_id}</Tag> : <Tag>Sin unidad</Tag>}
                   <Text type="secondary" style={{ fontSize: 12 }}>{proyectoNombre(r.proyecto_id)}</Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>· Captado {dayjs(r.fecha_captacion).format('DD/MM/YYYY')}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>· Captado {formatFecha(r.fecha_captacion)}</Text>
                 </div>
               </div>
             ))}
           </div>
         ) : (
           <Table
-            dataSource={clientesFiltrados} columns={columnasInmo}
-            rowKey={r => `${r.pk}#${r.sk}`} loading={loading}
-            pagination={{ pageSize: 20 }} locale={{ emptyText: 'Sin clientes' }}
+            dataSource={clientesFiltrados} columns={columnasProyecto}
+            rowKey={r => `${r.pk}#${r.sk}#${r.unidad_id || 'sin-unidad'}`} loading={loading}
+            pagination={{ pageSize: 20, showSizeChanger: false }} locale={{ emptyText: 'Sin clientes' }}
             onRow={r => ({ onClick: () => abrirDrawerInmo(r), style: { cursor: 'pointer' } })}
             scroll={{ x: true }}
           />
@@ -786,7 +960,7 @@ const ClientesPage = () => {
                     <Button size="small" danger icon={<DeleteOutlined />} onClick={() => abrirEliminar(reg)}>Eliminar</Button>
                   </Space>
                 </div>
-                <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
+                <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                     <div>
                       <Text type="secondary" style={{ fontSize: 11 }}>CÉDULA</Text>
@@ -830,18 +1004,35 @@ const ClientesPage = () => {
                     )}
                   </div>
                 </div>
+                <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
+                  <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>Datos completos</Title>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                    <DetalleCampo label="Nombres" value={reg.nombres} strong />
+                    <DetalleCampo label="Apellidos" value={reg.apellidos} strong />
+                    <DetalleCampo label="Documento" value={reg.cedula} strong />
+                    <DetalleCampo label="Correo" value={reg.correo} />
+                    <DetalleCampo label="Teléfono" value={reg.telefono} />
+                    <DetalleCampo label="Fecha nacimiento" value={reg.fecha_nacimiento ? formatFecha(reg.fecha_nacimiento) : null} />
+                    <DetalleCampo label="Edad" value={reg.edad ? `${reg.edad} años` : null} />
+                    <DetalleCampo label="Estado civil" value={reg.estado_civil?.replace('_', ' ')} />
+                    <DetalleCampo label="Nacionalidad" value={reg.nacionalidad} />
+                    <DetalleCampo label="País residencia" value={reg.pais_residencia} />
+                    <DetalleCampo label="Fecha captación" value={reg.fecha_captacion ? formatFecha(reg.fecha_captacion) : null} />
+                    <DetalleCampo label="Vencimiento exclusividad" value={reg.fecha_vencimiento ? formatFecha(reg.fecha_vencimiento) : null} />
+                  </div>
+                </div>
                 <Title level={5} style={{ marginBottom: 12 }}>Registros por proyecto</Title>
               </>
             )}
 
             {/* Card por registro (proyecto + inmobiliaria) */}
-            <div style={{ padding: '12px 14px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 8 }}>
+            <div style={{ padding: '12px 14px', background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <div style={{ flex: 1 }}>
                   <Text strong>{proyectoNombre(reg.proyecto_id)}</Text>
                   <br />
                   <Space size={4} style={{ marginTop: 4 }}>
-                    <BankOutlined style={{ fontSize: 12, color: '#888' }} />
+                    <BankOutlined style={{ fontSize: 12, color: 'var(--text-muted)' }} />
                     <Text type="secondary" style={{ fontSize: 12 }}>{inmoNombre(reg.inmobiliaria_id)}</Text>
                   </Space>
                 </div>
@@ -865,7 +1056,7 @@ const ClientesPage = () => {
                             />
                           </div>
                           <Text type="secondary" style={{ fontSize: 10, display: 'block', marginTop: 2 }}>
-                            Vence: {dayjs(reg.fecha_vencimiento).format('DD/MM/YY')}
+                            Vence: {formatFecha(reg.fecha_vencimiento, 'DD/MM/YY')}
                           </Text>
                         </div>
                       );
@@ -897,13 +1088,13 @@ const ClientesPage = () => {
                   return (
                     <div key={p.sk} style={{ marginBottom: 6 }}>
                       {alertaVencida && (
-                        <div style={{ background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#cf1322', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--danger-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#EF4444', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 14 }}>⚠️</span>
                           <span style={{ flex: 1 }}>Separación vencida (30 días)</span>
                         </div>
                       )}
                       {proximoVencer && (
-                        <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 14 }}>⏰</span>
                           <span>Vence en {30 - diasEnSeparacion!} día{30 - diasEnSeparacion! !== 1 ? 's' : ''}</span>
                         </div>
@@ -927,8 +1118,6 @@ const ClientesPage = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Space size={4}></Space>
                         <Space size={0}>
-                          <Button size="small" type="link" icon={<SwapOutlined />}
-                            onClick={() => { setEstatusModal(p); setEstatusCliente(reg); }}>Estatus</Button>
                           <Button size="small" type="link" icon={<HistoryOutlined />}
                             onClick={() => { setHistorialProceso(p); setHistorialNombre(`${reg.nombres} ${reg.apellidos}`); }}>Historial</Button>
                           <Button size="small" type="link" icon={<BankOutlined />}
@@ -955,7 +1144,7 @@ const ClientesPage = () => {
       >
         {drawerCliente && (
           <div>
-            <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+            <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                 <div>
                   <Text type="secondary" style={{ fontSize: 11 }}>CÉDULA</Text>
@@ -999,7 +1188,7 @@ const ClientesPage = () => {
                               />
                             </div>
                             <Text type="secondary" style={{ fontSize: 11 }}>
-                              Vence: {dayjs(drawerCliente.fecha_vencimiento).format('DD/MM/YYYY')}
+                              Vence: {formatFecha(drawerCliente.fecha_vencimiento)}
                             </Text>
                           </>
                         );
@@ -1011,11 +1200,28 @@ const ClientesPage = () => {
                 </div>
               </div>
             </div>
+            <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+              <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>Datos completos</Title>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                <DetalleCampo label="Nombres" value={drawerCliente.nombres} strong />
+                <DetalleCampo label="Apellidos" value={drawerCliente.apellidos} strong />
+                <DetalleCampo label="Documento" value={drawerCliente.cedula} strong />
+                <DetalleCampo label="Correo" value={drawerCliente.correo} />
+                <DetalleCampo label="Teléfono" value={drawerCliente.telefono} />
+                <DetalleCampo label="Fecha nacimiento" value={drawerCliente.fecha_nacimiento ? formatFecha(drawerCliente.fecha_nacimiento) : null} />
+                <DetalleCampo label="Edad" value={drawerCliente.edad ? `${drawerCliente.edad} años` : null} />
+                <DetalleCampo label="Estado civil" value={drawerCliente.estado_civil?.replace('_', ' ')} />
+                <DetalleCampo label="Nacionalidad" value={drawerCliente.nacionalidad} />
+                <DetalleCampo label="País residencia" value={drawerCliente.pais_residencia} />
+                <DetalleCampo label="Proyecto" value={proyectoNombre(drawerCliente.proyecto_id)} />
+                <DetalleCampo label="Fecha captación" value={drawerCliente.fecha_captacion ? formatFecha(drawerCliente.fecha_captacion) : null} />
+              </div>
+            </div>
             {drawerProcesos.length > 0 && (
               <>
                 <Title level={5} style={{ marginBottom: 8 }}>Procesos de venta</Title>
                 {drawerProcesos.map(p => (
-                  <div key={p.sk} style={{ padding: '10px 14px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 8 }}>
+                  <div key={p.sk} style={{ padding: '10px 14px', background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, marginBottom: 8 }}>
                     <Space>
                       <Tag color="geekblue">{p.unidad_nombre || p.unidad_id}</Tag>
                       <Tooltip title={ESTADO_PROCESO_DESCRIPCION[p.estado] || p.estado}>
@@ -1046,43 +1252,36 @@ const ClientesPage = () => {
               })}
             </Select>
           </Form.Item>
-          <Form.Item name="cedula" label="Cédula / Pasaporte" rules={[{ required: true }]}><Input placeholder="V-12345678" /></Form.Item>
-          <Form.Item name="nombres" label="Nombres" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="correo" label="Correo"><Input type="email" /></Form.Item>
-          <Form.Item name="telefono" label="Teléfono"><Input placeholder="+58 412 0000000" /></Form.Item>
+          <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}><Input placeholder="12345678 o AB123456" /></Form.Item>
+          <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+          <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+          <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
+          <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
           <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item>
           <Form.Item name="estado_civil" label="Estado civil">
-            <Select allowClear>
-              <Option value="soltero">Soltero/a</Option><Option value="casado">Casado/a</Option>
-              <Option value="divorciado">Divorciado/a</Option><Option value="viudo">Viudo/a</Option>
-              <Option value="union_libre">Unión libre</Option>
-            </Select>
+            <EstadoCivilSelect />
           </Form.Item>
-          <Form.Item name="nacionalidad" label="Nacionalidad"><Input /></Form.Item>
-          <Form.Item name="pais_residencia" label="País de residencia"><Input /></Form.Item>
+          <Form.Item name="nacionalidad" label="Nacionalidad"><NacionalidadSelect /></Form.Item>
+          <Form.Item name="pais_residencia" label="País de residencia"><PaisResidenciaSelect /></Form.Item>
         </Form>
       </Modal>
 
       {/* Modal editar */}
       <Modal title="Editar datos del cliente" open={editarModal}
-        onCancel={() => setEditarModal(false)} onOk={() => formEditar.submit()}
+        onCancel={() => { setEditarModal(false); setEditarRegistro(null); formEditar.resetFields(); }}
+        onOk={() => formEditar.submit()}
         okText="Guardar" cancelText="Cancelar" width={520}>
         <Form form={formEditar} layout="vertical" onFinish={handleEditar}>
-          <Form.Item name="nombres" label="Nombres" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="apellidos" label="Apellidos" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="correo" label="Correo"><Input type="email" /></Form.Item>
-          <Form.Item name="telefono" label="Teléfono"><Input /></Form.Item>
+          <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+          <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
+          <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}><Input type="email" placeholder="correo@ejemplo.com" /></Form.Item>
+          <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}><Input inputMode="numeric" placeholder="584120000000" /></Form.Item>
           <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item>
           <Form.Item name="estado_civil" label="Estado civil">
-            <Select allowClear>
-              <Option value="soltero">Soltero/a</Option><Option value="casado">Casado/a</Option>
-              <Option value="divorciado">Divorciado/a</Option><Option value="viudo">Viudo/a</Option>
-              <Option value="union_libre">Unión libre</Option>
-            </Select>
+            <EstadoCivilSelect />
           </Form.Item>
-          <Form.Item name="nacionalidad" label="Nacionalidad"><Input /></Form.Item>
-          <Form.Item name="pais_residencia" label="País de residencia"><Input /></Form.Item>
+          <Form.Item name="nacionalidad" label="Nacionalidad"><NacionalidadSelect /></Form.Item>
+          <Form.Item name="pais_residencia" label="País de residencia"><PaisResidenciaSelect /></Form.Item>
         </Form>
       </Modal>
 
@@ -1108,7 +1307,7 @@ const ClientesPage = () => {
         {clienteTransferir && (
           <>
             <div style={{
-              background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8,
+              background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8,
               padding: '12px 14px', marginBottom: 16,
             }}>
               <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE</Text>
@@ -1189,7 +1388,7 @@ const ClientesPage = () => {
             />
 
             <div style={{
-              background: '#fff1f0', border: '1px solid #ffccc7', borderRadius: 8,
+              background: 'var(--danger-soft-bg)', border: '1px solid var(--danger-soft-border)', borderRadius: 8,
               padding: '12px 14px', marginBottom: 16,
             }}>
               <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE A ELIMINAR</Text>
@@ -1212,7 +1411,7 @@ const ClientesPage = () => {
               </div>
             </div>
 
-            <div style={{ background: '#fafafa', border: '1px solid #d9d9d9', borderRadius: 8, padding: 12 }}>
+            <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: 12 }}>
               <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>Se eliminarán:</Text>
               <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
                 <li>{drawerRegistros.length} registro{drawerRegistros.length !== 1 ? 's' : ''} del cliente en {drawerRegistros.length} inmobiliaria{drawerRegistros.length !== 1 ? 's' : ''}</li>
@@ -1240,7 +1439,7 @@ const ClientesPage = () => {
               </ul>
             </div>
 
-            <div style={{ marginTop: 16, padding: 12, background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8 }}>
+            <div style={{ marginTop: 16, padding: 12, background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8 }}>
               <Text type="warning" style={{ fontSize: 12 }}>
                 <strong>Nota:</strong> Esta acción no se puede deshacer. Asegúrate de que realmente deseas eliminar este cliente de todas las inmobiliarias.
               </Text>
@@ -1262,12 +1461,12 @@ const ClientesPage = () => {
         okText="Cambiar cédula"
         cancelText="Cancelar"
         confirmLoading={cambiandoCedula}
-        okButtonProps={{ disabled: !nuevaCedula.trim() || nuevaCedula.trim() === clienteCedula?.cedula }}
+        okButtonProps={{ disabled: !nuevaCedulaNormalizada || nuevaCedulaInvalida || nuevaCedulaNormalizada === clienteCedula?.cedula }}
         width={460}
       >
         {clienteCedula && (
           <Space direction="vertical" style={{ width: '100%' }} size={16}>
-            <div style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8, padding: '12px 16px' }}>
+            <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 8, padding: '12px 16px' }}>
               <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>CLIENTE</Text>
               <Text strong>{clienteCedula.nombres} {clienteCedula.apellidos}</Text>
               <br />
@@ -1285,12 +1484,16 @@ const ClientesPage = () => {
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Nueva cédula / pasaporte:</Text>
               <Input
                 autoFocus
-                placeholder="Ej: V-12345678"
+                placeholder="Ej: 12345678 o AB123456"
                 value={nuevaCedula}
-                onChange={e => setNuevaCedula(e.target.value)}
+                onChange={e => setNuevaCedula(e.target.value.toUpperCase())}
                 onPressEnter={handleCambiarCedula}
+                status={nuevaCedulaInvalida ? 'error' : undefined}
               />
-              {nuevaCedula.trim() === clienteCedula.cedula && (
+              {nuevaCedulaInvalida && (
+                <Text type="danger" style={{ fontSize: 12 }}>La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos</Text>
+              )}
+              {nuevaCedulaNormalizada === clienteCedula.cedula && (
                 <Text type="danger" style={{ fontSize: 12 }}>La nueva cédula debe ser diferente a la actual</Text>
               )}
             </div>

@@ -4,6 +4,7 @@ import boto3
 import os
 import tempfile
 import logging
+import re
 from boto3.dynamodb.conditions import Key
 from utils.helpers import now
 from utils.excel_helpers import col_idx, parse_decimal, parse_int, parse_fecha
@@ -16,15 +17,51 @@ inventario_t = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 logger     = logging.getLogger()
 
 ARCHIVOS_BUCKET = os.environ.get('ARCHIVOS_BUCKET', '')
+EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
+DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 
 ESTATUS_MAP = {
     'DISPONIBLE':       ('disponible',    None),
     'BLOQUEADO':        ('bloqueada',     'captacion'),
+    'BLOQUEADA':        ('bloqueada',     'captacion'),
+    'CAPTACION':        ('bloqueada',     'captacion'),
+    'CAPTACIÓN':        ('bloqueada',     'captacion'),
+    'RESERVA':          ('no_disponible', 'reserva'),
+    'NO_DISPONIBLE':    ('no_disponible', 'reserva'),
     'NO DISPONIBLE':    ('no_disponible', 'reserva'),
     'SEPARACIÓN':       ('no_disponible', 'separacion'),
     'SEPARACION':       ('no_disponible', 'separacion'),
+    'INICIAL':          ('no_disponible', 'inicial'),
     'CONTRATO FIRMADO': ('no_disponible', 'inicial'),
+    'CONTRATO_FIRMADO': ('no_disponible', 'inicial'),
+    'PAGOS ATRASADOS':  ('no_disponible', 'pagos_atrasados'),
+    'PAGOS_ATRASADOS':  ('no_disponible', 'pagos_atrasados'),
+    'CONTRA ENTREGA':   ('no_disponible', 'contra_entrega'),
+    'CONTRA_ENTREGA':   ('no_disponible', 'contra_entrega'),
+    'VENDIDO':          ('vendida',       'vendido'),
+    'VENDIDA':          ('vendida',       'vendido'),
 }
+
+PROCESO_MAP = {
+    'CAPTACION': 'captacion',
+    'CAPTACIÓN': 'captacion',
+    'RESERVA': 'reserva',
+    'SEPARACION': 'separacion',
+    'SEPARACIÓN': 'separacion',
+    'INICIAL': 'inicial',
+    'CONTRATO FIRMADO': 'inicial',
+    'CONTRATO_FIRMADO': 'inicial',
+    'PAGOS ATRASADOS': 'pagos_atrasados',
+    'PAGOS_ATRASADOS': 'pagos_atrasados',
+    'CONTRA ENTREGA': 'contra_entrega',
+    'CONTRA_ENTREGA': 'contra_entrega',
+    'VENDIDO': 'vendido',
+    'VENDIDA': 'vendido',
+}
+
+
+def _normalizar_texto(value):
+    return ' '.join(str(value or '').strip().lower().split())
 
 
 def parsear_excel(bucket, key, proyecto_id, job_id):
@@ -70,6 +107,11 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
         {'id': i['pk'].replace('INMOBILIARIA#', ''), 'nombre': i.get('nombre', '')}
         for i in inmos_result.get('Items', [])
     ]
+    inmobiliarias_por_nombre = {
+        _normalizar_texto(i.get('nombre')): i
+        for i in inmobiliarias_existentes
+        if i.get('nombre')
+    }
     logger.info(
         '[excel_parser] inmobiliarias sistema job_id=%s count=%s scanned=%s nombres=%s',
         job_id,
@@ -112,6 +154,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
 
     filas              = []
     id_unidades_vistos = set()
+    id_unidades_existentes = _obtener_ids_unidades_existentes(proyecto_id)
 
     for i, row in enumerate(data_rows):
         if not row or all(c is None for c in row):
@@ -121,7 +164,7 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             idx = col_idx(headers, keys, col_map)
             return row[idx] if idx is not None and idx < len(row) else None
 
-        id_unidad_raw = gc(['unidad', 'id_unidad', 'UNIDAD'])
+        id_unidad_raw = gc(['unidad', 'id_unidad', 'UNIDAD', 'ID Unidad', 'ID UNIDAD'])
         if not id_unidad_raw:
             continue
         id_unidad = str(id_unidad_raw).strip()
@@ -134,18 +177,36 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             if torre_str and not id_unidad.upper().startswith(torre_str):
                 id_unidad = f'{torre_str}-{id_unidad}'
 
-        metraje      = parse_decimal(gc(['Area', 'AREA', 'metraje', 'M2']), metraje=True)
-        precio       = parse_decimal(gc(['Precios US$', 'precio', 'PRECIO', 'PRECIO VENTA', 'Precios US']))
-        estatus_raw  = gc(['ESTATUS', 'ESTADO', 'STATUS', 'estado'])
+        metraje      = parse_decimal(gc(['Area', 'AREA', 'Metraje', 'METRAJE', 'metraje', 'M2',
+                                         'Área', 'Area Total', 'Área Total', 'Area Construida',
+                                         'Area Util', 'Área Útil', 'M2 Construidos', 'Sup. Construida',
+                                         'Metros', 'Metros Cuadrados']), metraje=True)
+        precio       = parse_decimal(gc(['Precios US$', 'precio', 'PRECIO', 'PRECIO VENTA', 'Precios US', 'Precio']))
+        estatus_raw  = gc(['ESTATUS', 'ESTADO', 'STATUS', 'estado', 'Estado'])
         estatus_norm = str(estatus_raw).strip().upper() if estatus_raw else 'DISPONIBLE'
         estado_interno, estado_proceso = ESTATUS_MAP.get(estatus_norm, ('disponible', None))
+        estado_desde_estatus = estado_interno
+        estado_proceso_raw = gc(['Estado Proceso', 'ESTADO PROCESO', 'Proceso', 'PROCESO'])
+        estado_proceso_norm = str(estado_proceso_raw or '').strip().upper()
+        if estado_proceso_norm in PROCESO_MAP:
+            estado_proceso = PROCESO_MAP[estado_proceso_norm]
+            if estado_proceso == 'captacion':
+                estado_interno = 'bloqueada'
+            elif estado_proceso == 'vendido':
+                estado_interno = 'vendida'
+            else:
+                estado_interno = 'no_disponible'
 
-        nombre_cliente = str(gc(['NOMBRE CLIENTE', 'NOMBRE', 'CLIENTE']) or '').strip()
+        nombre_cliente = str(gc(['NOMBRE CLIENTE', 'Cliente Nombre', 'CLIENTE NOMBRE', 'NOMBRE', 'Nombre', 'CLIENTE']) or '').strip()
+        apellidos_excel = str(gc(['APELLIDO', 'Apellido', 'APELLIDOS', 'Apellidos', 'Cliente Apellido', 'Cliente Apellidos']) or '').strip()
         nombres_ia     = nombres_map.get(nombre_cliente, {})
 
         # Fallback: si la IA no separó, intentar separación simple por palabras
         nombres_final   = nombres_ia.get('nombres') or ''
         apellidos_final = nombres_ia.get('apellidos') or ''
+        if nombre_cliente and apellidos_excel:
+            nombres_final = nombre_cliente
+            apellidos_final = apellidos_excel
         if nombre_cliente and not nombres_final:
             partes = nombre_cliente.split()
             if len(partes) >= 4:
@@ -160,8 +221,43 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
             else:
                 nombres_final   = nombre_cliente
 
-        inmo_excel           = str(gc(['INMOBILIARIA', 'INMO', 'AGENCIA']) or '').strip()
+        cedula_raw           = str(gc(['Cliente Cédula', 'Cliente Cedula', 'CLIENTE CEDULA',
+                                       'Cédula', 'Cedula', 'CEDULA', 'CC', 'DNI',
+                                       'Identificacion', 'Identificación', 'No. Cedula',
+                                       'Num Cedula', 'No Identificacion', 'Documento',
+                                       'DOCUMENTO', 'Doc Identidad', 'PASAPORTE',
+                                       'Pasaporte', 'Passport']) or '').strip()
+        cedula_excel         = cedula_raw.upper() or None
+
+        telefono_excel       = str(gc(['Cliente Teléfono', 'Cliente Telefono', 'CLIENTE TELEFONO',
+                                       'Teléfono', 'Telefono', 'TELEFONO', 'Celular', 'CELULAR',
+                                       'Cel', 'Móvil', 'Movil', 'Tel', 'Whatsapp', 'Contacto']) or '').strip() or None
+
+        correo_excel         = str(gc(['Cliente Correo', 'CLIENTE CORREO', 'Correo', 'CORREO',
+                                       'Email', 'EMAIL', 'Correo Electronico', 'Correo Electrónico',
+                                       'E-mail', 'Mail']) or '').strip() or None
+
+        fecha_nacimiento     = parse_fecha(gc(['Fecha de nacimiento', 'FECHA NACIMIENTO',
+                                               'FECHA DE NACIMIENTO', 'NACIMIENTO',
+                                               'Fecha Nacimiento', 'Fecha Nac.', 'Fecha Nac']))
+        pais_residencia      = str(gc(['Pais de residencia', 'PAIS RESIDENCIA',
+                                       'PAIS DE RESIDENCIA', 'Pais Residencia',
+                                       'Pais residencia']) or '').strip() or None
+        nacionalidad         = str(gc(['NACIONALIDAD', 'Nacionalidad',
+                                       'Pais de nacionalidad', 'PAIS NACIONALIDAD',
+                                       'PAIS DE NACIONALIDAD']) or '').strip() or None
+
+        inmo_excel           = str(gc(['INMOBILIARIA', 'Inmobiliaria', 'INMO', 'AGENCIA']) or '').strip()
         inmo_match           = inmos_map.get(inmo_excel, {})
+        if not inmo_match and inmo_excel:
+            inmo_existente = inmobiliarias_por_nombre.get(_normalizar_texto(inmo_excel))
+            if inmo_existente:
+                inmo_match = {
+                    'id': inmo_existente.get('id', ''),
+                    'nombre': inmo_existente.get('nombre', inmo_excel),
+                    'confianza': 100,
+                    'es_nueva': False,
+                }
         inmo_id_sugerido     = inmo_match.get('id', '')
         inmo_confianza       = inmo_match.get('confianza', 0)
         inmo_es_nueva        = inmo_match.get('es_nueva', not bool(inmo_id_sugerido))
@@ -174,42 +270,66 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
 
         errores, advertencias = _validar_fila(
             id_unidad, id_unidades_vistos, precio, metraje, estatus_norm, estatus_raw,
-            inmo_excel, inmo_confianza, inmo_es_nueva, nombre_cliente, nombres_final, apellidos_final,
+            inmo_excel, inmo_confianza, inmo_es_nueva, id_unidades_existentes,
+            nombre_cliente, nombres_final, apellidos_final, cedula_excel,
+            telefono_excel, correo_excel,
+            estado_interno, estado_proceso, estado_desde_estatus,
         )
         id_unidades_vistos.add(id_unidad)
+
+        def _dec(keys):
+            v = parse_decimal(gc(keys))
+            return str(v) if v is not None else None
 
         filas.append({
             'fila_excel':                   header_row_idx + 2 + i,
             'id_unidad':                    id_unidad,
             'metraje':                      str(metraje) if metraje is not None else None,
             'precio':                       str(precio)  if precio  is not None else None,
-            'num_cuartos':                  parse_int(gc(['No Cuartos', 'CUARTOS', 'HABITACIONES'])),
-            'num_banos':                    parse_int(gc(['No. baños', 'BAÑOS', 'BANOS'])),
+            'num_cuartos':                  parse_int(gc(['No Cuartos', 'Cuartos', 'CUARTOS', 'HABITACIONES', 'Habitaciones'])),
+            'num_banos':                    parse_int(gc(['No. baños', 'Baños', 'BAÑOS', 'BANOS', 'Banos'])),
             'tipo':                         str(gc(['Tipo', 'TIPO']) or '').strip() or None,
             'piso':                         parse_int(gc(['Piso', 'PISO'])),
             'parqueos':                     parse_int(gc(['Parqueos', 'PARQUEOS', 'PARKING'])),
             'estado':                       estado_interno,
             'estado_proceso':               estado_proceso,
             'cliente_nombre_excel':         nombre_cliente or None,
+            'cliente_telefono':             telefono_excel,
+            'cliente_correo':               correo_excel,
+            'fecha_nacimiento':             fecha_nacimiento,
+            'pais_residencia':              pais_residencia,
+            'nacionalidad':                 nacionalidad,
             'nombres_sugerido':             nombres_final or None,
             'apellidos_sugerido':           apellidos_final or None,
-            'cedula':                       None,
+            'cedula':                       cedula_excel,
             'inmobiliaria_excel':           inmo_excel or None,
             'inmobiliaria_id_sugerido':     inmo_id_sugerido or None,
             'inmobiliaria_nombre_sugerido': inmo_match.get('nombre', inmo_excel) or None,
             'inmobiliaria_confianza':       inmo_confianza,
             'inmobiliaria_es_nueva':        inmo_es_nueva,
-            'fecha_bloqueo':                parse_fecha(gc(['FECHA BLOQUEO', 'FECHA_BLOQUEO', 'FECHA INICIO'])),
-            'fecha_liberacion':             parse_fecha(gc(['FECHA FIN BLOQUEO/ PAGO SEPARACION', 'FECHA FIN', 'FECHA_FIN'])),
-            'comentario':                   str(gc(['COMENTARIO', 'OBSERVACION', 'NOTAS']) or '').strip() or None,
-            'manzana':                      str(gc(['Manzana', 'MANZANA', 'MZ']) or '').strip() or None,
-            'metraje_terraza':              str(parse_decimal(gc(['Metraje Terraza', 'TERRAZA', 'M2 TERRAZA']))) if parse_decimal(gc(['Metraje Terraza', 'TERRAZA', 'M2 TERRAZA'])) is not None else None,
-            'metraje_patio':                str(parse_decimal(gc(['Metraje Patio', 'PATIO', 'M2 PATIO']))) if parse_decimal(gc(['Metraje Patio', 'PATIO', 'M2 PATIO'])) is not None else None,
-            'precio_reserva':               str(parse_decimal(gc(['RESERVA', 'Precio Reserva', 'PRECIO RESERVA']))) if parse_decimal(gc(['RESERVA', 'Precio Reserva', 'PRECIO RESERVA'])) is not None else None,
-            'precio_separacion':            str(parse_decimal(gc(['SEPARACION', 'Precio Separacion', 'PRECIO SEPARACION']))) if parse_decimal(gc(['SEPARACION', 'Precio Separacion', 'PRECIO SEPARACION'])) is not None else None,
-            'precio_inicial':               str(parse_decimal(gc(['INICIAL', 'Precio Inicial', 'PRECIO INICIAL']))) if parse_decimal(gc(['INICIAL', 'Precio Inicial', 'PRECIO INICIAL'])) is not None else None,
-            'cuota_monto':                  str(parse_decimal(gc(['CUOTAS 24', 'CUOTA', 'CUOTA MONTO']))) if parse_decimal(gc(['CUOTAS 24', 'CUOTA', 'CUOTA MONTO'])) is not None else None,
-            'contra_entrega':               str(parse_decimal(gc(['CONTRA ENTREGA', 'CONTRAENTREGA']))) if parse_decimal(gc(['CONTRA ENTREGA', 'CONTRAENTREGA'])) is not None else None,
+            'fecha_bloqueo':                parse_fecha(gc(['FECHA BLOQUEO', 'Fecha Bloqueo', 'FECHA_BLOQUEO', 'FECHA INICIO'])),
+            'fecha_liberacion':             parse_fecha(gc(['FECHA FIN BLOQUEO/ PAGO SEPARACION',
+                                                            'Fecha Liberación', 'FECHA LIBERACION',
+                                                            'FECHA LIBERACIÓN', 'FECHA FIN', 'FECHA_FIN'])),
+            'comentario':                   str(gc(['COMENTARIO', 'Comentario', 'OBSERVACION', 'NOTAS']) or '').strip() or None,
+            'manzana':                      str(gc(['Bloque', 'BLOQUE', 'Manzana', 'MANZANA', 'MZ']) or '').strip() or None,
+            'metraje_terraza':              _dec(['Metraje Terraza', 'METRAJE TERRAZA', 'TERRAZA',
+                                                  'M2 TERRAZA', 'Area Terraza', 'Área Terraza',
+                                                  'Metros Terraza', 'M2 Balcon', 'Balcon', 'Balcón',
+                                                  'Sup. Terraza']),
+            'metraje_patio':                _dec(['Metraje Patio', 'METRAJE PATIO', 'PATIO',
+                                                  'M2 PATIO', 'Area Patio', 'Área Patio',
+                                                  'Metros Patio', 'Jardín', 'Jardin',
+                                                  'Sup. Patio', 'M2 Jardin']),
+            'precio_reserva':               _dec(['Precio Reserva', 'PRECIO RESERVA', 'RESERVA']),
+            'precio_separacion':            _dec(['Precio Separación', 'Precio Separacion',
+                                                  'PRECIO SEPARACIÓN', 'PRECIO SEPARACION', 'SEPARACION']),
+            'precio_inicial':               _dec(['Precio Inicial', 'PRECIO INICIAL', 'INICIAL']),
+            'cuota_monto':                  _dec(['Cuota Monto', 'CUOTA MONTO', 'CUOTAS 24', 'CUOTA']),
+            'cuota_meses':                  parse_int(gc(['Cuota Meses', 'CUOTA MESES', 'Meses',
+                                                          'Plazo', 'PLAZO', 'Cuotas', 'N Cuotas',
+                                                          'Num Cuotas', 'Meses Plazo'])),
+            'contra_entrega':               _dec(['Contra Entrega', 'CONTRA ENTREGA', 'CONTRAENTREGA']),
             'errores':                      errores,
             'advertencias':                 advertencias,
             'ia_sugerido':                  bool(nombres_ia.get('nombres') or nombres_final or inmo_id_sugerido),
@@ -242,30 +362,115 @@ def parsear_excel(bucket, key, proyecto_id, job_id):
     return preview
 
 
+def _normalizar_id_unidad(id_unidad):
+    return (id_unidad or '').strip().upper()
+
+
+def _obtener_ids_unidades_existentes(proyecto_id):
+    ids = set()
+    last_key = None
+
+    while True:
+        kwargs = {
+            'ProjectionExpression': 'id_unidad',
+            'KeyConditionExpression': Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
+        }
+        if last_key:
+            kwargs['ExclusiveStartKey'] = last_key
+
+        result = inventario_t.query(**kwargs)
+        for item in result.get('Items', []):
+            id_unidad = _normalizar_id_unidad(item.get('id_unidad'))
+            if id_unidad:
+                ids.add(id_unidad)
+
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            return ids
+
+
 def _validar_fila(id_unidad, vistos, precio, metraje, estatus_norm, estatus_raw,
-                  inmo_excel, inmo_confianza, inmo_es_nueva, nombre_cliente='', nombres='', apellidos=''):
+                  inmo_excel, inmo_confianza, inmo_es_nueva, existentes=None,
+                  nombre_cliente='', nombres='', apellidos='', cedula=None,
+                  telefono=None, correo=None, estado_interno=None, estado_proceso=None,
+                  estado_desde_estatus=None):
     errores, advertencias = [], []
+    existentes = existentes or set()
+    id_normalizado = _normalizar_id_unidad(id_unidad)
+    vistos_normalizados = {_normalizar_id_unidad(v) for v in vistos}
     if not id_unidad:
         errores.append('id_unidad vacío')
-    if id_unidad in vistos:
+    if id_normalizado in vistos_normalizados:
         errores.append(f'id_unidad duplicado: {id_unidad}')
+    if id_normalizado in existentes:
+        errores.append(f'La unidad {id_unidad} ya existe en este proyecto')
     if precio is None:
         errores.append('precio inválido o vacío')
     if metraje is None:
         errores.append('metraje inválido o vacío')
     if estatus_norm not in ESTATUS_MAP:
         errores.append(f'estado desconocido: {estatus_raw}')
+    compatibilidad = _validar_estado_proceso(estado_interno, estado_proceso, estado_desde_estatus)
+    if compatibilidad:
+        errores.append(compatibilidad)
     # Si estado no es disponible, inmobiliaria es obligatoria
     if estatus_norm != 'DISPONIBLE' and not inmo_excel:
         errores.append('inmobiliaria requerida para este estado')
     if inmo_excel and inmo_confianza < 80 and not inmo_es_nueva:
         advertencias.append(f'Inmobiliaria con baja confianza ({inmo_confianza}%)')
-    # Si hay nombre de cliente → cédula obligatoria (error, no advertencia)
-    if nombre_cliente:
-        errores.append('cédula obligatoria cuando hay cliente')
+    # Si hay nombre de cliente y NO viene cédula del Excel → error (debe ingresarla)
+    if nombre_cliente and not cedula:
+        errores.append('documento de identidad obligatorio cuando hay cliente')
+    if cedula and not DOCUMENTO_RE.match(str(cedula).strip().upper()):
+        errores.append('documento solo debe contener letras y números')
+    if nombres and not all(ch.isalpha() or ch.isspace() for ch in str(nombres).strip()):
+        errores.append('nombres solo deben contener letras y espacios')
+    if apellidos and not all(ch.isalpha() or ch.isspace() for ch in str(apellidos).strip()):
+        errores.append('apellidos solo deben contener letras y espacios')
+    if telefono and not str(telefono).strip().isdigit():
+        errores.append('teléfono solo debe contener números')
+    if correo and not EMAIL_RE.match(str(correo).strip().lower()):
+        errores.append('correo inválido')
     if nombre_cliente and not inmo_excel:
         advertencias.append('Sin inmobiliaria, el cliente no se registrará')
     # Si hay nombre de cliente pero faltan nombres/apellidos separados → advertencia
     if nombre_cliente and (not nombres or not apellidos):
         advertencias.append('Completa nombres y apellidos para registrar el cliente')
     return errores, advertencias
+
+
+def _estado_requerido_por_proceso(estado_proceso):
+    if not estado_proceso:
+        return 'disponible'
+    if estado_proceso == 'captacion':
+        return 'bloqueada'
+    if estado_proceso == 'vendido':
+        return 'vendida'
+    return 'no_disponible'
+
+
+def _validar_estado_proceso(estado, estado_proceso, estado_desde_estatus=None):
+    estado = str(estado or '').strip()
+    estado_proceso = str(estado_proceso or '').strip()
+    estado_desde_estatus = str(estado_desde_estatus or '').strip()
+    permitidos = {
+        'disponible': {''},
+        'bloqueada': {'captacion'},
+        'no_disponible': {'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega'},
+        'vendida': {'vendido'},
+    }
+    if estado_proceso and estado_desde_estatus:
+        estado_requerido = _estado_requerido_por_proceso(estado_proceso)
+        if estado_desde_estatus != estado_requerido:
+            return f'estado y estatus de proceso no coinciden: {estado_desde_estatus} no corresponde con {estado_proceso}'
+    if estado not in permitidos:
+        return None
+    if estado_proceso not in permitidos[estado]:
+        etiquetas = {
+            'disponible': 'sin estatus de proceso',
+            'bloqueada': 'captacion',
+            'no_disponible': 'reserva, separacion, contrato firmado, pagos atrasados o contra entrega',
+            'vendida': 'vendido',
+        }
+        return f'estado y estatus de proceso no coinciden: {estado} debe usar {etiquetas[estado]}'
+    return None

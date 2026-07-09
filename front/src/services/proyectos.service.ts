@@ -1,6 +1,31 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './api';
 import type { Proyecto, Unidad, Etapa } from '../types';
 
+const cleanFilter = (value?: string) => value?.trim();
+
+type UnidadPayload = Partial<Pick<
+  Unidad,
+  | 'id_unidad'
+  | 'etapa_id'
+  | 'metraje'
+  | 'metraje_terraza'
+  | 'metraje_patio'
+  | 'precio'
+  | 'precio_reserva'
+  | 'precio_separacion'
+  | 'precio_inicial'
+  | 'cuota_monto'
+  | 'cuota_meses'
+  | 'contra_entrega'
+  | 'tipo'
+  | 'manzana'
+  | 'piso'
+  | 'parqueos'
+  | 'num_cuartos'
+  | 'num_banos'
+  | 'comentario'
+>>;
+
 export const getProyectos = (): Promise<Proyecto[]> =>
   apiGet<Proyecto[]>('/proyectos');
 
@@ -38,12 +63,12 @@ export const getUnidades = (
   filtros?: { estado?: string; etapa_id?: string; id_unidad?: string; tipo?: string; manzana?: string; piso?: string; limit?: number; next_token?: string }
 ): Promise<Unidad[]> => {
   const params = new URLSearchParams();
-  if (filtros?.estado) params.append('estado', filtros.estado);
-  if (filtros?.etapa_id) params.append('etapa_id', filtros.etapa_id);
-  if (filtros?.id_unidad) params.append('id_unidad', filtros.id_unidad);
-  if (filtros?.tipo) params.append('tipo', filtros.tipo);
-  if (filtros?.manzana) params.append('manzana', filtros.manzana);
-  if (filtros?.piso) params.append('piso', filtros.piso);
+  if (cleanFilter(filtros?.estado)) params.append('estado', cleanFilter(filtros?.estado)!);
+  if (cleanFilter(filtros?.etapa_id)) params.append('etapa_id', cleanFilter(filtros?.etapa_id)!);
+  if (cleanFilter(filtros?.id_unidad)) params.append('id_unidad', cleanFilter(filtros?.id_unidad)!);
+  if (cleanFilter(filtros?.tipo)) params.append('tipo', cleanFilter(filtros?.tipo)!);
+  if (cleanFilter(filtros?.manzana)) params.append('manzana', cleanFilter(filtros?.manzana)!);
+  if (cleanFilter(filtros?.piso)) params.append('piso', cleanFilter(filtros?.piso)!);
   if (filtros?.limit) params.append('limit', filtros.limit.toString());
   if (filtros?.next_token) params.append('next_token', filtros.next_token);
   const qs = params.toString();
@@ -64,14 +89,14 @@ export const getUnidad = (proyectoId: string, unidadId: string): Promise<Unidad>
 
 export const crearUnidad = (
   proyectoId: string,
-  data: { id_unidad: string; etapa_id: string; metraje: number; precio: number; tipo?: string; manzana?: string; piso?: string }
+  data: UnidadPayload & { id_unidad: string; etapa_id: string; metraje: number; precio: number }
 ): Promise<Unidad> =>
   apiPost<Unidad>(`/admin/proyectos/${proyectoId}/unidades`, data);
 
 export const actualizarUnidad = (
   proyectoId: string,
   unidadId: string,
-  data: { id_unidad?: string; etapa_id?: string; metraje?: number; precio?: number; tipo?: string; manzana?: string; piso?: string }
+  data: UnidadPayload
 ): Promise<void> =>
   apiPut(`/admin/proyectos/${proyectoId}/unidades/${unidadId}`, data);
 

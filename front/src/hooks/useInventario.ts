@@ -8,6 +8,7 @@ import {
   getPresignedImagenProyecto,
 } from '../services/proyectos.service';
 import { getInmobiliarias } from '../services/inmobiliarias.service';
+import { normalizeUnidadPayload } from '../utils/unidadesValidation';
 import type { Proyecto, Unidad, Etapa } from '../types';
 import type { Inmobiliaria } from '../services/inmobiliarias.service';
 import type { UploadFile } from 'antd';
@@ -190,26 +191,29 @@ export function useInventario() {
 
   // Unidades
   const handleGuardarUnidad = async (values: any) => {
-    const payload = {
-      id_unidad: values.id_unidad,
-      etapa_id: values.etapa_id,
-      metraje: values.metraje != null ? parseFloat(values.metraje) : 0,
-      metraje_terraza: values.metraje_terraza != null ? parseFloat(values.metraje_terraza) : undefined,
-      metraje_patio: values.metraje_patio != null ? parseFloat(values.metraje_patio) : undefined,
-      precio: values.precio != null ? parseFloat(values.precio) : 0,
-      precio_reserva: values.precio_reserva != null ? parseFloat(values.precio_reserva) : undefined,
-      precio_separacion: values.precio_separacion != null ? parseFloat(values.precio_separacion) : undefined,
-      precio_inicial: values.precio_inicial != null ? parseFloat(values.precio_inicial) : undefined,
-      cuota_monto: values.cuota_monto != null ? parseFloat(values.cuota_monto) : undefined,
-      cuota_meses: values.cuota_meses != null ? parseInt(values.cuota_meses) : undefined,
-      contra_entrega: values.contra_entrega != null ? parseFloat(values.contra_entrega) : undefined,
-      tipo: values.tipo,
-      manzana: values.manzana,
-      piso: values.piso,
-      parqueos: values.parqueos != null ? parseInt(values.parqueos) : undefined,
-      comentario: values.comentario,
-    };
     try {
+      const valuesNormalizados = normalizeUnidadPayload(values);
+      const payload = {
+        id_unidad: valuesNormalizados.id_unidad,
+        etapa_id: valuesNormalizados.etapa_id,
+        metraje: valuesNormalizados.metraje != null ? parseFloat(valuesNormalizados.metraje) : 0,
+        metraje_terraza: valuesNormalizados.metraje_terraza != null ? parseFloat(valuesNormalizados.metraje_terraza) : undefined,
+        metraje_patio: valuesNormalizados.metraje_patio != null ? parseFloat(valuesNormalizados.metraje_patio) : undefined,
+        precio: valuesNormalizados.precio != null ? parseFloat(valuesNormalizados.precio) : 0,
+        precio_reserva: valuesNormalizados.precio_reserva != null ? parseFloat(valuesNormalizados.precio_reserva) : undefined,
+        precio_separacion: valuesNormalizados.precio_separacion != null ? parseFloat(valuesNormalizados.precio_separacion) : undefined,
+        precio_inicial: valuesNormalizados.precio_inicial != null ? parseFloat(valuesNormalizados.precio_inicial) : undefined,
+        cuota_monto: valuesNormalizados.cuota_monto != null ? parseFloat(valuesNormalizados.cuota_monto) : undefined,
+        cuota_meses: valuesNormalizados.cuota_meses != null ? parseInt(valuesNormalizados.cuota_meses) : undefined,
+        contra_entrega: valuesNormalizados.contra_entrega != null ? parseFloat(valuesNormalizados.contra_entrega) : undefined,
+        tipo: valuesNormalizados.tipo,
+        manzana: valuesNormalizados.manzana,
+        piso: valuesNormalizados.piso,
+        parqueos: valuesNormalizados.parqueos != null ? parseInt(valuesNormalizados.parqueos) : undefined,
+        num_cuartos: valuesNormalizados.num_cuartos != null ? parseInt(valuesNormalizados.num_cuartos) : undefined,
+        num_banos: valuesNormalizados.num_banos != null ? parseInt(valuesNormalizados.num_banos) : undefined,
+        comentario: valuesNormalizados.comentario,
+      };
       if (modoUnidad === 'crear') {
         await crearUnidad(proyectoId, payload);
         message.success('Unidad creada');
@@ -218,7 +222,7 @@ export function useInventario() {
         message.success('Unidad actualizada');
       }
       await cargarUnidades(); setModalUnidad(false);
-    } catch { message.error('Error al guardar unidad'); }
+    } catch (err: any) { message.error(err?.message || 'Error al guardar unidad'); }
   };
 
   const handleEliminarUnidad = async (u: Unidad) => {

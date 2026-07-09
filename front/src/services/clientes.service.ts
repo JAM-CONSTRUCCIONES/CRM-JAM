@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiPut } from './api';
-import type { Cliente } from '../types';
+import type { Cliente, ClienteProyecto } from '../types';
+import { validateAndNormalizeClientePayload } from '../utils/clientesValidation';
 
 export interface RegistrarClientePayload {
   cedula: string;
@@ -21,14 +22,17 @@ export const buscarClientePorCedula = (cedula: string, proyectoId?: string): Pro
 };
 
 export const registrarCliente = (data: RegistrarClientePayload): Promise<Cliente> =>
-  apiPost<Cliente>('/clientes', data);
+  apiPost<Cliente>('/clientes', validateAndNormalizeClientePayload(data));
 
-export const getClientes = (proyectoId?: string): Promise<Cliente[]> => {
-  const qs = proyectoId ? `?proyecto_id=${proyectoId}` : '';
-  return apiGet<Cliente[]>(`/clientes${qs}`);
+export const getClientes = (proyectoId?: string, vistaProyecto = false): Promise<Cliente[] | ClienteProyecto[]> => {
+  const params = new URLSearchParams();
+  if (proyectoId) params.append('proyecto_id', proyectoId);
+  if (vistaProyecto) params.append('vista', 'proyecto');
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return apiGet<Cliente[] | ClienteProyecto[]>(`/clientes${qs}`);
 };
 
-export const getClientesAdmin = (params?: { proyecto_id?: string; inmobiliaria_id?: string; next_token?: string; limit?: number }): Promise<{ items: Cliente[]; next_token?: string }> => {
+export const getClientesAdmin = (params?: { proyecto_id?: string; inmobiliaria_id?: string; next_token?: string; limit?: number; vista?: 'proyecto' }): Promise<{ items: ClienteProyecto[]; next_token?: string }> => {
   // El campo inmobiliaria_id en DynamoDB se guarda sin el prefijo INMOBILIARIA#
   const normalizedParams = params ? {
     ...params,
@@ -38,7 +42,18 @@ export const getClientesAdmin = (params?: { proyecto_id?: string; inmobiliaria_i
     Object.entries({ ...normalizedParams, limit: normalizedParams.limit?.toString() ?? '50' })
       .filter(([, v]) => v) as [string, string][]
   ).toString() : '';
-  return apiGet<{ items: Cliente[]; next_token?: string }>(`/admin/clientes${qs}`);
+  return apiGet<{ items: ClienteProyecto[]; next_token?: string }>(`/admin/clientes${qs}`);
+};
+
+export const exportarClientesProyecto = (
+  proyectoId: string,
+  isAdmin: boolean,
+  inmobiliariaId?: string
+): Promise<{ download_url: string; filename: string; total_clientes: number; proyecto_nombre: string }> => {
+  const params = new URLSearchParams({ accion: 'exportar', proyecto_id: proyectoId });
+  if (inmobiliariaId) params.append('inmobiliaria_id', inmobiliariaId.replace('INMOBILIARIA#', ''));
+  const base = isAdmin ? '/admin/clientes' : '/clientes';
+  return apiGet(`${base}?${params.toString()}`);
 };
 
 export const buscarClienteAdmin = (cedula: string): Promise<(Cliente & { procesos: any[] })[]> =>
@@ -65,8 +80,8 @@ export const actualizarClienteAdmin = (
   proyectoId: string,
   inmobiliariaId: string,
   data: Partial<RegistrarClientePayload & { estado: string }>
-): Promise<{ message: string }> =>
-  apiPut(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`, data);
+): Promise<{ message: string; cliente?: Cliente }> =>
+  apiPut(`/admin/clientes/${encodeURIComponent(cedula)}/proyecto/${encodeURIComponent(proyectoId)}?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}`, validateAndNormalizeClientePayload(data));
 
 export const transferirClienteInmobiliaria = (
   cedula: string,
@@ -104,10 +119,11 @@ export const getProyectosPublico = async (inmobiliariaId: string): Promise<{ pro
 
 export const registrarClientePublico = async (data: RegistrarClientePayload & { inmobiliaria_id: string }): Promise<Cliente> => {
   const cfg = await import('../config');
+  const payload = validateAndNormalizeClientePayload(data);
   const res = await fetch(`${cfg.default.apiUrl}/publico/clientes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
   const json = await res.json();
   if (!res.ok) throw Object.assign(new Error(json?.message || 'Error'), { response: { status: res.status, data: json } });
@@ -123,8 +139,13 @@ export const eliminarClienteAdmin = (
 export const cambiarCedula = (
   cedulaAntigua: string,
   cedulaNueva: string
-): Promise<{ message: string; execution_arn: string }> =>
-  apiPost(`/admin/clientes/${encodeURIComponent(cedulaAntigua)}/cambiar-cedula`, {
+): Promise<{ message: string; execution_arn: string }> => {
+  const nueva = cedulaNueva.trim().toUpperCase();
+  if (!/^[A-Z0-9]+$/.test(nueva)) {
+    throw new Error('La cedula/pasaporte solo debe contener letras y numeros, sin guiones ni simbolos');
+  }
+  return apiPost(`/admin/clientes/${encodeURIComponent(cedulaAntigua)}/cambiar-cedula`, {
     cedula_antigua: cedulaAntigua,
-    cedula_nueva: cedulaNueva,
+    cedula_nueva: nueva,
   });
+};

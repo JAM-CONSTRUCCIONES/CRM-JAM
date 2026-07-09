@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Button, Drawer, Form, Input, Space,
-  Tag, Tooltip, message, Spin, Popconfirm, Alert, Divider, Table,
+  Tag, Tooltip, message, Spin, Popconfirm, Alert, Divider, Table, Switch,
 } from 'antd';
 import { EditOutlined, UndoOutlined, SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -13,10 +13,24 @@ import {
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
+const VARIABLES_PERMITIDAS = ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}'];
+
+const validarVariablesPlantilla = (_: unknown, value?: string) => {
+  const texto = String(value || '');
+  const variables = texto.match(/\{[^{}\r\n]*\}?/g) || [];
+  const invalida = variables.find(v => !VARIABLES_PERMITIDAS.includes(v));
+  if (invalida) {
+    return Promise.reject(
+      new Error(`Variable no valida o incompleta: ${invalida}. Usa ${VARIABLES_PERMITIDAS.join(', ')}`)
+    );
+  }
+  return Promise.resolve();
+};
+
 const GRUPOS: Record<string, string[]> = {
   'Bloqueos': ['bloqueo_registrado', 'alerta_vencimiento', 'liberacion_automatica', 'liberacion_manual'],
   'Cambios de estatus': [
-    'cambio_estatus_disponible', 'cambio_estatus_bloqueada', 'cambio_estatus_reserva',
+    'cambio_estatus_disponible', 'cambio_estatus_bloqueada', 'cambio_estatus_actualizacion', 'cambio_estatus_reserva',
     'cambio_estatus_separacion', 'cambio_estatus_inicial', 'cambio_estatus_pagos_atrasados',
     'cambio_estatus_contra_entrega', 'cambio_estatus_vendida', 'cambio_estatus_desvinculado',
   ],
@@ -30,6 +44,7 @@ const ConfigPage = () => {
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [togglingTipo, setTogglingTipo] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   const cargar = useCallback(async () => {
@@ -87,6 +102,25 @@ const ConfigPage = () => {
     }
   };
 
+  const cambiarActivo = async (tpl: EmailTemplate, activo: boolean) => {
+    setTogglingTipo(tpl.tipo);
+    try {
+      await saveEmailTemplate(tpl.tipo, { activo });
+      setTemplates(actuales => actuales.map(item =>
+        item.tipo === tpl.tipo ? { ...item, activo } : item
+      ));
+      message.success(
+        activo
+          ? 'Notificación de exclusividad activada'
+          : 'Notificación de exclusividad desactivada'
+      );
+    } catch {
+      message.error('No se pudo actualizar la notificación');
+    } finally {
+      setTogglingTipo(null);
+    }
+  };
+
   const byTipo = Object.fromEntries(templates.map(t => [t.tipo, t]));
 
   return (
@@ -117,6 +151,15 @@ const ConfigPage = () => {
                       <Space direction="vertical" size={2}>
                         <Space>
                           <Text strong>{tpl.label}</Text>
+                          {tpl.tipo === 'exclusividad_vencida' && (
+                            <Switch
+                              checked={tpl.activo !== false}
+                              loading={togglingTipo === tpl.tipo}
+                              checkedChildren="Activada"
+                              unCheckedChildren="Desactivada"
+                              onChange={(activo) => cambiarActivo(tpl, activo)}
+                            />
+                          )}
                           {tpl.modificado_en && (
                             <Tag color="blue" style={{ fontSize: 11 }}>
                               Editado {dayjs(tpl.modificado_en).format('DD/MM/YY')}
@@ -187,7 +230,7 @@ const ConfigPage = () => {
                     Haz clic en una variable para insertarla en el mensaje:
                   </Text>
                   <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {(editing.variables || ['{cliente}', '{unidad}', '{proyecto}', '{inmobiliaria}', '{fecha}']).map(v => (
+                    {(editing.variables || VARIABLES_PERMITIDAS).map(v => (
                       <Tag
                         key={v}
                         style={{ cursor: 'pointer', fontFamily: 'monospace' }}
@@ -207,21 +250,27 @@ const ConfigPage = () => {
               showIcon
               style={{ marginBottom: 20 }}
               message="Datos siempre incluidos"
-              description="Debajo del mensaje siempre aparece una tabla con: cliente, unidad, proyecto, inmobiliaria y fecha."
+              description="Debajo del mensaje siempre aparece una tabla con los datos principales de la notificación."
             />
 
             <Form form={form} layout="vertical" onFinish={guardar}>
               <Form.Item
                 name="titulo"
                 label="Título del correo"
-                rules={[{ required: true, message: 'El título es requerido' }]}
+                rules={[
+                  { required: true, message: 'El título es requerido' },
+                  { validator: validarVariablesPlantilla },
+                ]}
               >
                 <Input placeholder="Ej: Nuevo bloqueo registrado" maxLength={120} showCount />
               </Form.Item>
               <Form.Item
                 name="mensaje"
                 label="Mensaje principal"
-                rules={[{ required: true, message: 'El mensaje es requerido' }]}
+                rules={[
+                  { required: true, message: 'El mensaje es requerido' },
+                  { validator: validarVariablesPlantilla },
+                ]}
                 extra="Aparece antes de la tabla de datos."
               >
                 <TextArea

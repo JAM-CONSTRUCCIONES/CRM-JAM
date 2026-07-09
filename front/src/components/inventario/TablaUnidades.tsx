@@ -1,5 +1,5 @@
 import { Table, Tag, Button, Space, Tooltip, Popconfirm, Typography, Grid, Popover } from 'antd';
-import { EditOutlined, DeleteOutlined, LockOutlined, ClockCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, LockOutlined, ClockCircleOutlined, InfoCircleOutlined, MessageOutlined } from '@ant-design/icons';
 import type { Unidad, Etapa } from '../../types';
 import { ESTADO_UNIDAD_CONFIG } from '../../constants/estados';
 
@@ -20,6 +20,7 @@ interface Props {
   isAdmin: boolean;
   isInmobiliaria: boolean;
   canEdit?: boolean;
+  readOnlyPublic?: boolean;
   inmoNombre: (id: string) => string;
   onEditar: (u: Unidad) => void;
   onEliminar: (u: Unidad) => void;
@@ -28,8 +29,8 @@ interface Props {
 }
 
 // ── Card móvil ────────────────────────────────────────────────────────────────
-const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: {
-  u: Unidad; etapas: Etapa[]; isAdmin: boolean; isInmobiliaria: boolean; canEdit?: boolean;
+const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: {
+  u: Unidad; etapas: Etapa[]; isAdmin: boolean; isInmobiliaria: boolean; canEdit?: boolean; readOnlyPublic?: boolean;
   inmoNombre: (id: string) => string;
   onEditar: (u: Unidad) => void; onEliminar: (u: Unidad) => void; onBloquear?: (u: Unidad) => void;
   onCrearBloqueoAdmin?: (u: Unidad) => void;
@@ -39,7 +40,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
 
   return (
     <div style={{
-      background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0',
+      background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)',
       boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginBottom: 10, overflow: 'hidden',
     }}>
       {/* Color bar by estado */}
@@ -75,7 +76,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
 
         {/* Info grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', marginBottom: 8 }}>
-          {u.manzana && <div><Text type="secondary" style={{ fontSize: 11 }}>MANZANA</Text><div><Text>{u.manzana}</Text></div></div>}
+          {u.manzana && <div><Text type="secondary" style={{ fontSize: 11 }}>BLOQUE</Text><div><Text>{u.manzana}</Text></div></div>}
           {u.piso && <div><Text type="secondary" style={{ fontSize: 11 }}>PISO</Text><div><Text>{u.piso}</Text></div></div>}
           <div>
             <Text type="secondary" style={{ fontSize: 11 }}>METRAJE</Text>
@@ -86,12 +87,12 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
             </div>
           </div>
           {u.parqueos != null && <div><Text type="secondary" style={{ fontSize: 11 }}>PARQUEOS</Text><div><Text>{u.parqueos}</Text></div></div>}
-          {(u as any).num_cuartos != null && <div><Text type="secondary" style={{ fontSize: 11 }}>CUARTOS</Text><div><Text>{(u as any).num_cuartos}</Text></div></div>}
+          {(u as any).num_cuartos != null && <div><Text type="secondary" style={{ fontSize: 11 }}>HABITACIONES</Text><div><Text>{(u as any).num_cuartos}</Text></div></div>}
           {(u as any).num_banos != null && <div><Text type="secondary" style={{ fontSize: 11 }}>BAÑOS</Text><div><Text>{(u as any).num_banos}</Text></div></div>}
         </div>
 
         {/* Precio */}
-        <div style={{ background: '#fafafa', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+        <div style={{ background: 'var(--panel-soft-bg)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
           <Text strong style={{ fontSize: 15 }}>{fmt$(u.precio)}</Text>
           {(u.precio_reserva || u.precio_separacion || u.precio_inicial || u.cuota_monto || u.contra_entrega) && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', marginTop: 4 }}>
@@ -118,21 +119,21 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
 
         {/* Comentario */}
         {u.comentario && isAdmin && (
-          <div style={{ background: '#fffbe6', borderRadius: 6, padding: '4px 8px', marginBottom: 8 }}>
-            <Text type="secondary" style={{ fontSize: 11 }}>💬 {u.comentario}</Text>
+          <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 6, padding: '4px 8px', marginBottom: 8 }}>
+            <Text type="secondary" style={{ fontSize: 11 }}><MessageOutlined style={{ marginRight: 4, color: '#faad14' }} />{u.comentario}</Text>
           </div>
         )}
 
         {/* Bloquear button (inmobiliaria) */}
-        {isInmobiliaria && u.estado === 'disponible' && (
+        {isInmobiliaria && !readOnlyPublic && u.estado === 'disponible' && (
           <Button size="small" icon={<LockOutlined />} type="primary" ghost block onClick={() => onBloquear?.(u)}>
             Bloquear unidad
           </Button>
         )}
-        {isInmobiliaria && u.estado === 'bloqueada' && (
+        {isInmobiliaria && !readOnlyPublic && u.estado === 'bloqueada' && (
           <Tag icon={<LockOutlined />} color="warning" style={{ width: '100%', textAlign: 'center', padding: '4px 0' }}>Bloqueada</Tag>
         )}
-        
+
         {/* Crear bloqueo button (admin) */}
         {isAdmin && !isInmobiliaria && u.estado === 'disponible' && onCrearBloqueoAdmin && (
           <Button size="small" icon={<LockOutlined />} type="primary" block onClick={() => onCrearBloqueoAdmin(u)}>
@@ -145,18 +146,19 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, inmoNombre, o
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
-const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: Props) => {
+const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: Props) => {
   const { md } = useBreakpoint();
 
   // Móvil → cards
   if (!md) {
-    if (loading) return <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Cargando...</div>;
-    if (!unidades.length) return <div style={{ textAlign: 'center', padding: 40, color: '#aaa' }}>Sin unidades</div>;
+    if (loading) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Cargando...</div>;
+    if (!unidades.length) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sin unidades</div>;
     return (
       <div>
         {unidades.map(u => (
           <UnidadCard key={u.unidad_id} u={u} etapas={etapas}
             isAdmin={isAdmin} isInmobiliaria={isInmobiliaria} canEdit={canEdit} inmoNombre={inmoNombre}
+            readOnlyPublic={readOnlyPublic}
             onEditar={onEditar} onEliminar={onEliminar} onBloquear={onBloquear} onCrearBloqueoAdmin={onCrearBloqueoAdmin} />
         ))}
       </div>
@@ -171,13 +173,13 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
       return e ? <Tag color="blue">{e.nombre}</Tag> : <Text type="secondary">—</Text>;
     }},
     { title: 'Tipo', dataIndex: 'tipo', key: 'tipo', render: (v: string) => v ? <Tag>{v}</Tag> : <Text type="secondary">—</Text> },
-    { title: 'Manzana', dataIndex: 'manzana', key: 'manzana', render: (v: string) => v || <Text type="secondary">—</Text> },
+    { title: 'Bloque', dataIndex: 'manzana', key: 'manzana', render: (v: string) => v || <Text type="secondary">—</Text> },
     { title: 'Piso', dataIndex: 'piso', key: 'piso', render: (v: string) => v || <Text type="secondary">—</Text> },
     {
       title: 'Metraje', key: 'metraje',
       render: (_: any, u: Unidad) => (
         <Space direction="vertical" size={0}>
-          <Text>{parseFloat(String(u.metraje)) || 0} m² <span style={{ color: '#aaa', fontSize: 11 }}>apto.</span></Text>
+          <Text>{parseFloat(String(u.metraje)) || 0} m² <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>apto.</span></Text>
           {u.metraje_terraza ? <Text type="secondary" style={{ fontSize: 11 }}>+{parseFloat(String(u.metraje_terraza))} m² terraza</Text> : null}
           {u.metraje_patio ? <Text type="secondary" style={{ fontSize: 11 }}>+{parseFloat(String(u.metraje_patio))} m² patio</Text> : null}
         </Space>
@@ -185,12 +187,12 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
     },
     { title: 'Parqueos', dataIndex: 'parqueos', key: 'parqueos', render: (v: any) => v != null ? <Tag>{v}</Tag> : <Text type="secondary">—</Text> },
     {
-      title: 'Cuartos / Baños', key: 'cuartos_banos',
+      title: 'Habitaciones / Baños', key: 'cuartos_banos',
       render: (_: any, u: Unidad) => {
         const c = (u as any).num_cuartos;
         const b = (u as any).num_banos;
         if (c == null && b == null) return <Text type="secondary">—</Text>;
-        return <Text>{c != null ? `${c}c` : '—'} / {b != null ? `${b}b` : '—'}</Text>;
+        return <Text>{c != null ? `${c} hab.` : '—'} / {b != null ? `${b} baños` : '—'}</Text>;
       },
     },
     {
@@ -241,10 +243,10 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
     ...(canEdit ? [
       { title: 'Bloqueado por', dataIndex: 'bloqueado_por', key: 'bloqueado_por', render: (v: string) => v ? <Tag>{inmoNombre(v)}</Tag> : <Text type="secondary">—</Text> },
       { title: 'Fecha bloqueo', dataIndex: 'fecha_bloqueo', key: 'fecha_bloqueo', render: (v: string) => v ? new Date(v).toLocaleDateString('es-VE') : <Text type="secondary">—</Text> },
-      { title: '', key: 'acciones', width: 90, render: (_: any, u: Unidad) => (
+      { title: '', key: 'acciones', width: 120, render: (_: any, u: Unidad) => (
         <Space>
           <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => onEditar(u)} /></Tooltip>
-          {u.comentario && <Tooltip title={u.comentario}><Button size="small" type="text" style={{ color: '#faad14' }}>💬</Button></Tooltip>}
+          <Tooltip title={u.comentario ? `Ver comentario interno: ${u.comentario}` : 'Sin comentario interno'}><Button size="small" icon={<MessageOutlined />} disabled={!u.comentario} style={u.comentario ? { color: '#faad14' } : undefined} /></Tooltip>
           <Popconfirm title="¿Eliminar unidad?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(u)}>
             <Tooltip title="Eliminar"><Button size="small" danger icon={<DeleteOutlined />} /></Tooltip>
           </Popconfirm>
@@ -254,7 +256,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
       { title: 'Bloqueado por', dataIndex: 'bloqueado_por', key: 'bloqueado_por', render: (v: string) => v ? <Tag>{inmoNombre(v)}</Tag> : <Text type="secondary">—</Text> },
       { title: 'Fecha bloqueo', dataIndex: 'fecha_bloqueo', key: 'fecha_bloqueo', render: (v: string) => v ? new Date(v).toLocaleDateString('es-VE') : <Text type="secondary">—</Text> },
     ] : []),
-    ...(isInmobiliaria ? [{
+    ...(isInmobiliaria && !readOnlyPublic ? [{
       title: '', key: 'bloqueo', width: 120,
       render: (_: any, u: Unidad) => {
         if (u.estado !== 'disponible') return null;
@@ -272,7 +274,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
 
   return (
     <Table dataSource={unidades} columns={columnas} rowKey="unidad_id"
-      loading={loading} pagination={{ pageSize: 30 }}
+      loading={loading} pagination={{ pageSize: 30, showSizeChanger: false }}
       locale={{ emptyText: 'Sin unidades' }}
       scroll={{ x: true }}
       rowClassName={(r) => `row-estado-${r.estado}`}

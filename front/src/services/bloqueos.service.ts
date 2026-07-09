@@ -1,5 +1,7 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './api';
 import type { Bloqueo, HistorialBloqueo } from '../types';
+import { validateAndNormalizeClientePayload } from '../utils/clientesValidation';
+import type { ModoNotificacion } from '../components/common/CambiarEstatusModal';
 
 export const bloquearUnidad = (data: {
   proyecto_id: string;
@@ -17,7 +19,7 @@ export const bloquearUnidad = (data: {
   nacionalidad?: string;
   pais_residencia?: string;
 }): Promise<{ unidad_id: string; fecha_liberacion: string; cliente_registrado: boolean; advertencia_cliente?: string }> =>
-  apiPost('/bloqueos', data);
+  apiPost('/bloqueos', validateAndNormalizeClientePayload(data));
 
 export interface BloquesActivosResponse {
   items: Bloqueo[];
@@ -32,16 +34,27 @@ export interface HistorialResponse {
   next_token?: string;
 }
 
-export const getHistorialBloqueos = (unidadId?: string, nextToken?: string): Promise<HistorialResponse> => {
+export const getHistorialBloqueos = (
+  unidadId?: string,
+  nextToken?: string,
+  proyectoId?: string
+): Promise<HistorialResponse> => {
   const params = new URLSearchParams();
   if (unidadId) params.set('unidad_id', unidadId);
   if (nextToken) params.set('next_token', nextToken);
+  if (proyectoId) params.set('proyecto_id', proyectoId);
   const qs = params.toString() ? `?${params.toString()}` : '';
   return apiGet<HistorialResponse>(`/admin/bloqueos/historial${qs}`);
 };
 
-export const liberarBloqueo = (unidadId: string, proyectoId: string): Promise<{ message: string }> =>
-  apiDelete(`/admin/bloqueos/${unidadId}?proyecto_id=${proyectoId}`);
+export const liberarBloqueo = (
+  unidadId: string,
+  proyectoId: string,
+  notificar: ModoNotificacion = false
+): Promise<{ message: string }> => {
+  const params = new URLSearchParams({ proyecto_id: proyectoId, notificar: String(notificar) });
+  return apiDelete(`/admin/bloqueos/${unidadId}?${params.toString()}`);
+};
 
 export const extenderBloqueo = (
   unidadId: string,

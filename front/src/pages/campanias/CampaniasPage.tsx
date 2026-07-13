@@ -79,6 +79,10 @@ export default function CampaniasPage() {
     () => new Map(proyectos.map(p => [p.proyecto_id, p.nombre])),
     [proyectos],
   );
+  const totalEnviados = useMemo(
+    () => historial.reduce((total, item) => total + (item.correos_enviados || 0), 0),
+    [historial],
+  );
 
   useEffect(() => {
     getProyectos()
@@ -262,18 +266,55 @@ export default function CampaniasPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Title level={3}>Campañas de correo</Title>
-      <Text type="secondary">Envios manuales por proyecto para campañas comerciales o comunicados.</Text>
+      <div style={{ marginBottom: 20 }}>
+        <Title level={3} style={{ marginBottom: 4 }}>Campañas de correo</Title>
+        <Text type="secondary">Prepara comunicados por proyecto, revisa destinatarios y conserva el historial de envios.</Text>
+      </div>
+
+      <Row gutter={[12, 12]} style={{ marginBottom: 8 }}>
+        <Col xs={24} sm={8}>
+          <Card size="small">
+            <Statistic title="Plantillas" value={templates.length} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card size="small">
+            <Statistic title="Campañas enviadas" value={historial.length} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card size="small">
+            <Statistic title="Correos enviados" value={totalEnviados} />
+          </Card>
+        </Col>
+      </Row>
+
+      {!puedeEnviar && (
+        <Alert
+          style={{ marginTop: 12, marginBottom: 4 }}
+          type="info"
+          showIcon
+          message="Modo consulta"
+          description="Tu rol puede revisar plantillas e historial, pero no crear ni enviar campañas."
+        />
+      )}
 
       <Tabs
         style={{ marginTop: 20 }}
         items={[
           {
             key: 'crear',
-            label: <span><MailOutlined /> Campañas</span>,
+            label: <span><MailOutlined /> Preparar campaña</span>,
             children: (
               <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                <Card title="Plantillas">
+                <Card
+                  title="Plantillas de correo"
+                  extra={puedeEnviar ? (
+                    <Button type="primary" icon={<PlusOutlined />} onClick={iniciarEnBlanco}>
+                      Nueva campaña
+                    </Button>
+                  ) : null}
+                >
                   <Row gutter={[16, 16]}>
                     <Col xs={24} sm={12} lg={8}>
                       <Card
@@ -314,9 +355,6 @@ export default function CampaniasPage() {
                       </Col>
                     )}
                   </Row>
-                  {!puedeEnviar && (
-                    <Alert style={{ marginTop: 16 }} type="info" showIcon message="Tu rol puede ver campañas e historial, pero no crear ni enviar." />
-                  )}
                 </Card>
 
                 {editorVisible && (
@@ -433,7 +471,7 @@ export default function CampaniasPage() {
                           />
                         </Card>
 
-                        <Card title="Resumen del envio">
+                        <Card title="Resumen de destinatarios">
                           {preview ? (
                             <Space direction="vertical" style={{ width: '100%' }} size={16}>
                               <Row gutter={12}>

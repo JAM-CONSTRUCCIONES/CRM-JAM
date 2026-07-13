@@ -53,18 +53,20 @@ const Sidebar = ({ onSelect }: Props) => {
         { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
         { key: '/inventario', icon: <AppstoreOutlined />, label: 'Proyectos' },
         ...(isInterno || rol === 'inmobiliaria' ? [{ key: '/clientes', icon: <TeamOutlined />, label: 'Clientes' }] : []),
-        ...(isInterno ? [{ key: '/campanias', icon: <MailOutlined />, label: 'Campañas' }] : []),
         // { key: '/reportes', icon: <LinkOutlined />, label: 'Reportes' },
       ],
     },
-    ...(isAdminOrCoordinador ? [{
+    ...(isInterno ? [{
       title: 'Administración',
       items: [
-        { key: '/inmobiliarias',    icon: <BankOutlined />,      label: 'Inmobiliarias' },
-        { key: '/procesos',         icon: <ApartmentOutlined />, label: 'Procesos' },
-        { key: '/migracion',        icon: <ImportOutlined />,    label: 'Migración Excel' },
-        { key: '/sistema/usuarios', icon: <UserOutlined />,      label: 'Usuarios' },
-        { key: '/config',           icon: <SettingOutlined />,   label: 'Configuración' },
+        ...(isAdminOrCoordinador ? [
+          { key: '/inmobiliarias',    icon: <BankOutlined />,      label: 'Inmobiliarias' },
+          { key: '/procesos',         icon: <ApartmentOutlined />, label: 'Procesos' },
+          { key: '/migracion',        icon: <ImportOutlined />,    label: 'Migración Excel' },
+          { key: '/sistema/usuarios', icon: <UserOutlined />,      label: 'Usuarios' },
+          { key: '/config',           icon: <SettingOutlined />,   label: 'Configuración de notificaciones' },
+        ] : []),
+        { key: '/campanias', icon: <MailOutlined />, label: 'Campañas de correo' },
       ],
     }] : []),
     ...(rol === 'inmobiliaria' ? [{

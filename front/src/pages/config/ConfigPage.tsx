@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Button, Drawer, Form, Input, Space,
   Tag, Tooltip, message, Spin, Popconfirm, Alert, Divider, Table, Switch,
+  Card, Row, Col, Statistic,
 } from 'antd';
 import { EditOutlined, UndoOutlined, SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -122,13 +123,35 @@ const ConfigPage = () => {
   };
 
   const byTipo = Object.fromEntries(templates.map(t => [t.tipo, t]));
+  const totalEditadas = templates.filter(t => t.modificado_en).length;
+  const totalActivas = templates.filter(t => t.activo !== false).length;
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto' }}>
-      <Title level={4} style={{ marginBottom: 4 }}>Configuración de correos</Title>
-      <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
-        Edita el título y mensaje de cada notificación. Los datos del cliente, unidad y proyecto siempre se incluyen automáticamente.
-      </Text>
+    <div style={{ maxWidth: 980, margin: '0 auto' }}>
+      <div style={{ marginBottom: 20 }}>
+        <Title level={4} style={{ marginBottom: 4 }}>Configuración de notificaciones</Title>
+        <Text type="secondary" style={{ display: 'block' }}>
+          Edita el título y mensaje de cada correo automático. Los datos del cliente, unidad y proyecto siempre se incluyen automáticamente.
+        </Text>
+      </div>
+
+      <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+        <Col xs={24} sm={8}>
+          <Card size="small">
+            <Statistic title="Notificaciones" value={templates.length} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card size="small">
+            <Statistic title="Activas" value={totalActivas} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card size="small">
+            <Statistic title="Textos editados" value={totalEditadas} />
+          </Card>
+        </Col>
+      </Row>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>
@@ -136,13 +159,19 @@ const ConfigPage = () => {
         Object.entries(GRUPOS).map(([grupo, tipos]) => {
           const rows = tipos.map(tipo => byTipo[tipo]).filter(Boolean);
           return (
-            <div key={grupo} style={{ marginBottom: 32 }}>
-              <Divider titlePlacement="left" style={{ fontWeight: 600, color: '#1a3c5e' }}>{grupo}</Divider>
+            <Card
+              key={grupo}
+              title={grupo}
+              size="small"
+              style={{ marginBottom: 16 }}
+              extra={<Tag>{rows.length} notificaciones</Tag>}
+            >
               <Table
                 dataSource={rows}
                 rowKey="tipo"
                 pagination={false}
                 size="small"
+                scroll={{ x: 620 }}
                 columns={[
                   {
                     title: 'Notificación',
@@ -194,7 +223,7 @@ const ConfigPage = () => {
                   },
                 ]}
               />
-            </div>
+            </Card>
           );
         })
       )}

@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Button, Card, Col, Empty, Form, Grid, Input, InputNumber, Modal, Row, Select,
-  Space, Statistic, Switch, Table, Tag, Typography, message,
+  Space, Statistic, Table, Tag, Typography, message,
 } from 'antd';
 import {
   CheckCircleOutlined, ClockCircleOutlined, EditOutlined, FieldTimeOutlined,
-  PlusOutlined, StopOutlined, TeamOutlined, UserAddOutlined,
+  PlusOutlined, StopOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import useAuth from '../../hooks/useAuth';
 import {
-  actualizarTarea, actualizarTrabajador, cancelarTarea, crearTarea, crearTrabajador,
-  getTareas, getTrabajadores, type EstadoTarea, type PrioridadTarea,
-  type TareaJam, type TrabajadorJam,
+  actualizarTarea, cancelarTarea, crearTarea, getTareas,
+  type EstadoTarea, type PrioridadTarea, type TareaJam,
 } from '../../services/tareas.service';
+import { getUsuariosSistema, type UsuarioSistema } from '../../services/sistema.service';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -45,18 +45,27 @@ export default function TareasPage() {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const puedeAsignar = usuario?.rol === 'admin' || usuario?.rol === 'coordinador';
-  const puedeEditarTrabajadores = usuario?.rol === 'admin';
 
   const [filtros, setFiltros] = useState({ fecha: today(), trabajador_id: '', estado: '', prioridad: '' });
   const [tareas, setTareas] = useState<TareaJam[]>([]);
-  const [trabajadores, setTrabajadores] = useState<TrabajadorJam[]>([]);
+  const [usuariosJam, setUsuariosJam] = useState<UsuarioSistema[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalTarea, setModalTarea] = useState(false);
-  const [modalTrabajador, setModalTrabajador] = useState(false);
   const [editingTarea, setEditingTarea] = useState<TareaJam | null>(null);
-  const [editingTrabajador, setEditingTrabajador] = useState<TrabajadorJam | null>(null);
   const [formTarea] = Form.useForm();
-  const [formTrabajador] = Form.useForm();
+
+  const usuariosAsignables = useMemo(
+    () => usuariosJam.filter(u => u.activo),
+    [usuariosJam],
+  );
+
+  const usuarioOptions = useMemo(
+    () => usuariosAsignables.map(u => ({
+      value: u.pk.replace('USUARIO#', ''),
+      label: `${u.nombre || u.cognito_username} (${u.rol})`,
+    })),
+    [usuariosAsignables],
+  );
 
   const resumen = useMemo(() => ({
     total: tareas.length,
@@ -66,7 +75,7 @@ export default function TareasPage() {
   }), [tareas]);
 
   useEffect(() => {
-    cargarTrabajadores();
+    cargarUsuariosJam();
   }, []);
 
   useEffect(() => {
@@ -89,11 +98,11 @@ export default function TareasPage() {
     }
   };
 
-  const cargarTrabajadores = async () => {
+  const cargarUsuariosJam = async () => {
     try {
-      setTrabajadores(await getTrabajadores(true));
+      setUsuariosJam(await getUsuariosSistema());
     } catch (err: any) {
-      message.error(err?.message || 'Error al cargar trabajadores');
+      message.error(err?.message || 'Error al cargar usuarios JAM');
     }
   };
 
@@ -147,36 +156,6 @@ export default function TareasPage() {
     }
   };
 
-  const abrirNuevoTrabajador = () => {
-    setEditingTrabajador(null);
-    formTrabajador.resetFields();
-    formTrabajador.setFieldsValue({ activo: true });
-    setModalTrabajador(true);
-  };
-
-  const abrirEditarTrabajador = (trabajador: TrabajadorJam) => {
-    setEditingTrabajador(trabajador);
-    formTrabajador.setFieldsValue(trabajador);
-    setModalTrabajador(true);
-  };
-
-  const guardarTrabajador = async () => {
-    const values = await formTrabajador.validateFields();
-    try {
-      if (editingTrabajador) {
-        await actualizarTrabajador(editingTrabajador.trabajador_id, values);
-        message.success('Trabajador actualizado');
-      } else {
-        await crearTrabajador(values);
-        message.success('Trabajador creado');
-      }
-      setModalTrabajador(false);
-      await cargarTrabajadores();
-    } catch (err: any) {
-      message.error(err?.message || 'No se pudo guardar el trabajador');
-    }
-  };
-
   const tareaColumns = [
     { title: 'Hora', dataIndex: 'hora', width: 90 },
     {
@@ -210,12 +189,9 @@ export default function TareasPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
         <div>
           <Title level={3} style={{ marginBottom: 4 }}>Agenda / Tareas</Title>
-          <Text type="secondary">Asigna trabajo por dia, hora y trabajador JAM.</Text>
+          <Text type="secondary">Asigna trabajo por dia, hora y usuario JAM.</Text>
         </div>
         <Space wrap>
-          {puedeEditarTrabajadores && (
-            <Button icon={<UserAddOutlined />} onClick={abrirNuevoTrabajador}>Trabajador</Button>
-          )}
           <Button type="primary" icon={<PlusOutlined />} onClick={abrirNuevaTarea} disabled={!puedeAsignar}>
             Nueva tarea
           </Button>
@@ -236,14 +212,16 @@ export default function TareasPage() {
             <Input type="date" value={filtros.fecha} onChange={e => setFiltros({ ...filtros, fecha: e.target.value })} />
           </Col>
           <Col xs={24} md={6}>
-            <Text type="secondary">Trabajador</Text>
+            <Text type="secondary">Usuario JAM</Text>
             <Select
               allowClear
+              showSearch
               style={{ width: '100%' }}
               placeholder="Todos"
               value={filtros.trabajador_id || undefined}
               onChange={value => setFiltros({ ...filtros, trabajador_id: value || '' })}
-              options={trabajadores.filter(t => t.activo).map(t => ({ value: t.trabajador_id, label: t.nombre }))}
+              options={usuarioOptions}
+              optionFilterProp="label"
             />
           </Col>
           <Col xs={24} md={5}>
@@ -308,24 +286,6 @@ export default function TareasPage() {
         />
       )}
 
-      {puedeEditarTrabajadores && (
-        <Card title="Trabajadores JAM" style={{ marginTop: 16 }}>
-          <Table
-            size="small"
-            rowKey="trabajador_id"
-            dataSource={trabajadores}
-            pagination={{ pageSize: 8, showSizeChanger: false }}
-            columns={[
-              { title: 'Nombre', dataIndex: 'nombre' },
-              { title: 'Cargo', dataIndex: 'cargo', render: v => v || '-' },
-              { title: 'Telefono', dataIndex: 'telefono', render: v => v || '-' },
-              { title: 'Activo', dataIndex: 'activo', render: v => <Tag color={v ? 'green' : 'red'}>{v ? 'Activo' : 'Inactivo'}</Tag> },
-              { title: 'Acciones', render: (_, item: TrabajadorJam) => <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditarTrabajador(item)} /> },
-            ]}
-          />
-        </Card>
-      )}
-
       <Modal
         title={editingTarea ? 'Editar tarea' : 'Nueva tarea'}
         open={modalTarea}
@@ -343,8 +303,13 @@ export default function TareasPage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={10}>
-              <Form.Item name="trabajador_id" label="Trabajador" rules={[{ required: true, message: 'Selecciona un trabajador' }]}>
-                <Select options={trabajadores.filter(t => t.activo).map(t => ({ value: t.trabajador_id, label: t.nombre }))} />
+              <Form.Item name="trabajador_id" label="Usuario JAM" rules={[{ required: true, message: 'Selecciona un usuario JAM' }]}>
+                <Select
+                  showSearch
+                  options={usuarioOptions}
+                  optionFilterProp="label"
+                  placeholder="Seleccionar usuario"
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -383,38 +348,6 @@ export default function TareasPage() {
         </Form>
       </Modal>
 
-      <Modal
-        title={editingTrabajador ? 'Editar trabajador' : 'Nuevo trabajador'}
-        open={modalTrabajador}
-        onCancel={() => setModalTrabajador(false)}
-        onOk={guardarTrabajador}
-        okText="Guardar"
-        cancelText="Cancelar"
-      >
-        <Form form={formTrabajador} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true, message: 'Requerido' }]}>
-            <Input />
-          </Form.Item>
-          <Row gutter={12}>
-            <Col xs={24} md={12}>
-              <Form.Item name="cargo" label="Cargo">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="telefono" label="Telefono">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="correo" label="Correo">
-            <Input />
-          </Form.Item>
-          <Form.Item name="activo" label="Activo" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 }

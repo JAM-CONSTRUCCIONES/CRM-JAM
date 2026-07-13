@@ -14,10 +14,13 @@ from utils.response import bad_request, created, forbidden, not_found, ok
 
 dynamodb = boto3.resource('dynamodb')
 TAREAS_TABLE = os.environ['TAREAS_TABLE']
+USUARIOS_TABLE = os.environ['USUARIOS_TABLE']
 tareas_t = dynamodb.Table(TAREAS_TABLE)
+usuarios_t = dynamodb.Table(USUARIOS_TABLE)
 
 ESTADOS_TAREA = ('pendiente', 'en_progreso', 'completada', 'cancelada')
 PRIORIDADES = ('baja', 'media', 'alta')
+ROLES_JAM = ('admin', 'coordinador', 'supervisor')
 HORA_RE = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 
 
@@ -116,12 +119,18 @@ def _to_decimal(value):
     return Decimal(str(value)) if value is not None else None
 
 
-def _get_trabajador(trabajador_id):
-    if not trabajador_id:
+def _get_usuario_jam(usuario_id):
+    if not usuario_id:
         return None
-    return tareas_t.get_item(
-        Key={'pk': f'TRABAJADOR#{trabajador_id}', 'sk': 'METADATA'}
+    usuario_id = str(usuario_id).replace('USUARIO#', '')
+    item = usuarios_t.get_item(
+        Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'}
     ).get('Item')
+    if not item:
+        return None
+    if item.get('rol') not in ROLES_JAM:
+        return None
+    return item
 
 
 def _validar_fecha_hora(fecha, hora):
@@ -208,9 +217,9 @@ def crear_tarea(event):
     if body.get('duracion_minutos') not in (None, '') and not duracion:
         return bad_request('duracion_minutos debe ser mayor a 0')
 
-    trabajador = _get_trabajador(trabajador_id)
+    trabajador = _get_usuario_jam(trabajador_id)
     if not trabajador or not trabajador.get('activo', True):
-        return bad_request('trabajador activo requerido')
+        return bad_request('usuario JAM activo requerido')
 
     usuario = get_usuario(event)
     now = _now()
@@ -222,8 +231,8 @@ def crear_tarea(event):
         'tarea_id': tarea_id,
         'titulo': titulo,
         'descripcion': str(body.get('descripcion') or '').strip(),
-        'trabajador_id': trabajador_id,
-        'trabajador_nombre': trabajador.get('nombre', ''),
+        'trabajador_id': trabajador.get('pk', '').replace('USUARIO#', ''),
+        'trabajador_nombre': trabajador.get('nombre') or trabajador.get('cognito_username', ''),
         'fecha': fecha,
         'hora': hora,
         'fecha_hora_inicio': f'{fecha}T{hora}:00',
@@ -262,11 +271,11 @@ def actualizar_tarea(event):
             next_item[field] = _clean_text(body.get(field)) if field != 'descripcion' else str(body.get(field) or '').strip()
 
     if 'trabajador_id' in body and body.get('trabajador_id') != current.get('trabajador_id'):
-        trabajador = _get_trabajador(_clean_text(body.get('trabajador_id')))
+        trabajador = _get_usuario_jam(_clean_text(body.get('trabajador_id')))
         if not trabajador or not trabajador.get('activo', True):
-            return bad_request('trabajador activo requerido')
-        next_item['trabajador_id'] = trabajador['trabajador_id']
-        next_item['trabajador_nombre'] = trabajador.get('nombre', '')
+            return bad_request('usuario JAM activo requerido')
+        next_item['trabajador_id'] = trabajador.get('pk', '').replace('USUARIO#', '')
+        next_item['trabajador_nombre'] = trabajador.get('nombre') or trabajador.get('cognito_username', '')
 
     fecha = _clean_text(body.get('fecha') or next_item.get('fecha'))
     hora = _clean_text(body.get('hora') or next_item.get('hora'))
@@ -362,7 +371,9 @@ def actualizar_trabajador(event):
     trabajador_id = _clean_text(body.get('trabajador_id') or _qs(event).get('trabajador_id'))
     if not trabajador_id:
         return bad_request('trabajador_id requerido')
-    current = _get_trabajador(trabajador_id)
+    current = tareas_t.get_item(
+        Key={'pk': f'TRABAJADOR#{trabajador_id}', 'sk': 'METADATA'}
+    ).get('Item')
     if not current:
         return not_found('Trabajador no encontrado')
     for field in ('nombre', 'telefono', 'correo', 'cargo'):

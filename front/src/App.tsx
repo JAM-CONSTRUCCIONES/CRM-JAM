@@ -18,6 +18,7 @@ import MigracionPage from './pages/migracion/MigracionPage';
 import ConfigPage from './pages/config/ConfigPage';
 import CampaniasPage from './pages/campanias/CampaniasPage';
 import InventarioPublicoPage from './pages/inventario/InventarioPublicoPage';
+import TareasPage from './pages/tareas/TareasPage';
 
 const App = () => (
   <BrowserRouter>
@@ -101,6 +102,14 @@ const App = () => (
             element={
               <ProtectedRoute roles={['admin', 'coordinador', 'supervisor']}>
                 <CampaniasPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="tareas"
+            element={
+              <ProtectedRoute roles={['admin', 'coordinador', 'supervisor']}>
+                <TareasPage />
               </ProtectedRoute>
             }
           />

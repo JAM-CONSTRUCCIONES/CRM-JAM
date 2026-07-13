@@ -288,6 +288,32 @@ export class JamStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    const tareasTable = new dynamodb.Table(this, 'JamTareasTable', {
+      tableName: resourceName('jam-tareas'),
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    tareasTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-fecha',
+      partitionKey: { name: 'fecha', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'fecha_hora_inicio', type: dynamodb.AttributeType.STRING },
+    });
+
+    tareasTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-trabajador',
+      partitionKey: { name: 'trabajador_id', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'fecha_hora_inicio', type: dynamodb.AttributeType.STRING },
+    });
+
+    tareasTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-estado',
+      partitionKey: { name: 'estado', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'fecha_hora_inicio', type: dynamodb.AttributeType.STRING },
+    });
+
     // ─── SQS jam-notificaciones-queue ────────────────────────────────────────
 
     // Agregar PROCESOS_TABLE a jam-proyectos ahora que procesosTable está declarada
@@ -597,6 +623,23 @@ export class JamStack extends cdk.Stack {
       resources: ['*'],
     }));
 
+    const tareasLambda = new lambda.Function(this, 'JamTareasLambda', {
+      functionName: resourceName('jam-tareas'),
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-tareas')),
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        TAREAS_TABLE: tareasTable.tableName,
+        USUARIOS_TABLE: usuariosTable.tableName,
+        INVENTARIO_TABLE: inventarioTable.tableName,
+      },
+    });
+
+    tareasTable.grantReadWriteData(tareasLambda);
+    usuariosTable.grantReadData(tareasLambda);
+    inventarioTable.grantReadData(tareasLambda);
+
     // ─── LAMBDA jam-transferir-cliente ───────────────────────────────────────
 
     const transferirClienteLambda = new lambda.Function(this, 'JamTransferirClienteLambda', {
@@ -846,6 +889,7 @@ def handler(event, context):
     const captacionLambdaIntegration = new apigateway.LambdaIntegration(captacionLambda);
     const crmLambdaIntegration = new apigateway.LambdaIntegration(crmLambda);
     const campaniasLambdaIntegration = new apigateway.LambdaIntegration(campaniasLambda);
+    const tareasLambdaIntegration = new apigateway.LambdaIntegration(tareasLambda);
 
     // /auth
     const authResource = api.root.addResource('auth');
@@ -1226,6 +1270,12 @@ def handler(event, context):
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
+    const adminTareasResource = adminResource.addResource('tareas');
+    adminTareasResource.addMethod('ANY', tareasLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+
     // /admin/procesos
     adminResource.addResource('procesos').addMethod('GET', crmLambdaIntegration, {
       authorizer: cognitoAuthorizer,
@@ -1453,6 +1503,7 @@ def handler(event, context):
         backup.BackupResource.fromDynamoDbTable(historialEstatusTable),
         backup.BackupResource.fromDynamoDbTable(historialTable),
         backup.BackupResource.fromDynamoDbTable(campaniasTable),
+        backup.BackupResource.fromDynamoDbTable(tareasTable),
       ],
     });
 

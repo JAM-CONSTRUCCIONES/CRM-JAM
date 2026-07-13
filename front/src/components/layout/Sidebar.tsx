@@ -4,7 +4,7 @@ import {
   BankOutlined, UserOutlined, PoweroffOutlined,
   ApartmentOutlined, LinkOutlined, ImportOutlined,
   MessageOutlined, SettingOutlined, MailOutlined,
-  MoonOutlined, SunOutlined,
+  MoonOutlined, SunOutlined, ScheduleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
@@ -63,6 +63,7 @@ const Sidebar = ({ onSelect }: Props) => {
           { key: '/inmobiliarias',    icon: <BankOutlined />,      label: 'Inmobiliarias' },
           { key: '/procesos',         icon: <ApartmentOutlined />, label: 'Procesos' },
           { key: '/migracion',        icon: <ImportOutlined />,    label: 'Migración Excel' },
+          { key: '/tareas',           icon: <ScheduleOutlined />,  label: 'Agenda / Tareas' },
           { key: '/sistema/usuarios', icon: <UserOutlined />,      label: 'Usuarios' },
           { key: '/config',           icon: <SettingOutlined />,   label: 'Configuración de notificaciones' },
         ] : []),

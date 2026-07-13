@@ -40,6 +40,14 @@ const prioridadColor: Record<PrioridadTarea, string> = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const addDays = (date: string, days: number) => {
+  const parsed = new Date(`${date}T00:00:00`);
+  parsed.setDate(parsed.getDate() + days);
+  return parsed.toISOString().slice(0, 10);
+};
+
+const formatDate = (date: string) => date ? date.split('-').reverse().join('/') : '-';
+
 export default function TareasPage() {
   const { usuario } = useAuth();
   const screens = useBreakpoint();
@@ -53,6 +61,9 @@ export default function TareasPage() {
   const [modalTarea, setModalTarea] = useState(false);
   const [editingTarea, setEditingTarea] = useState<TareaJam | null>(null);
   const [formTarea] = Form.useForm();
+
+  const fechaInicio = filtros.fecha || today();
+  const fechaHasta = useMemo(() => addDays(fechaInicio, 6), [fechaInicio]);
 
   const usuariosAsignables = useMemo(
     () => usuariosJam.filter(u => u.activo),
@@ -86,7 +97,8 @@ export default function TareasPage() {
     setLoading(true);
     try {
       setTareas(await getTareas({
-        fecha: filtros.fecha || undefined,
+        fecha_desde: fechaInicio,
+        fecha_hasta: fechaHasta,
         trabajador_id: filtros.trabajador_id || undefined,
         estado: filtros.estado as EstadoTarea || undefined,
         prioridad: filtros.prioridad as PrioridadTarea || undefined,
@@ -157,12 +169,14 @@ export default function TareasPage() {
   };
 
   const tareaColumns = [
+    { title: 'Fecha', dataIndex: 'fecha', width: 120, render: (v: string) => formatDate(v) },
     { title: 'Hora', dataIndex: 'hora', width: 90 },
     {
       title: 'Tarea',
       render: (_: unknown, item: TareaJam) => (
         <Space direction="vertical" size={2}>
           <Text strong>{item.titulo}</Text>
+          <Text type="secondary">Fecha exacta: {formatDate(item.fecha)}</Text>
           {item.descripcion && <Text type="secondary">{item.descripcion}</Text>}
         </Space>
       ),
@@ -189,7 +203,7 @@ export default function TareasPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
         <div>
           <Title level={3} style={{ marginBottom: 4 }}>Agenda / Tareas</Title>
-          <Text type="secondary">Asigna trabajo por dia, hora y usuario JAM.</Text>
+          <Text type="secondary">Asigna trabajo por dia, hora y usuario JAM. El filtro muestra 7 dias.</Text>
         </div>
         <Space wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={abrirNuevaTarea} disabled={!puedeAsignar}>
@@ -208,8 +222,9 @@ export default function TareasPage() {
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[12, 12]} align="bottom">
           <Col xs={24} md={6}>
-            <Text type="secondary">Fecha</Text>
+            <Text type="secondary">Desde</Text>
             <Input type="date" value={filtros.fecha} onChange={e => setFiltros({ ...filtros, fecha: e.target.value })} />
+            <Text type="secondary">Hasta {formatDate(fechaHasta)}</Text>
           </Col>
           <Col xs={24} md={6}>
             <Text type="secondary">Usuario JAM</Text>
@@ -263,6 +278,7 @@ export default function TareasPage() {
                   <Tag color={estadoColor[tarea.estado]}>{estadoLabel[tarea.estado]}</Tag>
                 </div>
                 <Text type="secondary"><TeamOutlined /> {tarea.trabajador_nombre}</Text>
+                <Text type="secondary">Fecha exacta: {formatDate(tarea.fecha)}</Text>
                 {tarea.descripcion && <Text>{tarea.descripcion}</Text>}
                 <Space wrap>
                   <Tag color={prioridadColor[tarea.prioridad]}>{tarea.prioridad}</Tag>

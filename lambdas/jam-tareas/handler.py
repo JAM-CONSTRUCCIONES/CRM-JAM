@@ -150,6 +150,8 @@ def _validar_fecha_hora(fecha, hora):
 def listar_tareas(event):
     qs = _qs(event)
     fecha = (qs.get('fecha') or '').strip()
+    fecha_desde = (qs.get('fecha_desde') or '').strip()
+    fecha_hasta = (qs.get('fecha_hasta') or '').strip()
     trabajador_id = (qs.get('trabajador_id') or '').strip()
     estado = (qs.get('estado') or '').strip()
     prioridad = (qs.get('prioridad') or '').strip()
@@ -159,6 +161,25 @@ def listar_tareas(event):
             IndexName='gsi-fecha',
             KeyConditionExpression=Key('fecha').eq(fecha),
         )
+    elif fecha_desde or fecha_hasta:
+        if fecha_desde:
+            try:
+                datetime.strptime(fecha_desde, '%Y-%m-%d')
+            except ValueError:
+                return bad_request('fecha_desde debe tener formato YYYY-MM-DD')
+        if fecha_hasta:
+            try:
+                datetime.strptime(fecha_hasta, '%Y-%m-%d')
+            except ValueError:
+                return bad_request('fecha_hasta debe tener formato YYYY-MM-DD')
+        if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
+            return bad_request('fecha_desde no puede ser mayor a fecha_hasta')
+        filter_expression = Attr('tipo').eq('tarea')
+        if fecha_desde:
+            filter_expression = filter_expression & Attr('fecha').gte(fecha_desde)
+        if fecha_hasta:
+            filter_expression = filter_expression & Attr('fecha').lte(fecha_hasta)
+        items = _scan_all(FilterExpression=filter_expression)
     elif trabajador_id:
         items = _query_all(
             IndexName='gsi-trabajador',

@@ -37,6 +37,8 @@ export interface TareaJam {
 
 export interface TareasFiltros {
   fecha?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
   trabajador_id?: string;
   estado?: EstadoTarea;
   prioridad?: PrioridadTarea;

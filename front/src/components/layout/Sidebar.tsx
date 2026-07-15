@@ -161,7 +161,7 @@ const Sidebar = ({ onSelect }: Props) => {
             {section.title && (
               <Text style={{
                 fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600,
-                letterSpacing: 1.2, padding: '0 8px 6px',
+                letterSpacing: 0, padding: '0 8px 6px',
                 display: 'block', textTransform: 'uppercase',
               }}>
                 {section.title}

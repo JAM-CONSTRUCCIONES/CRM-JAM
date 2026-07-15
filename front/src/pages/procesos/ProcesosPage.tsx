@@ -521,6 +521,20 @@ const ProcesosPage = () => {
     cargarBloqueosSinCliente();
   };
 
+  const cambiarProyectoFiltro = (proyectoId?: string) => {
+    if (!proyectoId) {
+      volverAProyectos();
+      return;
+    }
+
+    setVista('procesos');
+    setProyectoFiltro(proyectoId);
+    setProyectoSeleccionado(proyectos.find(p => p.proyecto_id === proyectoId) ?? null);
+    setTabActiva('activos');
+    cargar({ proyecto: proyectoId });
+    cargarBloqueosSinCliente();
+  };
+
   const volverAProyectos = () => {
     setVista('proyectos');
     setProyectoSeleccionado(null);
@@ -952,11 +966,25 @@ const ProcesosPage = () => {
             {vista === 'proyectos' ? 'Proyectos' : proyectoSeleccionado?.nombre ?? 'Procesos de venta'}
           </Title>
         </div>
-        {vista === 'procesos' && (
-          <Button icon={<ReloadOutlined />} loading={loading || loadingBloqueos} onClick={() => { cargar(); cargarBloqueosSinCliente(); }}>
-            {!isMobile && 'Actualizar'}
-          </Button>
-        )}
+        <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
+          {vista === 'proyectos' && (
+            <Select
+              allowClear
+              showSearch
+              placeholder="Seleccionar proyecto"
+              value={proyectoFiltro}
+              onChange={cambiarProyectoFiltro}
+              optionFilterProp="label"
+              style={{ width: isMobile ? '100%' : 260 }}
+              options={proyectos.map(p => ({ value: p.proyecto_id, label: p.nombre }))}
+            />
+          )}
+          {vista === 'procesos' && (
+            <Button icon={<ReloadOutlined />} loading={loading || loadingBloqueos} onClick={() => { cargar(); cargarBloqueosSinCliente(); }}>
+              {!isMobile && 'Actualizar'}
+            </Button>
+          )}
+        </Space>
       </div>
 
       {/* Vista proyectos */}
@@ -1018,6 +1046,16 @@ const ProcesosPage = () => {
         <>
           {/* Filtros */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            <Select
+              allowClear
+              showSearch
+              placeholder="Proyecto"
+              value={proyectoFiltro}
+              onChange={cambiarProyectoFiltro}
+              optionFilterProp="label"
+              style={{ width: isMobile ? '100%' : 220 }}
+              options={proyectos.map(p => ({ value: p.proyecto_id, label: p.nombre }))}
+            />
             <Input prefix={<SearchOutlined />} placeholder="Buscar cliente, cédula o unidad..."
               style={{ width: isMobile ? '100%' : 240 }} value={busqueda}
               onChange={e => setBusqueda(e.target.value)} allowClear />

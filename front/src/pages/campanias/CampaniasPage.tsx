@@ -79,10 +79,6 @@ export default function CampaniasPage() {
     () => new Map(proyectos.map(p => [p.proyecto_id, p.nombre])),
     [proyectos],
   );
-  const totalEnviados = useMemo(
-    () => historial.reduce((total, item) => total + (item.correos_enviados || 0), 0),
-    [historial],
-  );
 
   useEffect(() => {
     getProyectos()
@@ -270,24 +266,6 @@ export default function CampaniasPage() {
         <Title level={3} style={{ marginBottom: 4 }}>Campañas de correo</Title>
         <Text type="secondary">Prepara comunicados por proyecto, revisa destinatarios y conserva el historial de envios.</Text>
       </div>
-
-      <Row gutter={[12, 12]} style={{ marginBottom: 8 }}>
-        <Col xs={24} sm={8}>
-          <Card size="small">
-            <Statistic title="Plantillas" value={templates.length} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card size="small">
-            <Statistic title="Campañas enviadas" value={historial.length} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card size="small">
-            <Statistic title="Correos enviados" value={totalEnviados} />
-          </Card>
-        </Col>
-      </Row>
 
       {!puedeEnviar && (
         <Alert

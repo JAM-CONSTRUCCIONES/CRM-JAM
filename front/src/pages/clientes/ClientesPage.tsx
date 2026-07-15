@@ -180,6 +180,37 @@ const ClientesPage = () => {
     cargar(proyecto.proyecto_id, inmoFiltro);
   };
 
+  const cambiarProyectoFiltro = (proyectoId?: string) => {
+    if (!proyectoId) {
+      volverAProyectos();
+      return;
+    }
+
+    setVista('clientes');
+    setProyectoFiltro(proyectoId);
+    setProyectoSeleccionado(proyectos.find(p => p.proyecto_id === proyectoId) ?? null);
+    setNextToken(undefined);
+
+    if (modoVista === 'busqueda' && busqueda.trim().length >= 2) {
+      setLoading(true);
+      buscarClientesAdmin(
+        busqueda,
+        tipoBusqueda,
+        proyectoId,
+        inmoFiltro
+      ).then(resultados => {
+        setClientes(resultados as ClienteProyecto[]);
+        setNextToken(undefined);
+      }).catch(() => {
+        message.error('Error en la busqueda');
+      }).finally(() => {
+        setLoading(false);
+      });
+    } else {
+      cargar(proyectoId, inmoFiltro);
+    }
+  };
+
   const volverAProyectos = () => {
     setVista('proyectos');
     setProyectoSeleccionado(null);
@@ -673,6 +704,18 @@ const ClientesPage = () => {
             </Title>
           </div>
           <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
+            {vista === 'proyectos' && (
+              <Select
+                allowClear
+                showSearch
+                placeholder="Seleccionar proyecto"
+                value={proyectoFiltro}
+                onChange={cambiarProyectoFiltro}
+                optionFilterProp="label"
+                style={{ width: isMobile ? '100%' : 260 }}
+                options={proyectos.map(p => ({ value: p.proyecto_id, label: p.nombre }))}
+              />
+            )}
             {vista === 'clientes' && (
               <>
                 <Tooltip title="Exportar clientes en Excel">
@@ -719,39 +762,12 @@ const ClientesPage = () => {
             onChange={setEstatusFiltro}
             options={ESTATUS_CLIENTE_OPTIONS}
           />
-          <Select allowClear placeholder="Proyecto" style={{ width: isMobile ? '100%' : 180 }}
+          <Select allowClear showSearch placeholder="Proyecto" style={{ width: isMobile ? '100%' : 220 }}
             value={proyectoFiltro}
-            onChange={(v) => { 
-              if (!v) {
-                volverAProyectos();
-                return;
-              }
-              setProyectoFiltro(v); 
-              setProyectoSeleccionado(proyectos.find(p => p.proyecto_id === v) ?? null);
-              setNextToken(undefined); 
-              
-              // Si estamos en modo búsqueda, re-ejecutar con el nuevo filtro
-              if (modoVista === 'busqueda' && busqueda.trim().length >= 2) {
-                setLoading(true);
-                buscarClientesAdmin(
-                  busqueda,
-                  tipoBusqueda,
-                  v,  // Usar el nuevo valor directamente
-                  inmoFiltro
-                ).then(resultados => {
-                  setClientes(resultados as ClienteProyecto[]);
-                  setNextToken(undefined);
-                }).catch(() => {
-                  message.error('Error en la búsqueda');
-                }).finally(() => {
-                  setLoading(false);
-                });
-              } else {
-                cargar(v, inmoFiltro);
-              }
-            }}>
-            {proyectos.map(p => <Option key={p.proyecto_id} value={p.proyecto_id}>{p.nombre}</Option>)}
-          </Select>
+            onChange={cambiarProyectoFiltro}
+            optionFilterProp="label"
+            options={proyectos.map(p => ({ value: p.proyecto_id, label: p.nombre }))}
+          />
           {isAdmin && (
             <Select allowClear placeholder="Inmobiliaria" style={{ width: isMobile ? '100%' : 180 }}
               value={inmoFiltro}

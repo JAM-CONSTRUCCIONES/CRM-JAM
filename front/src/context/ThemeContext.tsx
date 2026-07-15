@@ -54,18 +54,58 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         colorText: isDark ? '#F8FAFC' : '#111827',
         colorTextSecondary: isDark ? '#CBD5E1' : '#6b7280',
         colorTextDisabled: isDark ? '#64748B' : '#9ca3af',
+        borderRadius: 8,
+        borderRadiusLG: 10,
+        borderRadiusSM: 6,
+        controlHeight: 36,
+        controlHeightLG: 42,
+        fontFamily: "system-ui, 'Segoe UI', Roboto, sans-serif",
+        boxShadowSecondary: isDark
+          ? '0 14px 36px rgba(0, 0, 0, 0.35)'
+          : '0 14px 36px rgba(15, 23, 42, 0.12)',
       },
       components: {
+        Button: {
+          borderRadius: 8,
+          controlHeight: 36,
+          fontWeight: 600,
+        },
+        Card: {
+          borderRadiusLG: 8,
+          paddingLG: 18,
+        },
+        Drawer: {
+          footerPaddingBlock: 12,
+          footerPaddingInline: 20,
+        },
+        Form: {
+          itemMarginBottom: 14,
+          labelFontSize: 13,
+          labelColor: isDark ? '#CBD5E1' : '#374151',
+        },
+        Input: {
+          borderRadius: 8,
+          activeShadow: isDark ? '0 0 0 3px rgba(56, 189, 248, 0.15)' : '0 0 0 3px rgba(22, 119, 255, 0.12)',
+        },
         Layout: {
           bodyBg: isDark ? '#0F172A' : '#f5f7fa',
           siderBg: isDark ? '#111827' : '#ffffff',
           headerBg: isDark ? '#111827' : '#ffffff',
         },
+        Select: {
+          borderRadius: 8,
+          optionSelectedFontWeight: 600,
+        },
         Table: {
-          headerBg: isDark ? '#111827' : '#fafafa',
+          headerBg: isDark ? '#172033' : '#f8fafc',
           headerColor: isDark ? '#F8FAFC' : '#111827',
-          rowHoverBg: isDark ? '#263244' : '#fafafa',
-          borderColor: isDark ? '#334155' : '#f0f0f0',
+          rowHoverBg: isDark ? '#263244' : '#f7fbff',
+          borderColor: isDark ? '#334155' : '#e5eaf2',
+          headerSplitColor: isDark ? '#334155' : '#dfe6f0',
+          cellPaddingBlock: 10,
+          cellPaddingInline: 14,
+          cellFontSize: 13,
+          headerBorderRadius: 8,
         },
         Modal: {
           contentBg: isDark ? '#1F2937' : '#ffffff',

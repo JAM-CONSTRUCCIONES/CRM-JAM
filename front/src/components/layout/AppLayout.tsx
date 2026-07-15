@@ -1,4 +1,4 @@
-import { Layout, Drawer, Button, Grid } from 'antd';
+import { Layout, Drawer, Button, Grid, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { MenuOutlined } from '@ant-design/icons';
@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 
 const { Content, Sider } = Layout;
 const { useBreakpoint } = Grid;
+const { Text } = Typography;
 
 const AppLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -61,20 +62,47 @@ const AppLayout = () => {
         background: 'var(--app-bg)',
         transition: 'margin-left 0.2s ease',
       }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', padding: isDesktop ? '12px 24px' : '12px 16px',
-          background: 'var(--panel-bg)', borderBottom: '1px solid var(--app-border)',
-          position: 'sticky', top: 0, zIndex: 99,
-        }}>
-          <Button type="text" icon={<MenuOutlined />} onClick={handleMenuClick} />
-          <span style={{ fontWeight: 700, fontSize: 15, marginLeft: 8, color: 'var(--text-main)' }}>JAM Construcciones</span>
+        <div
+          className="app-shell-topbar"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: isDesktop ? '10px 28px' : '10px 16px',
+            position: 'sticky',
+            top: 0,
+            zIndex: 99,
+          }}
+        >
+          <Space size={10}>
+            <Button
+              type="text"
+              icon={<MenuOutlined />}
+              onClick={handleMenuClick}
+              aria-label={isDesktop ? 'Alternar menu lateral' : 'Abrir menu'}
+            />
+            <div>
+              <Text strong style={{ fontSize: 15, color: 'var(--text-main)', display: 'block', lineHeight: 1.15 }}>
+                JAM Construcciones
+              </Text>
+              {isDesktop && (
+                <Text type="secondary" style={{ fontSize: 11, lineHeight: 1.1 }}>
+                  Gestion comercial e inventario
+                </Text>
+              )}
+            </div>
+          </Space>
         </div>
 
-        <Content style={{ padding: isDesktop ? 28 : 16, minHeight: '100vh', color: 'var(--text-main)' }}>
-          <Outlet />
+        <Content style={{ padding: isDesktop ? '28px 28px 20px' : '16px 12px 18px', minHeight: '100vh', color: 'var(--text-main)' }}>
+          <div className="app-content-frame">
+            <Outlet />
+          </div>
           <div style={{
-            textAlign: 'right', padding: '24px 0 8px',
-            fontSize: 13, color: 'var(--text-muted)',
+            textAlign: isDesktop ? 'right' : 'center',
+            padding: '24px 0 8px',
+            fontSize: 12,
+            color: 'var(--text-muted)',
           }}>
             Hecho por{' '}
             <a href="https://methodicatechnology.com/" target="_blank" rel="noopener noreferrer"

@@ -21,6 +21,10 @@ HORAS_ALERTA = 43  # alerta 5 horas antes del vencimiento
 HORAS_REBLOQUEO = 24
 
 
+def _normalizar_inmo_id(value: str | None) -> str:
+    return (value or '').replace('INMOBILIARIA#', '')
+
+
 def _get_inmobiliaria_info(sub: str):
     try:
         item = usuarios.get_item(Key={'pk': f'USUARIO#{sub}', 'sk': 'METADATA'}).get('Item', {})
@@ -31,6 +35,35 @@ def _get_inmobiliaria_info(sub: str):
         return inmo_id_clean, inmo.get('nombre', inmo_id_clean)
     except Exception:
         return sub, sub
+
+
+def _tiene_liberacion_reciente(unidad_id: str, proyecto_id: str, inmobiliaria_id: str, ts_limite: str, ts_ahora: str) -> bool:
+    inmo_clean = _normalizar_inmo_id(inmobiliaria_id)
+    last_key = None
+
+    while True:
+        kwargs = {
+            'KeyConditionExpression': Key('pk').eq(f'UNIDAD#{unidad_id}'),
+            'ScanIndexForward': False,
+        }
+        if last_key:
+            kwargs['ExclusiveStartKey'] = last_key
+
+        result = historial_table.query(**kwargs)
+        for item in result.get('Items', []):
+            fecha_liberacion = item.get('fecha_liberacion')
+            if not fecha_liberacion or not item.get('motivo_liberacion'):
+                continue
+            if item.get('proyecto_id') != proyecto_id:
+                continue
+            if _normalizar_inmo_id(item.get('inmobiliaria_id')) != inmo_clean:
+                continue
+            if ts_limite <= fecha_liberacion <= ts_ahora:
+                return True
+
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            return False
 
 
 def bloquear(event):
@@ -131,17 +164,12 @@ def bloquear(event):
         unidad_actual.get('bloqueado_por') == inmo_id
     )
 
+    now = datetime.now(timezone.utc)
     if not ya_bloqueada_propia:
-        ts_limite = (datetime.now(timezone.utc) - timedelta(hours=HORAS_REBLOQUEO)).isoformat()
-        hist = historial_table.query(
-            KeyConditionExpression=Key('pk').eq(f'UNIDAD#{unidad_id}'),
-            FilterExpression=Attr('inmobiliaria_id').eq(inmo_id) & Attr('fecha_liberacion').gte(ts_limite),
-            Limit=1,
-        )
-        if hist.get('Items'):
+        ts_limite = (now - timedelta(hours=HORAS_REBLOQUEO)).isoformat()
+        if _tiene_liberacion_reciente(unidad_id, proyecto_id, inmo_id, ts_limite, now.isoformat()):
             return too_many(f'No puedes re-bloquear la unidad "{unidad_nombre}" antes de 24 horas desde la última liberación')
 
-    now = datetime.now(timezone.utc)
     ts_bloqueo = now.isoformat()
     ts_liberacion = (now + timedelta(hours=HORAS_BLOQUEO)).isoformat()
     ts_alerta = (now + timedelta(hours=HORAS_ALERTA)).isoformat()

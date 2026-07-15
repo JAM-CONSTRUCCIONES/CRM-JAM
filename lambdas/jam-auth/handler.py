@@ -35,6 +35,9 @@ def handler(event, context):
     if method == 'GET' and path.endswith('/me'):
         return auth.me(event)
 
+    if method == 'POST' and path.endswith('/me/foto'):
+        return auth.foto(event)
+
     # ── Auth MFA setup (requiere token) ───────────────────────
     if method == 'POST' and path.endswith('/mfa/setup'):
         return auth.mfa_setup(event)

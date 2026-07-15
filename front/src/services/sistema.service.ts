@@ -8,6 +8,7 @@ export interface UsuarioSistema {
   rol: RolInterno;
   activo: boolean;
   creado_en: string;
+  foto_url?: string;
 }
 
 const usuarioId = (pk: string) => pk.replace('USUARIO#', '');

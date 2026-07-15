@@ -895,7 +895,13 @@ def handler(event, context):
     const authResource = api.root.addResource('auth');
     authResource.addResource('login').addMethod('POST', authLambdaIntegration);
     authResource.addResource('confirm-mfa').addMethod('POST', authLambdaIntegration);
-    authResource.addResource('me').addMethod('GET', authLambdaIntegration, {
+    const authMeResource = authResource.addResource('me');
+    authMeResource.addMethod('GET', authLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    const authMeFotoResource = authMeResource.addResource('foto');
+    authMeFotoResource.addMethod('POST', authLambdaIntegration, {
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });

@@ -1,15 +1,19 @@
 import os
 import json
+import time
 import boto3
 from botocore.exceptions import ClientError
 from utils.response import ok, bad_request, forbidden, not_found, _build
 
 cognito = boto3.client('cognito-idp')
 dynamodb = boto3.resource('dynamodb')
+s3_client = boto3.client('s3')
 
 USER_POOL_CLIENT_ID = os.environ['USER_POOL_CLIENT_ID']
 USER_POOL_ID = os.environ['USER_POOL_ID']
 USUARIOS_TABLE = os.environ['USUARIOS_TABLE']
+ASSETS_BUCKET = os.environ.get('ASSETS_BUCKET', '')
+CLOUDFRONT_URL = os.environ.get('CLOUDFRONT_URL', '')
 
 
 def login(event):
@@ -202,6 +206,7 @@ def me(event):
             'rol': item.get('rol'),
             'inmobiliaria_id': item.get('inmobiliaria_id'),
             'activo': item.get('activo'),
+            'foto_url': item.get('foto_url'),
         }
 
         # Detectar si usuario interno no tiene MFA configurado
@@ -228,6 +233,120 @@ def me(event):
         import traceback
         print(f"ERROR en me(): {traceback.format_exc()}")
         return _build(500, {'message': 'Error interno'})
+
+
+def foto(event):
+    body = json.loads(event.get('body') or '{}')
+    action = body.get('action', 'upload-url')
+    if action == 'upload-url':
+        return foto_upload_url(event)
+    if action == 'save':
+        return guardar_foto(event)
+    if action == 'delete':
+        return eliminar_foto(event)
+    return bad_request('action no valida')
+
+
+def foto_upload_url(event):
+    """Genera una URL prefirmada para subir la foto del usuario autenticado."""
+    cognito_sub = _get_sub(event)
+    if not cognito_sub:
+        return _build(401, {'message': 'No autorizado'})
+    if not ASSETS_BUCKET or not CLOUDFRONT_URL:
+        return bad_request('Carga de fotos no configurada')
+
+    body = json.loads(event.get('body') or '{}')
+    content_type = body.get('content_type', 'image/jpeg')
+    ext_map = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+    }
+    ext = ext_map.get(content_type)
+    if not ext:
+        return bad_request('Formato de imagen no permitido')
+
+    timestamp = int(time.time())
+    key = f'assets/usuarios/{cognito_sub}/foto-{timestamp}.{ext}'
+
+    try:
+        response = s3_client.list_objects_v2(
+            Bucket=ASSETS_BUCKET,
+            Prefix=f'assets/usuarios/{cognito_sub}/foto-',
+        )
+        for obj in response.get('Contents', []):
+            s3_client.delete_object(Bucket=ASSETS_BUCKET, Key=obj['Key'])
+    except Exception as e:
+        print(f"[foto_upload_url] Error borrando fotos anteriores: {e}")
+
+    presigned = s3_client.generate_presigned_url(
+        'put_object',
+        Params={
+            'Bucket': ASSETS_BUCKET,
+            'Key': key,
+            'ContentType': content_type,
+            'CacheControl': 'public, max-age=31536000, immutable',
+        },
+        ExpiresIn=300,
+    )
+
+    return ok({
+        'upload_url': presigned,
+        'public_url': f'{CLOUDFRONT_URL}/{key}',
+        'key': key,
+    })
+
+
+def guardar_foto(event):
+    """Guarda la URL publica de la foto del usuario autenticado."""
+    cognito_sub = _get_sub(event)
+    if not cognito_sub:
+        return _build(401, {'message': 'No autorizado'})
+
+    body = json.loads(event.get('body') or '{}')
+    foto_url = body.get('foto_url')
+    if not foto_url:
+        return bad_request('foto_url requerido')
+
+    table = dynamodb.Table(USUARIOS_TABLE)
+    table.update_item(
+        Key={'pk': f'USUARIO#{cognito_sub}', 'sk': 'METADATA'},
+        UpdateExpression='SET foto_url = :foto_url',
+        ConditionExpression='attribute_exists(pk)',
+        ExpressionAttributeValues={':foto_url': foto_url},
+    )
+    return ok({'message': 'Foto actualizada', 'foto_url': foto_url})
+
+
+def eliminar_foto(event):
+    """Elimina la foto del perfil del usuario autenticado."""
+    cognito_sub = _get_sub(event)
+    if not cognito_sub:
+        return _build(401, {'message': 'No autorizado'})
+
+    if ASSETS_BUCKET:
+        try:
+            response = s3_client.list_objects_v2(
+                Bucket=ASSETS_BUCKET,
+                Prefix=f'assets/usuarios/{cognito_sub}/foto-',
+            )
+            for obj in response.get('Contents', []):
+                s3_client.delete_object(Bucket=ASSETS_BUCKET, Key=obj['Key'])
+        except Exception as e:
+            print(f"[eliminar_foto] Error borrando foto en S3: {e}")
+
+    table = dynamodb.Table(USUARIOS_TABLE)
+    table.update_item(
+        Key={'pk': f'USUARIO#{cognito_sub}', 'sk': 'METADATA'},
+        UpdateExpression='REMOVE foto_url',
+        ConditionExpression='attribute_exists(pk)',
+    )
+    return ok({'message': 'Foto eliminada'})
+
+
+def _get_sub(event):
+    claims = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
+    return claims.get('sub')
 
 
 def _get_access_token(event):

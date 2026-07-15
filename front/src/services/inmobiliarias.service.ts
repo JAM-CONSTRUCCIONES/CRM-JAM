@@ -17,6 +17,7 @@ export interface UsuarioInmo {
   rol: string;
   activo: boolean;
   creado_en: string;
+  foto_url?: string;
 }
 
 const inmoId = (pk: string) => pk.replace('INMOBILIARIA#', '');

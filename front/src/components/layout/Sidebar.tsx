@@ -1,18 +1,23 @@
-import { Avatar, Switch, Typography, Tooltip, message } from 'antd';
+import { Avatar, Button, Popconfirm, Switch, Typography, Tooltip, Upload, message } from 'antd';
 import {
   AppstoreOutlined, TeamOutlined, DashboardOutlined,
   BankOutlined, UserOutlined, PoweroffOutlined,
   ApartmentOutlined, LinkOutlined, ImportOutlined,
   MessageOutlined, SettingOutlined, MailOutlined,
-  MoonOutlined, SunOutlined, ScheduleOutlined,
+  MoonOutlined, SunOutlined, CameraOutlined, DeleteOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { useState } from 'react';
 import ChatbotWidget from '../common/ChatbotWidget';
 import { useThemeMode } from '../../context/ThemeContext';
+import { actualizarFotoPerfil, eliminarFotoPerfil, getPresignedFotoPerfil } from '../../services/auth.service';
+import ImageCropModal from '../common/ImageCropModal';
 
 const { Text } = Typography;
+const FOTO_MAX_SIZE = 5 * 1024 * 1024;
+const FOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 interface Props {
   onSelect: () => void;
@@ -39,13 +44,69 @@ const ROL_LABEL: Record<string, string> = {
 const Sidebar = ({ onSelect }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, refetch } = useAuth();
   const { isDark, toggleMode } = useThemeMode();
   const rol = usuario?.rol;
   const [chatOpen, setChatOpen] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [fotoPendiente, setFotoPendiente] = useState<File | null>(null);
 
   const isAdminOrCoordinador = rol === 'admin' || rol === 'coordinador';
   const isInterno = rol === 'admin' || rol === 'coordinador' || rol === 'supervisor';
+
+  const validarFoto = (file: File) => {
+    if (!FOTO_TYPES.includes(file.type)) {
+      message.error('Solo se permiten imagenes JPG, PNG o WEBP');
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size > FOTO_MAX_SIZE) {
+      message.error('La foto no puede pesar mas de 5 MB');
+      return Upload.LIST_IGNORE;
+    }
+    return true;
+  };
+
+  const prepararFoto = (file: File) => {
+    const validacion = validarFoto(file);
+    if (validacion !== true) return validacion;
+    setFotoPendiente(file);
+    return Upload.LIST_IGNORE;
+  };
+
+  const subirFoto = async (file: File) => {
+    setUploadingFoto(true);
+    try {
+      const { upload_url, public_url } = await getPresignedFotoPerfil(file.type);
+      const res = await fetch(upload_url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      if (!res.ok) throw new Error(`Error subiendo foto: ${res.status}`);
+      await actualizarFotoPerfil(public_url);
+      await refetch();
+      setFotoPendiente(null);
+      message.success('Foto de perfil actualizada');
+    } catch (err: any) {
+      message.error(err?.message || 'No se pudo actualizar la foto');
+    } finally {
+      setUploadingFoto(false);
+    }
+    return Upload.LIST_IGNORE;
+  };
+
+  const borrarFoto = async () => {
+    setUploadingFoto(true);
+    try {
+      await eliminarFotoPerfil();
+      await refetch();
+      message.success('Foto eliminada');
+    } catch (err: any) {
+      message.error(err?.message || 'No se pudo eliminar la foto');
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
 
   const sections: NavSection[] = [
     {
@@ -213,9 +274,45 @@ const Sidebar = ({ onSelect }: Props) => {
         padding: '10px 12px', borderRadius: 10,
         background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)',
       }}>
-        <Avatar size={34} style={{ background: 'var(--action-bg)', flexShrink: 0, fontWeight: 700 }}>
-          {usuario?.nombre?.charAt(0).toUpperCase() ?? 'U'}
-        </Avatar>
+        <div style={{ position: 'relative', width: 38, height: 38, flexShrink: 0 }}>
+          <Avatar
+            size={38}
+            src={usuario?.foto_url}
+            style={{ background: 'var(--action-bg)', fontWeight: 700 }}
+          >
+            {usuario?.nombre?.charAt(0).toUpperCase() ?? 'U'}
+          </Avatar>
+          <Upload
+            accept="image/jpeg,image/png,image/webp"
+            showUploadList={false}
+            beforeUpload={prepararFoto}
+            disabled={uploadingFoto}
+          >
+            <Tooltip title="Cambiar foto">
+              <Button
+                size="small"
+                shape="circle"
+                icon={<CameraOutlined />}
+                loading={uploadingFoto}
+                style={{
+                  position: 'absolute',
+                  right: -6,
+                  bottom: -4,
+                  width: 20,
+                  minWidth: 20,
+                  height: 20,
+                  fontSize: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  border: '1px solid var(--app-border)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.16)',
+                }}
+              />
+            </Tooltip>
+          </Upload>
+        </div>
         <div style={{ minWidth: 0 }}>
           <Text strong style={{
             fontSize: 13, color: 'var(--text-main)', display: 'block',
@@ -227,6 +324,26 @@ const Sidebar = ({ onSelect }: Props) => {
             {ROL_LABEL[rol ?? ''] ?? rol}
           </Text>
         </div>
+        {usuario?.foto_url && (
+          <Popconfirm
+            title="Eliminar foto de perfil"
+            description="Se volvera a mostrar la inicial del usuario."
+            okText="Eliminar"
+            cancelText="Cancelar"
+            onConfirm={borrarFoto}
+          >
+            <Tooltip title="Eliminar foto">
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                disabled={uploadingFoto}
+                style={{ marginLeft: 'auto', flexShrink: 0 }}
+              />
+            </Tooltip>
+          </Popconfirm>
+        )}
       </div>
 
       {/* Botón Chatbot */}
@@ -265,6 +382,17 @@ const Sidebar = ({ onSelect }: Props) => {
 
       {/* ChatbotWidget con diseño completo */}
       {chatOpen && <ChatbotWidget onClose={() => setChatOpen(false)} />}
+
+      <ImageCropModal
+        open={!!fotoPendiente}
+        file={fotoPendiente}
+        title="Ajustar foto de perfil"
+        shape="circle"
+        aspectRatio={1}
+        outputWidth={512}
+        onCancel={() => setFotoPendiente(null)}
+        onConfirm={subirFoto}
+      />
     </div>
   );
 };

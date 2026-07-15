@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, Tag, Space,
-  Popconfirm, Typography, Select, Tooltip, message, Grid, Dropdown,
+  Popconfirm, Typography, Select, Tooltip, message, Grid, Dropdown, Avatar,
 } from 'antd';
 import { PlusOutlined, EditOutlined, StopOutlined, CheckOutlined, DeleteOutlined, ReloadOutlined, MoreOutlined, QrcodeOutlined } from '@ant-design/icons';
 import QRCode from 'qrcode';
@@ -130,8 +130,21 @@ const UsuariosSistemaPage = () => {
   };
 
   const columns = [
-    { title: 'Usuario', dataIndex: 'cognito_username', key: 'cognito_username' },
-    { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
+    {
+      title: 'Usuario',
+      key: 'usuario',
+      render: (_: any, u: UsuarioSistema) => (
+        <Space>
+          <Avatar src={u.foto_url} style={{ background: 'var(--action-bg)', fontWeight: 700 }}>
+            {(u.nombre || u.cognito_username || 'U').charAt(0).toUpperCase()}
+          </Avatar>
+          <div>
+            <Text strong style={{ display: 'block' }}>{u.nombre || u.cognito_username}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>{u.cognito_username}</Text>
+          </div>
+        </Space>
+      ),
+    },
     {
       title: 'Rol', dataIndex: 'rol', key: 'rol',
       render: (v: RolInterno) => <Tag color={ROL_COLORS[v]}>{ROL_LABELS[v]}</Tag>,
@@ -246,12 +259,17 @@ const UsuariosSistemaPage = () => {
             return (
               <div key={u.pk} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', marginBottom: 10, padding: '14px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <Text strong style={{ display: 'block' }}>{u.nombre || u.cognito_username}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>{u.cognito_username}</Text>
-                    <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <Tag color={ROL_COLORS[u.rol]}>{ROL_LABELS[u.rol]}</Tag>
-                      <Tag color={u.activo ? 'green' : 'red'}>{u.activo ? 'Activo' : 'Inactivo'}</Tag>
+                  <div style={{ display: 'flex', gap: 10, minWidth: 0 }}>
+                    <Avatar src={u.foto_url} style={{ background: 'var(--action-bg)', fontWeight: 700, flexShrink: 0 }}>
+                      {(u.nombre || u.cognito_username || 'U').charAt(0).toUpperCase()}
+                    </Avatar>
+                    <div style={{ minWidth: 0 }}>
+                      <Text strong style={{ display: 'block' }}>{u.nombre || u.cognito_username}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{u.cognito_username}</Text>
+                      <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <Tag color={ROL_COLORS[u.rol]}>{ROL_LABELS[u.rol]}</Tag>
+                        <Tag color={u.activo ? 'green' : 'red'}>{u.activo ? 'Activo' : 'Inactivo'}</Tag>
+                      </div>
                     </div>
                   </div>
                   <Dropdown menu={{ items }} trigger={['click']} placement="bottomRight">

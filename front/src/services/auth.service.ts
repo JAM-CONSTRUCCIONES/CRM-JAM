@@ -5,6 +5,7 @@ import {
 } from 'aws-amplify/auth';
 import type { Usuario } from '../types';
 import config from '../config';
+import { apiPost } from './api';
 
 export type LoginResult =
   | { type: 'ok' }
@@ -65,6 +66,17 @@ export const getMe = async (): Promise<Usuario> => {
   if (!res.ok) throw new Error('No autorizado');
   return res.json();
 };
+
+export const getPresignedFotoPerfil = (
+  contentType = 'image/jpeg'
+): Promise<{ upload_url: string; public_url: string; key: string }> =>
+  apiPost('/auth/me/foto', { action: 'upload-url', content_type: contentType });
+
+export const actualizarFotoPerfil = (foto_url: string): Promise<{ foto_url: string }> =>
+  apiPost('/auth/me/foto', { action: 'save', foto_url });
+
+export const eliminarFotoPerfil = (): Promise<void> =>
+  apiPost('/auth/me/foto', { action: 'delete' });
 
 export const logout = async () => {
   await signOut();

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Button, Modal, Form, Input, Tag, Space, Popconfirm,
   Typography, Tooltip, Select, message, Row, Col, Avatar, Badge, Upload, Grid,
@@ -7,6 +7,7 @@ import {
   PlusOutlined, EditOutlined, StopOutlined, CheckOutlined,
   DeleteOutlined, UserOutlined, TeamOutlined, MailOutlined, ReloadOutlined,
   LinkOutlined, EyeOutlined, UploadOutlined, BankOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +21,7 @@ import {
 } from '../../services/inmobiliarias.service';
 import { getProyectos } from '../../services/proyectos.service';
 import type { Proyecto } from '../../types';
+import ImageCropModal from '../../components/common/ImageCropModal';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -27,6 +29,8 @@ const { useBreakpoint } = Grid;
 type ModalMode = 'crear' | 'editar';
 
 const INMO_COLORS = ['#1677ff','#7c3aed','#f5576c','#00b96b','#fa8c16','#08979c'];
+const IMAGEN_MAX_SIZE = 5 * 1024 * 1024;
+const IMAGEN_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const inmoColor = (nombre: string) => {
   let hash = 0;
@@ -47,7 +51,9 @@ const InmobiliariasPage = () => {
   const [inmoEditando, setInmoEditando] = useState<Inmobiliaria | null>(null);
   const [formInmo] = Form.useForm();
   const [imagenFile, setImagenFile] = useState<UploadFile | null>(null);
+  const [imagenPendiente, setImagenPendiente] = useState<File | null>(null);
   const [uploadingImagen, setUploadingImagen] = useState(false);
+  const [busquedaNombre, setBusquedaNombre] = useState('');
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [inmoSeleccionada, setInmoSeleccionada] = useState<Inmobiliaria | null>(null);
@@ -57,6 +63,12 @@ const InmobiliariasPage = () => {
   const [formUsuario] = Form.useForm();
 
   useEffect(() => { cargar(); }, []);
+
+  const inmobiliariasFiltradas = useMemo(() => {
+    const query = busquedaNombre.trim().toLocaleLowerCase();
+    if (!query) return inmobiliarias;
+    return inmobiliarias.filter(inmo => inmo.nombre.toLocaleLowerCase().includes(query));
+  }, [busquedaNombre, inmobiliarias]);
 
   const cargar = async () => {
     setLoading(true);
@@ -69,14 +81,37 @@ const InmobiliariasPage = () => {
 
   const abrirCrear = () => {
     setModoInmo('crear'); setInmoEditando(null);
-    formInmo.resetFields(); setImagenFile(null); setModalInmo(true);
+    formInmo.resetFields(); setImagenFile(null); setImagenPendiente(null); setModalInmo(true);
   };
 
   const abrirEditar = (inmo: Inmobiliaria, e: React.MouseEvent) => {
     e.stopPropagation();
     setModoInmo('editar'); setInmoEditando(inmo);
     formInmo.setFieldsValue({ nombre: inmo.nombre, correos: inmo.correos, proyectos: inmo.proyectos });
-    setImagenFile(null); setModalInmo(true);
+    setImagenFile(null); setImagenPendiente(null); setModalInmo(true);
+  };
+
+  const prepararImagen = (file: File) => {
+    if (!IMAGEN_TYPES.includes(file.type)) {
+      message.error('Solo se permiten imagenes JPG, PNG o WEBP');
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size > IMAGEN_MAX_SIZE) {
+      message.error('La imagen no puede pesar mas de 5 MB');
+      return Upload.LIST_IGNORE;
+    }
+    setImagenPendiente(file);
+    return Upload.LIST_IGNORE;
+  };
+
+  const usarImagenRecortada = (file: File) => {
+    setImagenFile({
+      uid: `${Date.now()}`,
+      name: file.name,
+      status: 'done',
+      originFileObj: file as UploadFile['originFileObj'],
+    });
+    setImagenPendiente(null);
   };
 
   const handleGuardarInmo = async (values: { nombre: string; correos: string[]; proyectos: string[] }) => {
@@ -104,7 +139,7 @@ const InmobiliariasPage = () => {
         await actualizarInmobiliaria(inmoEditando.pk, { ...values, ...(imagen_url ? { imagen_url } : {}) });
         message.success('Inmobiliaria actualizada');
       }
-      setModalInmo(false); setImagenFile(null); await cargar();
+      setModalInmo(false); setImagenFile(null); setImagenPendiente(null); await cargar();
     } catch { message.error('Error al guardar'); }
     finally { setUploadingImagen(false); }
   };
@@ -189,6 +224,14 @@ const InmobiliariasPage = () => {
           Inmobiliarias
         </Title>
         <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            placeholder="Buscar inmobiliaria"
+            value={busquedaNombre}
+            onChange={e => setBusquedaNombre(e.target.value)}
+            style={{ width: isMobile ? '100%' : 240 }}
+          />
           <Tooltip title="Copiar enlace de registro global">
             <Button
               icon={<LinkOutlined />}
@@ -213,7 +256,7 @@ const InmobiliariasPage = () => {
 
       {/* Cards */}
       <Row gutter={[16, 16]}>
-        {inmobiliarias.map(inmo => {
+        {inmobiliariasFiltradas.map(inmo => {
           const c = inmoColor(inmo.nombre);
           return (
             <Col key={inmo.pk} xs={24} sm={12} md={8} lg={6}>
@@ -372,13 +415,21 @@ const InmobiliariasPage = () => {
             </div>
           </Col>
         )}
+        {!loading && inmobiliarias.length > 0 && inmobiliariasFiltradas.length === 0 && (
+          <Col span={24}>
+            <div style={{ textAlign: 'center', padding: 60 }}>
+              <SearchOutlined style={{ fontSize: 42, color: 'var(--text-muted)', marginBottom: 12 }} />
+              <div><Text type="secondary">No se encontraron inmobiliarias con ese nombre</Text></div>
+            </div>
+          </Col>
+        )}
       </Row>
 
       {/* Modal inmobiliaria */}
       <Modal
         title={modoInmo === 'crear' ? 'Nueva inmobiliaria' : 'Editar inmobiliaria'}
         open={modalInmo}
-        onCancel={() => { setModalInmo(false); setImagenFile(null); }}
+        onCancel={() => { setModalInmo(false); setImagenFile(null); setImagenPendiente(null); }}
         onOk={() => formInmo.submit()}
         okText={modoInmo === 'crear' ? 'Crear' : 'Guardar'}
         cancelText="Cancelar"
@@ -405,10 +456,13 @@ const InmobiliariasPage = () => {
                 style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
             )}
             <Upload
-              onChange={({ fileList }) => setImagenFile(fileList[0] ?? null)}
               maxCount={1}
               accept="image/jpeg,image/png,image/webp"
-              beforeUpload={() => false}
+              beforeUpload={prepararImagen}
+              onRemove={() => {
+                setImagenFile(null);
+                return true;
+              }}
               fileList={imagenFile ? [imagenFile] : []}
               listType="picture"
             >
@@ -419,6 +473,17 @@ const InmobiliariasPage = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      <ImageCropModal
+        open={!!imagenPendiente}
+        file={imagenPendiente}
+        title="Ajustar imagen de inmobiliaria"
+        aspectRatio={16 / 9}
+        shape="rect"
+        outputWidth={1280}
+        onCancel={() => setImagenPendiente(null)}
+        onConfirm={usarImagenRecortada}
+      />
 
       {/* Modal usuarios */}
       <Modal
@@ -481,7 +546,11 @@ const InmobiliariasPage = () => {
                     padding: '12px 0', borderBottom: '1px solid var(--app-border)',
                   }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <Avatar size={36} style={{ background: u.activo ? `${color}20` : 'var(--panel-soft-bg)', color: u.activo ? color : 'var(--text-muted)', fontWeight: 600 }}>
+                      <Avatar
+                        size={36}
+                        src={u.foto_url}
+                        style={{ background: u.activo ? `${color}20` : 'var(--panel-soft-bg)', color: u.activo ? color : 'var(--text-muted)', fontWeight: 600 }}
+                      >
                         {(u.nombre || u.cognito_username).charAt(0).toUpperCase()}
                       </Avatar>
                       <div>

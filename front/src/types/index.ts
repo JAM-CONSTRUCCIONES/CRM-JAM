@@ -11,6 +11,7 @@ export interface Usuario {
   proyectos?: string[];
   activo: boolean;
   mfa_required?: boolean;
+  foto_url?: string;
 }
 
 export interface LoginPayload {

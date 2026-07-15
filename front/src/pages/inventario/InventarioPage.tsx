@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
-import { Button, Modal, Form, Input, Space, Tooltip, Row, Col, Popconfirm, Upload, Select, Typography, Grid, Alert } from 'antd';
-import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined, EyeOutlined, DownloadOutlined, CopyOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, Space, Tooltip, Row, Col, Popconfirm, Upload, Select, Typography, Grid, Alert, Tag } from 'antd';
+import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined, EyeOutlined, DownloadOutlined, CopyOutlined, SearchOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
 import { useInventario } from '../../hooks/useInventario';
 import TablaUnidades from '../../components/inventario/TablaUnidades';
@@ -8,17 +8,20 @@ import DrawerEtapas from '../../components/inventario/DrawerEtapas';
 import ModalUnidad from '../../components/inventario/ModalUnidad';
 import ModalBloqueo from '../../components/inventario/ModalBloqueo';
 import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloqueoAdmin';
+import ImageCropModal from '../../components/common/ImageCropModal';
 import { ESTADO_UNIDAD_CONFIG, projectGradient } from '../../constants/estados';
 import { eliminarProyecto, getProyecto, exportarInventario } from '../../services/proyectos.service';
 import { bloquearUnidad } from '../../services/bloqueos.service';
 import type { Unidad } from '../../types';
 import { message } from 'antd';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { useBreakpoint } = Grid;
+const IMAGEN_MAX_SIZE = 5 * 1024 * 1024;
+const IMAGEN_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const InventarioPage = () => {
   const inv = useInventario();
@@ -68,6 +71,17 @@ const InventarioPage = () => {
   // Form refs para modales que necesitan reset externo
   const [formProyecto] = Form.useForm();
   const [imagenFile, setImagenFile] = useState<UploadFile | null>(null);
+  const [imagenPendiente, setImagenPendiente] = useState<File | null>(null);
+  const [busquedaProyecto, setBusquedaProyecto] = useState('');
+
+  const proyectosFiltrados = useMemo(() => {
+    const query = busquedaProyecto.trim().toLocaleLowerCase();
+    if (!query) return proyectosPreview;
+    return proyectosPreview.filter(p =>
+      p.nombre.toLocaleLowerCase().includes(query) ||
+      (p.descripcion || '').toLocaleLowerCase().includes(query)
+    );
+  }, [busquedaProyecto, proyectosPreview]);
 
   // Ref para debounce consolidado de filtros de texto
   const debounceTimerFiltros = useRef<NodeJS.Timeout | null>(null);
@@ -216,6 +230,47 @@ const InventarioPage = () => {
     }
   };
 
+  const prepararImagenProyecto = (file: File) => {
+    if (!IMAGEN_TYPES.includes(file.type)) {
+      message.error('Solo se permiten imagenes JPG, PNG o WEBP');
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size > IMAGEN_MAX_SIZE) {
+      message.error('La imagen no puede pesar mas de 5 MB');
+      return Upload.LIST_IGNORE;
+    }
+    setImagenPendiente(file);
+    return Upload.LIST_IGNORE;
+  };
+
+  const usarImagenProyectoRecortada = (file: File) => {
+    setImagenFile({
+      uid: `${Date.now()}`,
+      name: file.name,
+      status: 'done',
+      originFileObj: file as UploadFile['originFileObj'],
+    });
+    setImagenPendiente(null);
+  };
+
+  const abrirCrearProyecto = () => {
+    inv.setModoProyecto('crear');
+    inv.setProyectoEditando(null);
+    setImagenFile(null);
+    setImagenPendiente(null);
+    formProyecto.resetFields();
+    inv.setModalProyecto(true);
+  };
+
+  const abrirEditarProyecto = (p: typeof inv.proyectos[0]) => {
+    inv.setModoProyecto('editar');
+    inv.setProyectoEditando(p);
+    setImagenFile(null);
+    setImagenPendiente(null);
+    formProyecto.setFieldsValue({ nombre: p.nombre, descripcion: p.descripcion });
+    inv.setModalProyecto(true);
+  };
+
   return (
     <div>
       {/* Banner modo preview */}
@@ -268,7 +323,7 @@ const InventarioPage = () => {
               </>
             )}
             {canEditEffective && inv.vista === 'proyectos' && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => { inv.setModoProyecto('crear'); inv.setProyectoEditando(null); setImagenFile(null); formProyecto.resetFields(); inv.setModalProyecto(true); }}>
+              <Button type="primary" icon={<PlusOutlined />} onClick={abrirCrearProyecto}>
                 {isMobile ? 'Nuevo' : 'Nuevo proyecto'}
               </Button>
             )}
@@ -295,21 +350,46 @@ const InventarioPage = () => {
 
       {/* Vista proyectos */}
       {inv.vista === 'proyectos' && (
+        <>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: 12,
+          marginBottom: 16,
+          flexDirection: isMobile ? 'column' : 'row',
+        }}>
+          <Space size={8} wrap>
+            <Tag color="blue" style={{ margin: 0 }}>{proyectosPreview.length} proyectos</Tag>
+            {busquedaProyecto.trim() && (
+              <Tag style={{ margin: 0 }}>{proyectosFiltrados.length} resultados</Tag>
+            )}
+          </Space>
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            placeholder="Buscar proyecto"
+            value={busquedaProyecto}
+            onChange={e => setBusquedaProyecto(e.target.value)}
+            style={{ width: isMobile ? '100%' : 280 }}
+          />
+        </div>
         <Row gutter={[20, 20]}>
-          {proyectosPreview.map(p => (
+          {proyectosFiltrados.map(p => (
             <Col key={p.proyecto_id} xs={24} sm={12} md={8} lg={6}>
-              <div style={{ borderRadius: 16, overflow: 'hidden', cursor: 'pointer', background: 'var(--panel-bg)', border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.16)', transition: 'box-shadow 0.2s, transform 0.2s' }}
+              <div style={{ borderRadius: 12, overflow: 'hidden', cursor: 'pointer', background: 'var(--panel-bg)', border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', transition: 'box-shadow 0.2s, transform 0.2s, border-color 0.2s', minHeight: 304, display: 'flex', flexDirection: 'column' }}
                 onClick={() => inv.seleccionarProyecto(p.proyecto_id)}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--action-border)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--app-border)'; }}
               >
                 <div style={{ height: 160, background: p.imagen_url ? undefined : projectGradient(p.nombre), display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
                   {p.imagen_url ? <img src={p.imagen_url} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <AppstoreOutlined style={{ fontSize: 48, color: 'rgba(255,255,255,0.5)' }} />}
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.35) 100%)' }} />
                   {canEditEffective && (
                     <div style={{ position: 'absolute', top: 10, right: 10 }} onClick={e => e.stopPropagation()}>
                       <Space>
                         <Button size="small" type="text" icon={<EditOutlined />} style={{ color: '#fff', background: 'rgba(0,0,0,0.25)', borderRadius: 6 }}
-                          onClick={() => { inv.setModoProyecto('editar'); inv.setProyectoEditando(p); setImagenFile(null); formProyecto.setFieldsValue({ nombre: p.nombre, descripcion: p.descripcion }); inv.setModalProyecto(true); }} />
+                          onClick={() => abrirEditarProyecto(p)} />
                         <Popconfirm
                           title="¿Eliminar proyecto?"
                           description="Se eliminarán inventario, procesos e historiales del proyecto. Los clientes se conservarán como desvinculados."
@@ -361,7 +441,7 @@ const InventarioPage = () => {
                     </div>
                   )}
                 </div>
-                <div style={{ padding: '14px 16px 16px' }}>
+                <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>{p.nombre}</Text>
                   {p.descripcion ? (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
@@ -382,7 +462,7 @@ const InventarioPage = () => {
                   <Button
                     icon={<CopyOutlined />}
                     size="small"
-                    style={{ marginTop: 12 }}
+                    style={{ marginTop: 'auto' }}
                     onClick={e => {
                       e.stopPropagation();
                       copiarLinkPublico(p.proyecto_id);
@@ -394,7 +474,16 @@ const InventarioPage = () => {
               </div>
             </Col>
           ))}
+          {!inv.loading && proyectosPreview.length > 0 && proyectosFiltrados.length === 0 && (
+            <Col span={24}>
+              <div style={{ textAlign: 'center', padding: 56, border: '1px dashed var(--app-border)', borderRadius: 12, background: 'var(--panel-soft-bg)' }}>
+                <SearchOutlined style={{ fontSize: 40, color: 'var(--text-muted)', marginBottom: 12 }} />
+                <div><Text type="secondary">No se encontraron proyectos con ese texto</Text></div>
+              </div>
+            </Col>
+          )}
         </Row>
+        </>
       )}
 
       {/* Vista unidades */}
@@ -486,9 +575,17 @@ const InventarioPage = () => {
 
       {/* Modal proyecto */}
       <Modal title={inv.modoProyecto === 'crear' ? 'Nuevo proyecto' : 'Editar proyecto'} open={inv.modalProyecto}
-        onCancel={() => { inv.setModalProyecto(false); setImagenFile(null); }}
+        onCancel={() => { inv.setModalProyecto(false); setImagenFile(null); setImagenPendiente(null); }}
         onOk={() => formProyecto.submit()} okText="Guardar" cancelText="Cancelar" confirmLoading={inv.uploadingImagen}>
-        <Form form={formProyecto} layout="vertical" onFinish={values => inv.handleGuardarProyecto(values, imagenFile?.originFileObj)}>
+        <Form
+          form={formProyecto}
+          layout="vertical"
+          onFinish={async values => {
+            await inv.handleGuardarProyecto(values, imagenFile?.originFileObj);
+            setImagenFile(null);
+            setImagenPendiente(null);
+          }}
+        >
           <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="descripcion" label="Descripción"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item label="Imagen (opcional)">
@@ -496,13 +593,33 @@ const InventarioPage = () => {
               <img src={inv.proyectoEditando.imagen_url} alt="portada actual"
                 style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
             )}
-            <Upload onChange={({ fileList }) => setImagenFile(fileList[0] ?? null)} maxCount={1} accept="image/jpeg,image/png,image/webp"
-              beforeUpload={() => false} fileList={imagenFile ? [imagenFile] : []} listType="picture">
+            <Upload
+              maxCount={1}
+              accept="image/jpeg,image/png,image/webp"
+              beforeUpload={prepararImagenProyecto}
+              onRemove={() => {
+                setImagenFile(null);
+                return true;
+              }}
+              fileList={imagenFile ? [imagenFile] : []}
+              listType="picture"
+            >
               <Button icon={<UploadOutlined />}>{inv.proyectoEditando?.imagen_url && !imagenFile ? 'Cambiar imagen' : 'Seleccionar imagen'}</Button>
             </Upload>
           </Form.Item>
         </Form>
       </Modal>
+
+      <ImageCropModal
+        open={!!imagenPendiente}
+        file={imagenPendiente}
+        title="Ajustar imagen del proyecto"
+        aspectRatio={16 / 9}
+        shape="rect"
+        outputWidth={1280}
+        onCancel={() => setImagenPendiente(null)}
+        onConfirm={usarImagenProyectoRecortada}
+      />
 
       <DrawerEtapas
         open={inv.drawerEtapas} etapas={inv.etapas} etapaEditando={inv.etapaEditando}

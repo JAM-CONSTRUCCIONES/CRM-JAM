@@ -586,8 +586,15 @@ const ProcesosPage = () => {
   // Bloqueos sin cliente filtrados por búsqueda/proyecto
   // Solo mostrar cuando NO hay filtro de estado activo
   const proyectoBloqueosFiltro = proyectoFiltro ?? proyectoSeleccionado?.proyecto_id;
-  const bloqueosFiltrados = estadoFiltro ? [] : bloqueosSinCliente.filter(b => {
+  const mostrarBloqueosActivos = !estadoFiltro || estadoFiltro === 'captacion';
+  const procesosPorUnidad = new Set(
+    procesosFiltrados.map(p => `${p.proyecto_id?.replace('PROYECTO#', '')}#${p.unidad_id}`)
+  );
+  const bloqueosBase = estadoFiltro === 'captacion' ? todosBloqueos : bloqueosSinCliente;
+  const bloqueosFiltrados = mostrarBloqueosActivos ? bloqueosBase.filter(b => {
     if (proyectoBloqueosFiltro && b.proyecto_id?.replace('PROYECTO#', '') !== proyectoBloqueosFiltro) return false;
+    const key = `${b.proyecto_id?.replace('PROYECTO#', '')}#${b.unidad_id}`;
+    if (procesosPorUnidad.has(key)) return false;
     if (inmoFiltro) {
       const norm = inmoFiltro.replace('INMOBILIARIA#', '');
       if (b.bloqueado_por !== norm && b.bloqueado_por !== inmoFiltro) return false;
@@ -597,7 +604,7 @@ const ProcesosPage = () => {
       return (b.id_unidad || b.unidad_id).toLowerCase().includes(q);
     }
     return true;
-  });
+  }) : [];
 
   // ── Render helpers ────────────────────────────────────────────────────────
   const alertaInfo = (p: ProcesoEnriquecido) => {
@@ -804,8 +811,9 @@ const ProcesosPage = () => {
   const renderFilaBloqueo = (b: Bloqueo) => {
     const tiempoOk = b.tiempo_restante ?? 0;
     const colorTiempo = tiempoOk <= 0 ? '#ff4d4f' : tiempoOk < 5 * 3600 ? '#faad14' : '#52c41a';
+    const tieneCliente = !!b.cliente_cedula;
     const menuItems = [
-      { key: 'asignar', icon: <UserAddOutlined />, label: 'Asignar cliente', onClick: () => abrirAsignarCliente(b) },
+      ...(!tieneCliente ? [{ key: 'asignar', icon: <UserAddOutlined />, label: 'Asignar cliente', onClick: () => abrirAsignarCliente(b) }] : []),
       { key: 'extender', icon: <FieldTimeOutlined />, label: 'Extender bloqueo', onClick: () => { setExtenderBloqueoModal(b); formExtenderBloqueo.resetFields(); } },
       {
         key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true,
@@ -818,8 +826,8 @@ const ProcesosPage = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                <Text strong style={{ fontSize: 14 }}>Sin cliente asignado</Text>
-                <Tag color="orange" style={{ margin: 0 }}>Sin cliente</Tag>
+                <Text strong style={{ fontSize: 14 }}>{tieneCliente ? b.cliente_cedula : 'Sin cliente asignado'}</Text>
+                <Tag color={tieneCliente ? 'blue' : 'orange'} style={{ margin: 0 }}>{tieneCliente ? 'Cliente asignado' : 'Sin cliente'}</Tag>
               </div>
               <Space size={4} wrap>
                 <Tag color="geekblue" style={{ margin: 0 }}>{b.id_unidad || b.unidad_id}</Tag>
@@ -849,8 +857,8 @@ const ProcesosPage = () => {
       }}>
         <Tag color="geekblue" style={{ margin: 0 }}>{b.id_unidad || b.unidad_id}</Tag>
         <div>
-          <Text strong style={{ fontSize: 13 }}>Sin cliente asignado</Text>
-          <br /><Tag color="orange" style={{ margin: 0, fontSize: 11 }}>Sin cliente</Tag>
+          <Text strong style={{ fontSize: 13 }}>{tieneCliente ? b.cliente_cedula : 'Sin cliente asignado'}</Text>
+          <br /><Tag color={tieneCliente ? 'blue' : 'orange'} style={{ margin: 0, fontSize: 11 }}>{tieneCliente ? 'Cliente asignado' : 'Sin cliente'}</Tag>
         </div>
         <Space size={4}>
           <Tag icon={<LockOutlined />} color="warning" style={{ margin: 0 }}>Bloqueada</Tag>
@@ -860,7 +868,7 @@ const ProcesosPage = () => {
         </Space>
         <Text style={{ fontSize: 12 }}>{inmoNombre(b.bloqueado_por)}</Text>
         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-          <Tooltip title="Asignar cliente"><Button size="small" icon={<UserAddOutlined />} onClick={() => abrirAsignarCliente(b)} /></Tooltip>
+          {!tieneCliente && <Tooltip title="Asignar cliente"><Button size="small" icon={<UserAddOutlined />} onClick={() => abrirAsignarCliente(b)} /></Tooltip>}
           <Tooltip title="Extender bloqueo"><Button size="small" icon={<FieldTimeOutlined />} onClick={() => { setExtenderBloqueoModal(b); formExtenderBloqueo.resetFields(); }} /></Tooltip>
           <Tooltip title="Liberar">
             <Button size="small" danger icon={<UnlockOutlined />} onClick={() => abrirLiberarBloqueo(b)} />
@@ -946,7 +954,9 @@ const ProcesosPage = () => {
     value: e,
     label: (
       <Tooltip title={ESTADO_PROCESO_DESCRIPCION[e]} placement="right">
-        <Tag color={ESTADO_PROCESO_COLOR[e]} style={{ margin: 0 }}>{ESTADO_PROCESO_LABEL[e]}</Tag>
+        <Tag color={ESTADO_PROCESO_COLOR[e]} style={{ margin: 0 }}>
+          {e === 'captacion' ? 'Captacion/Bloqueos' : ESTADO_PROCESO_LABEL[e]}
+        </Tag>
       </Tooltip>
     ),
   }));

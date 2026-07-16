@@ -883,7 +883,9 @@ def handler(event, context):
       }
     );
 
-    const authLambdaIntegration = new apigateway.LambdaIntegration(authLambda);
+    const authLambdaIntegration = new apigateway.LambdaIntegration(authLambda, {
+      allowTestInvoke: false,
+    });
     const proyectosLambdaIntegration = new apigateway.LambdaIntegration(proyectosLambda);
     const bloqueosLambdaIntegration = new apigateway.LambdaIntegration(bloqueosLambda);
     const captacionLambdaIntegration = new apigateway.LambdaIntegration(captacionLambda);

@@ -73,6 +73,7 @@ def _procesar(msg):
 
     handlers = {
         'bloqueo_registrado':        _bloqueo_registrado,
+        'cliente_asignado_bloqueo':  _cliente_asignado_bloqueo,
         'alerta_vencimiento':        _alerta_vencimiento,
         'liberacion_automatica':     _liberacion_automatica,
         'liberacion_manual':         _liberacion_manual,
@@ -327,6 +328,31 @@ def _bloqueo_registrado(msg):
     titulo, cuerpo = _render_template('bloqueo_registrado', vars_dict, filas,
         'Nuevo bloqueo registrado',
         'Le informamos que se ha registrado un nuevo bloqueo en el sistema.')
+    _enviar(correos, titulo, cuerpo)
+
+
+def _cliente_asignado_bloqueo(msg):
+    meta = msg.get('metadata', {})
+    inmo_id = msg.get('inmobiliaria_id', '')
+    correos = _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
+    proyecto_id = msg.get('proyecto_id', '')
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id', ''), proyecto_id)
+    proyecto = _nombre_proyecto(proyecto_id)
+    inmo_nombre = _nombre_inmobiliaria(inmo_id)
+    cliente_cedula = meta.get('cliente_cedula', '')
+    cliente = _nombre_cliente(cliente_cedula, inmo_id, proyecto_id) if cliente_cedula else ''
+    fecha_asignacion_fmt = _formatear_fecha_correo(meta.get('fecha_asignacion', ''))
+    fecha_liberacion_fmt = _formatear_fecha_correo(meta.get('fecha_liberacion', ''))
+
+    filas = [
+        ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre),
+        ('Cliente asignado', cliente), ('Fecha de asignacion', fecha_asignacion_fmt),
+        ('Vence el bloqueo', fecha_liberacion_fmt),
+    ]
+    vars_dict = {'cliente': cliente, 'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
+    titulo, cuerpo = _render_template('cliente_asignado_bloqueo', vars_dict, filas,
+        'Cliente asignado a bloqueo',
+        'Se ha asignado el cliente {cliente} al bloqueo existente de la unidad {unidad}.')
     _enviar(correos, titulo, cuerpo)
 
 

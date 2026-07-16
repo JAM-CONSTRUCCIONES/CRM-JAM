@@ -29,7 +29,7 @@ const validarVariablesPlantilla = (_: unknown, value?: string) => {
 };
 
 const GRUPOS: Record<string, string[]> = {
-  'Bloqueos': ['bloqueo_registrado', 'alerta_vencimiento', 'liberacion_automatica', 'liberacion_manual'],
+  'Bloqueos': ['bloqueo_registrado', 'cliente_asignado_bloqueo', 'alerta_vencimiento', 'liberacion_automatica', 'liberacion_manual'],
   'Cambios de estatus': [
     'cambio_estatus_disponible', 'cambio_estatus_bloqueada', 'cambio_estatus_actualizacion', 'cambio_estatus_reserva',
     'cambio_estatus_separacion', 'cambio_estatus_inicial', 'cambio_estatus_pagos_atrasados',

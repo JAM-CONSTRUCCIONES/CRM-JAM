@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Row, Col, Select, Spin, Typography, Empty, Grid, Card, Statistic } from 'antd';
+import { Row, Col, Select, Spin, Typography, Empty, Grid } from 'antd';
 import {
   PieChart, Pie, Cell, Tooltip as RTooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
@@ -289,43 +289,8 @@ const DashboardContent = ({
     letterSpacing: 0, marginBottom: 12, color: 'var(--chart-title)',
   };
 
-  const totalProcesos =
-    proceso_stats.captacion +
-    proceso_stats.reserva +
-    proceso_stats.separacion +
-    proceso_stats.inicial +
-    proceso_stats.pagos_atrasados +
-    proceso_stats.contra_entrega +
-    proceso_stats.vendida;
-  const ventasCerradas = proceso_stats.vendida;
-  const unidadesDisponibles = unidad_stats.disponible;
-  const unidadesBloqueadas = unidad_stats.bloqueada;
-  const tasaCierre = totalProcesos > 0 ? Math.round((ventasCerradas / totalProcesos) * 100) : 0;
-
   return (
     <>
-    <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
-      <Col xs={24} sm={12} lg={6}>
-        <Card size="small">
-          <Statistic title="Unidades disponibles" value={unidadesDisponibles} />
-        </Card>
-      </Col>
-      <Col xs={24} sm={12} lg={6}>
-        <Card size="small">
-          <Statistic title="Unidades bloqueadas" value={unidadesBloqueadas} />
-        </Card>
-      </Col>
-      <Col xs={24} sm={12} lg={6}>
-        <Card size="small">
-          <Statistic title="Procesos activos" value={totalProcesos - ventasCerradas} />
-        </Card>
-      </Col>
-      <Col xs={24} sm={12} lg={6}>
-        <Card size="small">
-          <Statistic title="Tasa de cierre" value={tasaCierre} suffix="%" />
-        </Card>
-      </Col>
-    </Row>
     <DashboardSection
       title="Analitica del proyecto"
       description="Graficos y tablas de resumen para validar el comportamiento comercial."

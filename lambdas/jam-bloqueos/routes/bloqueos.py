@@ -39,6 +39,7 @@ def _get_inmobiliaria_info(sub: str):
 
 def _tiene_liberacion_reciente(unidad_id: str, proyecto_id: str, inmobiliaria_id: str, ts_limite: str, ts_ahora: str) -> bool:
     inmo_clean = _normalizar_inmo_id(inmobiliaria_id)
+    proyecto_clean = (proyecto_id or '').replace('PROYECTO#', '')
     last_key = None
 
     while True:
@@ -54,7 +55,7 @@ def _tiene_liberacion_reciente(unidad_id: str, proyecto_id: str, inmobiliaria_id
             fecha_liberacion = item.get('fecha_liberacion')
             if not fecha_liberacion or not item.get('motivo_liberacion'):
                 continue
-            if item.get('proyecto_id') != proyecto_id:
+            if (item.get('proyecto_id') or '').replace('PROYECTO#', '') != proyecto_clean:
                 continue
             if _normalizar_inmo_id(item.get('inmobiliaria_id')) != inmo_clean:
                 continue
@@ -170,8 +171,9 @@ def bloquear(event):
         if _tiene_liberacion_reciente(unidad_id, proyecto_id, inmo_id, ts_limite, now.isoformat()):
             return too_many(f'No puedes re-bloquear la unidad "{unidad_nombre}" antes de 24 horas desde la última liberación')
 
-    ts_bloqueo = now.isoformat()
-    ts_liberacion = (now + timedelta(hours=HORAS_BLOQUEO)).isoformat()
+    ts_asignacion = now.isoformat()
+    ts_bloqueo = unidad_actual.get('fecha_bloqueo') if ya_bloqueada_propia else ts_asignacion
+    ts_liberacion = unidad_actual.get('fecha_liberacion') if ya_bloqueada_propia else (now + timedelta(hours=HORAS_BLOQUEO)).isoformat()
     ts_alerta = (now + timedelta(hours=HORAS_ALERTA)).isoformat()
 
     # Escritura condicional — solo si estado == disponible o ya es bloqueo propio
@@ -236,11 +238,12 @@ def bloquear(event):
             cliente_advertencia = msg_cliente
 
     # Notificar vía SQS
-    if SQS_URL:
+    if SQS_URL and (not ya_bloqueada_propia or tiene_cliente):
+        evento_notificacion = 'cliente_asignado_bloqueo' if ya_bloqueada_propia and tiene_cliente else 'bloqueo_registrado'
         sqs.send_message(
             QueueUrl=SQS_URL,
             MessageBody=json.dumps({
-                'evento': 'bloqueo_registrado',
+                'evento': evento_notificacion,
                 'proyecto_id': proyecto_id,
                 'inmobiliaria_id': inmo_id,
                 'metadata': {
@@ -248,6 +251,7 @@ def bloquear(event):
                     'unidad_nombre': unidad_nombre,
                     'fecha_bloqueo': ts_bloqueo,
                     'fecha_liberacion': ts_liberacion,
+                    'fecha_asignacion': ts_asignacion,
                     'cliente_cedula': cedula,
                     'horas': HORAS_BLOQUEO,
                 },

@@ -28,6 +28,10 @@ DEFAULTS = {
         'titulo': 'Nuevo bloqueo registrado',
         'mensaje': 'Le informamos que se ha registrado un nuevo bloqueo en el sistema.',
     },
+    'cliente_asignado_bloqueo': {
+        'titulo': 'Cliente asignado a bloqueo',
+        'mensaje': 'Se ha asignado el cliente {cliente} al bloqueo existente de la unidad {unidad}.',
+    },
     'alerta_vencimiento': {
         'titulo': '⚠️ Bloqueo próximo a vencer',
         'mensaje': 'El siguiente bloqueo está próximo a vencer. Si necesita más tiempo, comuníquese con el administrador del sistema.',
@@ -100,6 +104,7 @@ DEFAULTS = {
 
 LABELS = {
     'bloqueo_registrado':           'Bloqueo registrado',
+    'cliente_asignado_bloqueo':     'Cliente asignado a bloqueo',
     'alerta_vencimiento':           'Alerta de vencimiento',
     'liberacion_automatica':        'Liberación automática',
     'liberacion_manual':            'Liberación manual',

@@ -812,14 +812,14 @@ const ProcesosPage = () => {
     const tiempoOk = b.tiempo_restante ?? 0;
     const colorTiempo = tiempoOk <= 0 ? '#ff4d4f' : tiempoOk < 5 * 3600 ? '#faad14' : '#52c41a';
     const tieneCliente = !!b.cliente_cedula;
-    const menuItems = [
+    const menuItems = !esInmobiliaria ? [
       ...(!tieneCliente ? [{ key: 'asignar', icon: <UserAddOutlined />, label: 'Asignar cliente', onClick: () => abrirAsignarCliente(b) }] : []),
       { key: 'extender', icon: <FieldTimeOutlined />, label: 'Extender bloqueo', onClick: () => { setExtenderBloqueoModal(b); formExtenderBloqueo.resetFields(); } },
       {
         key: 'liberar', icon: <UnlockOutlined />, label: 'Liberar', danger: true,
         onClick: () => abrirLiberarBloqueo(b),
       },
-    ];
+    ] : [];
     if (isMobile) {
       return (
         <div key={b.unidad_id} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: 10, padding: '14px 16px' }}>
@@ -841,9 +841,11 @@ const ProcesosPage = () => {
                 <Text type="secondary" style={{ fontSize: 11 }}>{inmoNombre(b.bloqueado_por)}</Text>
               </div>
             </div>
-            <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-              <Button size="small" icon={<MoreOutlined />} />
-            </Dropdown>
+            {!esInmobiliaria && (
+              <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
+                <Button size="small" icon={<MoreOutlined />} />
+              </Dropdown>
+            )}
           </div>
         </div>
       );
@@ -851,7 +853,7 @@ const ProcesosPage = () => {
     return (
       <div key={b.unidad_id} style={{
         display: 'grid',
-        gridTemplateColumns: '1.2fr 2fr 1.6fr 1.2fr 80px',
+        gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
         alignItems: 'center', padding: '12px 14px', background: 'var(--panel-bg)', borderRadius: 8, marginBottom: 4,
         border: '1px solid var(--app-border)',
       }}>
@@ -866,13 +868,15 @@ const ProcesosPage = () => {
             <ClockCircleOutlined style={{ marginRight: 4 }} />{formatTiempo(tiempoOk)}
           </Text>
         </Space>
-        <Text style={{ fontSize: 12 }}>{inmoNombre(b.bloqueado_por)}</Text>
+        {!esInmobiliaria && <Text style={{ fontSize: 12 }}>{inmoNombre(b.bloqueado_por)}</Text>}
         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-          {!tieneCliente && <Tooltip title="Asignar cliente"><Button size="small" icon={<UserAddOutlined />} onClick={() => abrirAsignarCliente(b)} /></Tooltip>}
-          <Tooltip title="Extender bloqueo"><Button size="small" icon={<FieldTimeOutlined />} onClick={() => { setExtenderBloqueoModal(b); formExtenderBloqueo.resetFields(); }} /></Tooltip>
-          <Tooltip title="Liberar">
-            <Button size="small" danger icon={<UnlockOutlined />} onClick={() => abrirLiberarBloqueo(b)} />
-          </Tooltip>
+          {!esInmobiliaria && !tieneCliente && <Tooltip title="Asignar cliente"><Button size="small" icon={<UserAddOutlined />} onClick={() => abrirAsignarCliente(b)} /></Tooltip>}
+          {!esInmobiliaria && <Tooltip title="Extender bloqueo"><Button size="small" icon={<FieldTimeOutlined />} onClick={() => { setExtenderBloqueoModal(b); formExtenderBloqueo.resetFields(); }} /></Tooltip>}
+          {!esInmobiliaria && (
+            <Tooltip title="Liberar">
+              <Button size="small" danger icon={<UnlockOutlined />} onClick={() => abrirLiberarBloqueo(b)} />
+            </Tooltip>
+          )}
         </div>
       </div>
     );
@@ -892,7 +896,7 @@ const ProcesosPage = () => {
         </div>
       )}
       {/* Bloqueos sin cliente primero (destacados) */}
-      {!esInmobiliaria && bloqueosFiltrados.map(renderFilaBloqueo)}
+      {bloqueosFiltrados.map(renderFilaBloqueo)}
       {/* Procesos activos */}
       {isMobile ? procesosActivos.map(renderTarjetaProceso) : procesosActivos.map(renderFilaProceso)}
       {procesosActivos.length === 0 && bloqueosFiltrados.length === 0 && !loading && (

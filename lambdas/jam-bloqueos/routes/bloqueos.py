@@ -71,7 +71,7 @@ def bloquear(event):
     body = json.loads(event.get('body') or '{}')
     proyecto_id = body.get('proyecto_id')
     unidad_id = body.get('unidad_id')
-    forzar_admin = body.get('forzar_admin', False)  # Nuevo parámetro para saltarse validaciones
+    solicita_forzar_admin = bool(body.get('forzar_admin', False))
 
     # Datos del cliente (opcionales — puede bloquearse sin cliente)
     cedula = (body.get('cedula') or '').strip()
@@ -101,8 +101,10 @@ def bloquear(event):
     if not all([proyecto_id, unidad_id]):
         return bad_request('proyecto_id y unidad_id son requeridos')
 
-    # Si es admin y especifica inmobiliaria_id, usar esa; sino, usar la del usuario
     es_admin = require_admin(event)
+    forzar_admin = es_admin and solicita_forzar_admin
+
+    # Si es admin y especifica inmobiliaria_id, usar esa; sino, usar la del usuario
     if es_admin and body.get('inmobiliaria_id'):
         inmo_id = body.get('inmobiliaria_id').replace('INMOBILIARIA#', '')
         # Obtener nombre de la inmobiliaria
@@ -166,7 +168,7 @@ def bloquear(event):
     )
 
     now = datetime.now(timezone.utc)
-    if not ya_bloqueada_propia:
+    if not ya_bloqueada_propia and not forzar_admin:
         ts_limite = (now - timedelta(hours=HORAS_REBLOQUEO)).isoformat()
         if _tiene_liberacion_reciente(unidad_id, proyecto_id, inmo_id, ts_limite, now.isoformat()):
             return too_many(f'No puedes re-bloquear la unidad "{unidad_nombre}" antes de 24 horas desde la última liberación')

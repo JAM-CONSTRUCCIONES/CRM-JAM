@@ -16,6 +16,7 @@ clientes = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 usuarios = dynamodb.Table(os.environ['USUARIOS_TABLE'])
 procesos = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 MESES_EXCLUSIVIDAD = 3
+CLIENTE_DUPLICADO_MSG = 'Ya existe un cliente registrado con esta cedula en este proyecto para esta inmobiliaria'
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ .-]+$')
@@ -328,12 +329,7 @@ def registrar(event):
     existing = clientes.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
 
     if existing:
-        if existing.get('exclusividad_activa'):
-            # Actualizar datos, mantener exclusividad
-            return _actualizar_datos(pk, sk, body, existing)
-        else:
-            # Re-captar: nueva exclusividad
-            return _recaptar(pk, sk, body, existing, cedula, inmobiliaria_id, proyecto_id)
+        return conflict(CLIENTE_DUPLICADO_MSG)
 
     # Verificar exclusividad activa de OTRA inmobiliaria
     resultado = clientes.query(
@@ -361,10 +357,7 @@ def registrar(event):
     pk_legacy = f'CLIENTE#{cedula}#INMOBILIARIA#{inmobiliaria_id}'
     existing_legacy = clientes.get_item(Key={'pk': pk_legacy, 'sk': sk}).get('Item')
     if existing_legacy:
-        if existing_legacy.get('exclusividad_activa'):
-            return _actualizar_datos(pk_legacy, sk, body, existing_legacy)
-        else:
-            return _recaptar(pk_legacy, sk, body, existing_legacy, cedula, inmobiliaria_id, proyecto_id)
+        return conflict(CLIENTE_DUPLICADO_MSG)
 
     # Registrar nuevo cliente
     return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id)
@@ -935,10 +928,7 @@ def registrar_publico(event):
             pk = f'CLIENTE#{cedula}#INMOBILIARIA#{inmobiliaria_id}'
 
     if existing:
-        if existing.get('exclusividad_activa'):
-            return _actualizar_datos(pk, sk, body, existing)
-        else:
-            return _recaptar(pk, sk, body, existing, cedula, inmobiliaria_id, proyecto_id)
+        return conflict(CLIENTE_DUPLICADO_MSG)
 
     # Verificar exclusividad activa de OTRA inmobiliaria
     # Normalizar para comparar sin prefijo

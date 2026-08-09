@@ -1,86 +1,101 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Row, Col, Select, Spin, Typography, Empty, Grid } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  PieChart, Pie, Cell, Tooltip as RTooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip as RTooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
-import { getProyectos } from '../../services/proyectos.service';
-import { getInmobiliarias } from '../../services/inmobiliarias.service';
+import {
+  BarChart3,
+  Building2,
+  CheckCircle2,
+  CircleDollarSign,
+  Home,
+  Loader2,
+  PieChart as PieChartIcon,
+  Users,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import useAuth from '../../hooks/useAuth';
 import { getAnalytics } from '../../services/analytics.service';
 import type { AnalyticsData } from '../../services/analytics.service';
+import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import type { Inmobiliaria } from '../../services/inmobiliarias.service';
+import { getProyectos } from '../../services/proyectos.service';
 import type { Proyecto } from '../../types';
-import useAuth from '../../hooks/useAuth';
 
-const { Text, Title } = Typography;
-const { useBreakpoint } = Grid;
+interface SummaryRow {
+  label: string;
+  value: number;
+  bold?: boolean;
+}
 
-// ── Paleta estilo Excel ───────────────────────────────────────────────────────
-const BLUE   = '#2E75B6';
-const ORANGE = '#ED7D31';
-const GREEN  = '#375623';
-const PURPLE = '#7030A0';
-const RED    = '#C00000';
+interface ChartPoint {
+  name?: string;
+  value?: number;
+  color?: string;
+  [key: string]: string | number | undefined;
+}
 
-// ── Tabla resumen estilo Excel ────────────────────────────────────────────────
-interface SummaryRow { label: string; value: number; bold?: boolean }
-
-const SummaryTable = ({
-  col1, col2, rows,
-}: {
-  col1: string; col2: string; rows: SummaryRow[];
-}) => (
-  <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-    <thead>
-      <tr style={{ background: 'var(--summary-head-bg)' }}>
-        <th style={th}>{col1}</th>
-        <th style={{ ...th, textAlign: 'right' }}>{col2}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {rows.map((r, i) => (
-        <tr key={i} style={{ background: r.bold ? 'var(--summary-head-bg)' : i % 2 === 0 ? 'var(--summary-row-bg)' : 'var(--summary-row-alt-bg)' }}>
-          <td style={{ ...td, fontWeight: r.bold ? 700 : 400 }}>{r.label}</td>
-          <td style={{ ...td, textAlign: 'right', fontWeight: r.bold ? 700 : 400 }}>{r.value}</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-);
-
-const th: React.CSSProperties = {
-  padding: '5px 10px', textAlign: 'left', fontWeight: 600,
-  border: '1px solid var(--summary-border)', fontSize: 13,
-  color: 'var(--text-main)',
-};
-const td: React.CSSProperties = {
-  padding: '4px 10px', border: '1px solid var(--summary-border)',
-  color: 'var(--text-main)',
+const CHART_COLORS = {
+  blue: '#1677ff',
+  sky: '#38bdf8',
+  green: '#22c55e',
+  amber: '#f59e0b',
+  red: '#ef4444',
+  violet: '#8b5cf6',
+  slate: '#64748b',
+  teal: '#14b8a6',
+  pink: '#ec4899',
+  indigo: '#6366f1',
 };
 
-// ── Página principal ──────────────────────────────────────────────────────────
-const DashboardSection = ({
-  title, description, children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) => (
-  <section style={{ marginBottom: 28 }}>
-    <div style={{ marginBottom: 12 }}>
-      <Title level={5} style={{ margin: 0 }}>{title}</Title>
-      {description && <Text type="secondary" style={{ fontSize: 13 }}>{description}</Text>}
-    </div>
-    {children}
-  </section>
-);
+const PALETTE = [
+  CHART_COLORS.blue,
+  CHART_COLORS.amber,
+  CHART_COLORS.green,
+  CHART_COLORS.violet,
+  CHART_COLORS.red,
+  CHART_COLORS.sky,
+  CHART_COLORS.teal,
+  CHART_COLORS.pink,
+  CHART_COLORS.indigo,
+  CHART_COLORS.slate,
+];
+
+const MES_LABEL: Record<string, string> = {
+  '01': 'Ene',
+  '02': 'Feb',
+  '03': 'Mar',
+  '04': 'Abr',
+  '05': 'May',
+  '06': 'Jun',
+  '07': 'Jul',
+  '08': 'Ago',
+  '09': 'Sep',
+  '10': 'Oct',
+  '11': 'Nov',
+  '12': 'Dic',
+};
+
+const formatNumber = (value: number | null | undefined) =>
+  new Intl.NumberFormat('es-BO', { maximumFractionDigits: 0 }).format(value ?? 0);
+
+const shortLabel = (value: string, max = 24) => (value.length > max ? `${value.slice(0, max)}...` : value);
 
 const DashboardPage = () => {
   const { usuario } = useAuth();
   const isAdmin = usuario?.rol === 'admin';
   const isInterno = ['admin', 'coordinador', 'supervisor'].includes(usuario?.rol ?? '');
-  const { md } = useBreakpoint();
-  const isMobile = !md;
 
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [proyectoId, setProyectoId] = useState('');
@@ -92,10 +107,12 @@ const DashboardPage = () => {
     setLoading(true);
     setData(null);
     try {
-      const res = await getAnalytics(pid);
-      setData(res);
-    } catch { /* silencioso */ }
-    finally { setLoading(false); }
+      setData(await getAnalytics(pid));
+    } catch {
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -113,47 +130,59 @@ const DashboardPage = () => {
         if (filtrados.length > 0) {
           setProyectoId(filtrados[0].proyecto_id);
           await cargar(filtrados[0].proyecto_id);
-        } else {
-          setLoading(false);
+          return;
         }
-      } catch { setLoading(false); }
+        setLoading(false);
+      } catch {
+        setLoading(false);
+      }
     };
+
     init();
   }, [usuario, isAdmin, cargar]);
 
-  const handleProyecto = (pid: string) => {
-    setProyectoId(pid);
-    cargar(pid);
-  };
-
+  const proyectoActual = proyectos.find(p => p.proyecto_id === proyectoId);
   const inmoNombre = (id: string) =>
     inmobiliarias.find(i => i.pk === id || i.pk === `INMOBILIARIA#${id}`)?.nombre ?? id;
 
-  const proyectoActual = proyectos.find(p => p.proyecto_id === proyectoId);
-
   return (
-    <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <Title level={4} style={{ margin: 0 }}>Dashboard</Title>
-          {proyectoActual && <Text type="secondary">{proyectoActual.nombre}</Text>}
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="m-0 text-2xl font-semibold tracking-normal text-foreground">Dashboard</h1>
+            <Badge variant="secondary" className="border border-border">
+              {isInterno ? 'Vista interna' : 'Vista comercial'}
+            </Badge>
+          </div>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {proyectoActual?.nombre ?? 'Selecciona un proyecto para visualizar la operacion comercial.'}
+          </p>
         </div>
-        <Select
-          value={proyectoId || undefined}
-          onChange={handleProyecto}
-          style={{ minWidth: 220, width: isMobile ? '100%' : undefined }}
-          options={proyectos.map(p => ({ value: p.proyecto_id, label: p.nombre }))}
-          placeholder="Seleccionar proyecto"
-        />
+
+        <div className="w-full md:w-[300px]">
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Proyecto</label>
+          <select
+            value={proyectoId}
+            onChange={event => {
+              setProyectoId(event.target.value);
+              cargar(event.target.value);
+            }}
+            className="h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20"
+          >
+            {proyectos.map(p => (
+              <option key={p.proyecto_id} value={p.proyecto_id}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
-          <Spin size="large" />
-        </div>
+        <LoadingState />
       ) : !data || proyectos.length === 0 ? (
-        <Empty description="No hay datos disponibles" />
+        <EmptyState />
       ) : (
         <DashboardContent
           data={data}
@@ -166,66 +195,86 @@ const DashboardPage = () => {
   );
 };
 
-// ── Contenido ─────────────────────────────────────────────────────────────────
+const LoadingState = () => (
+  <Card className="border-dashed">
+    <CardContent className="flex min-h-[320px] flex-col items-center justify-center gap-3 text-muted-foreground">
+      <Loader2 className="size-8 animate-spin text-primary" />
+      <div className="text-sm font-medium">Cargando analitica del proyecto...</div>
+    </CardContent>
+  </Card>
+);
+
+const EmptyState = () => (
+  <Card className="border-dashed">
+    <CardContent className="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center">
+      <div className="rounded-full border border-border bg-muted p-4">
+        <BarChart3 className="size-8 text-muted-foreground" />
+      </div>
+      <div>
+        <div className="font-semibold text-foreground">No hay datos disponibles</div>
+        <p className="mt-1 text-sm text-muted-foreground">Cuando el proyecto tenga actividad, aparecera aqui.</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
 const DashboardContent = ({
-  data, isAdmin, isInterno, inmoNombre,
+  data,
+  isAdmin,
+  isInterno,
+  inmoNombre,
 }: {
   data: AnalyticsData;
   isAdmin: boolean;
   isInterno: boolean;
   inmoNombre: (id: string) => string;
 }) => {
-  const { unidad_stats, proceso_stats, cierres_mensuales, conversion_por_inmobiliaria,
-          ventas_por_piso, ventas_por_metraje, demograficos } = data;
+  const {
+    unidad_stats,
+    proceso_stats,
+    cierres_mensuales,
+    conversion_por_inmobiliaria,
+    ventas_por_piso,
+    ventas_por_metraje,
+    demograficos,
+  } = data;
 
-  // ── 1. Estatus de unidades (torta) ────────────────────────────────────────
-  const estatusBase = isInterno
+  const estatusData = (isInterno
     ? [
-        { name: 'BLOQUEADO', value: unidad_stats.bloqueada, color: BLUE },
-        { name: 'DISPONIBLE', value: unidad_stats.disponible, color: ORANGE },
-        { name: 'NO DISPONIBLE', value: unidad_stats.no_disponible, color: GREEN },
-        { name: 'VENDIDA', value: unidad_stats.vendida, color: PURPLE },
-        { name: 'DESVINCULADA', value: unidad_stats.desvinculada, color: RED },
+        { name: 'Bloqueada', value: unidad_stats.bloqueada, color: CHART_COLORS.blue },
+        { name: 'Disponible', value: unidad_stats.disponible, color: CHART_COLORS.amber },
+        { name: 'No disponible', value: unidad_stats.no_disponible, color: CHART_COLORS.green },
+        { name: 'Vendida', value: unidad_stats.vendida, color: CHART_COLORS.violet },
+        { name: 'Desvinculada', value: unidad_stats.desvinculada, color: CHART_COLORS.red },
       ]
     : [
-        { name: 'BLOQUEADAS', value: unidad_stats.bloqueada, color: BLUE },
-        { name: 'NO DISPONIBLES', value: unidad_stats.no_disponible, color: GREEN },
-        { name: 'DESVINCULADAS', value: unidad_stats.desvinculada, color: RED },
-      ];
-  const estatusData = estatusBase.filter(d => d.value > 0);
+        { name: 'Bloqueadas', value: unidad_stats.bloqueada, color: CHART_COLORS.blue },
+        { name: 'No disponibles', value: unidad_stats.no_disponible, color: CHART_COLORS.green },
+        { name: 'Desvinculadas', value: unidad_stats.desvinculada, color: CHART_COLORS.red },
+      ]).filter(d => d.value > 0);
 
-  const estatusRows: SummaryRow[] = isInterno
+  const estatusBaseRows: SummaryRow[] = isInterno
     ? [
-        { label: 'BLOQUEADO', value: unidad_stats.bloqueada },
-        { label: 'DISPONIBLE', value: unidad_stats.disponible },
-        { label: 'NO DISPONIBLE', value: unidad_stats.no_disponible },
-        ...(unidad_stats.vendida > 0 ? [{ label: 'VENDIDA', value: unidad_stats.vendida }] : []),
-        ...(unidad_stats.desvinculada > 0 ? [{ label: 'DESVINCULADA', value: unidad_stats.desvinculada }] : []),
-        { label: 'Total general', value: unidad_stats.total, bold: true },
+        { label: 'Bloqueada', value: unidad_stats.bloqueada },
+        { label: 'Disponible', value: unidad_stats.disponible },
+        { label: 'No disponible', value: unidad_stats.no_disponible },
+        { label: 'Vendida', value: unidad_stats.vendida },
+        { label: 'Desvinculada', value: unidad_stats.desvinculada },
       ]
     : [
-        { label: 'BLOQUEADAS', value: unidad_stats.bloqueada },
-        { label: 'NO DISPONIBLES', value: unidad_stats.no_disponible },
-        { label: 'DESVINCULADAS', value: unidad_stats.desvinculada },
-        { label: 'Total general', value: unidad_stats.total, bold: true },
+        { label: 'Bloqueadas', value: unidad_stats.bloqueada },
+        { label: 'No disponibles', value: unidad_stats.no_disponible },
+        { label: 'Desvinculadas', value: unidad_stats.desvinculada },
       ];
-
-  // ── 2. Ventas por metraje (barras verticales) ─────────────────────────────
-  const ventasMetraje = Object.entries(ventas_por_metraje ?? {})
-    .sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]))
-    .map(([m, total]) => ({ metraje: m, Total: total }));
-  const totalVentasMetraje = ventasMetraje.reduce((s, r) => s + r.Total, 0);
-  const ventasMetrajeRows: SummaryRow[] = [
-    ...ventasMetraje.map(r => ({ label: r.metraje, value: r.Total })),
-    { label: 'Total', value: totalVentasMetraje, bold: true },
+  const estatusRows: SummaryRow[] = [
+    ...estatusBaseRows,
+    { label: 'Total general', value: unidad_stats.total, bold: true },
   ];
 
-  // ── 3. Ventas por mes (barras horizontales) ───────────────────────────────
-  const MES_LABEL: Record<string, string> = {
-    '01': 'ene', '02': 'feb', '03': 'mar', '04': 'abr',
-    '05': 'may', '06': 'jun', '07': 'jul', '08': 'ago',
-    '09': 'sep', '10': 'oct', '11': 'nov', '12': 'dic',
-  };
+  const ventasMetraje = Object.entries(ventas_por_metraje ?? {})
+    .sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]))
+    .map(([metraje, total]) => ({ metraje, Total: total }));
+
   const ventasMes = cierres_mensuales.map(c => {
     const [, m] = c.mes.split('-');
     return {
@@ -233,343 +282,337 @@ const DashboardContent = ({
       Total: c.reservas + c.separaciones,
     };
   });
-  const totalVentasMes = ventasMes.reduce((s, r) => s + r.Total, 0);
-  const ventasMesRows: SummaryRow[] = [
-    ...ventasMes.map(r => ({ label: r.mes, value: r.Total })),
-    { label: 'Total', value: totalVentasMes, bold: true },
-  ];
 
-  // ── 4. Ventas por piso (barras horizontales) ──────────────────────────────
   const ventasPiso = Object.entries(ventas_por_piso ?? {})
     .sort((a, b) => {
-      const na = parseFloat(a[0]), nb = parseFloat(b[0]);
-      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      const na = parseFloat(a[0]);
+      const nb = parseFloat(b[0]);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
       return a[0].localeCompare(b[0]);
     })
     .map(([piso, total]) => ({ piso, Total: total }));
-  const totalVentasPiso = ventasPiso.reduce((s, r) => s + r.Total, 0);
-  const ventasPisoRows: SummaryRow[] = [
-    ...ventasPiso.map(r => ({ label: r.piso, value: r.Total })),
-    { label: 'Total', value: totalVentasPiso, bold: true },
-  ];
 
-  // ── 5. Ventas por inmobiliaria (barras horizontales) ──────────────────────
   const ventasInmo = [...conversion_por_inmobiliaria]
-    .sort((a, b) => a.separaciones - b.separaciones)
+    .sort((a, b) => b.separaciones - a.separaciones)
     .map(i => ({
       nombre: inmoNombre(i.inmobiliaria_id),
       Total: i.separaciones,
+      Captados: i.captados,
+      Conversion: i.pct_conversion,
     }));
-  const totalVentasInmo = ventasInmo.reduce((s, r) => s + r.Total, 0);
-  const ventasInmoRows: SummaryRow[] = [
-    ...([...ventasInmo].sort((a, b) => a.nombre.localeCompare(b.nombre))
-      .map(r => ({ label: r.nombre, value: r.Total }))),
-    { label: 'Total', value: totalVentasInmo, bold: true },
-  ];
 
-  // ── 6. Estatus contratos (torta) ──────────────────────────────────────────
   const contratoData = [
-    { name: 'CLIENTE LISTO PARA CONTRATO', value: proceso_stats.separacion, color: BLUE   },
-    { name: 'CONTRATO FIRMADO',            value: proceso_stats.inicial,    color: ORANGE },
+    { name: 'Cliente listo', value: proceso_stats.separacion, color: CHART_COLORS.blue },
+    { name: 'Contrato firmado', value: proceso_stats.inicial, color: CHART_COLORS.amber },
   ].filter(d => d.value > 0);
-  const totalContratos = proceso_stats.separacion + proceso_stats.inicial;
-  const contratoRows: SummaryRow[] = [
-    { label: 'CLIENTE LISTO PARA CONTRATO', value: proceso_stats.separacion },
-    { label: 'CONTRATO FIRMADO',            value: proceso_stats.inicial    },
-    { label: 'Total',                       value: totalContratos, bold: true },
-  ];
 
-  const chartCard: React.CSSProperties = {
-    background: 'var(--chart-card-bg)', border: '1px solid var(--app-border)',
-    borderRadius: 8, padding: '16px 16px 12px', marginBottom: 20,
-    boxShadow: 'var(--panel-shadow)',
-  };
-  const chartTitle: React.CSSProperties = {
-    textAlign: 'center', fontWeight: 600, fontSize: 14,
-    letterSpacing: 0, marginBottom: 12, color: 'var(--chart-title)',
-  };
+  const contratoRows: SummaryRow[] = [
+    { label: 'Cliente listo para contrato', value: proceso_stats.separacion },
+    { label: 'Contrato firmado', value: proceso_stats.inicial },
+    { label: 'Total', value: proceso_stats.separacion + proceso_stats.inicial, bold: true },
+  ];
 
   return (
-    <>
-    <DashboardSection
-      title="Analitica del proyecto"
-      description="Graficos y tablas de resumen para validar el comportamiento comercial."
-    >
-    <Row gutter={[20, 20]}>
-      <Col xs={24} lg={12}>
+    <div className="space-y-6">
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ChartCard
+          title="Estatus de unidades"
+          description="Distribucion actual del inventario comercial."
+          icon={<PieChartIcon className="size-4" />}
+          footer={<SummaryTable col1="Estatus" col2="Cantidad" rows={estatusRows} />}
+        >
+          <PiePanel data={estatusData} />
+        </ChartCard>
 
-        {/* ── Torta: Estatus ── */}
-        <div style={chartCard}>
-          <div style={chartTitle}>ESTATUS</div>
-          {estatusData.length === 0 ? <Empty description="Sin datos" /> : (
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={estatusData} dataKey="value" cx="40%" outerRadius={100} label={false}>
-                  {estatusData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Pie>
-                <Legend
-                  layout="vertical" align="right" verticalAlign="middle"
-                  formatter={(value) => (
-                    <span style={{ fontSize: 12, color: 'var(--text-main)' }}>{value}</span>
-                  )}
-                />
-                <RTooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-          <SummaryTable col1="Estatus" col2="Cantidad" rows={estatusRows} />
-        </div>
-
-        {/* ── Barras: Ventas por mes ── */}
         {isInterno && (
-          <div style={chartCard}>
-            <div style={chartTitle}>TOTAL DE VENTA POR MES</div>
-            {ventasMes.length === 0 ? <Empty description="Sin datos" /> : (
-              <ResponsiveContainer width="100%" height={Math.max(180, ventasMes.length * 50)}>
-                <BarChart data={ventasMes} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis type="category" dataKey="mes" tick={{ fontSize: 12 }} width={35} />
-                  <RTooltip />
-                  <Legend formatter={() => <span style={{ fontSize: 12 }}>Total</span>} />
-                  <Bar dataKey="Total" fill={BLUE} barSize={22} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            <div style={{ marginTop: 12 }}>
-              <SummaryTable col1="Mes" col2="Cantidad de ventas por mes" rows={ventasMesRows} />
-            </div>
-          </div>
+          <ChartCard
+            title="Ventas por mes"
+            description="Reservas y separaciones consolidadas por mes."
+            icon={<BarChart3 className="size-4" />}
+            footer={<SummaryTable col1="Mes" col2="Ventas" rows={toRows(ventasMes, 'mes')} />}
+          >
+            <VerticalBarPanel data={ventasMes} xKey="mes" color={CHART_COLORS.blue} />
+          </ChartCard>
         )}
 
-        {/* ── Torta: Estatus contratos ── */}
-        {isInterno && (
-          <div style={chartCard}>
-            <div style={chartTitle}>ESTATUS DE CONTRATOS PROMESA DE VENTA</div>
-            {contratoData.length === 0 ? <Empty description="Sin datos" /> : (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={contratoData} dataKey="value" cx="40%" outerRadius={100} label={false}>
-                    {contratoData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                  </Pie>
-                  <Legend
-                    layout="vertical" align="right" verticalAlign="middle"
-                    formatter={(value) => (
-                      <span style={{ fontSize: 12, color: 'var(--text-main)', maxWidth: 120, display: 'inline-block', whiteSpace: 'normal' }}>{value}</span>
-                    )}
-                  />
-                  <RTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-            <SummaryTable col1="Estatus contrato" col2="Cantidad" rows={contratoRows} />
-          </div>
-        )}
-
-      </Col>
-
-      <Col xs={24} lg={12}>
-
-        {/* ── Barras: Ventas por piso ── */}
         {isInterno && ventasPiso.length > 0 && (
-          <div style={chartCard}>
-            <div style={chartTitle}>TOTAL DE VENTA POR PISO</div>
-            <ResponsiveContainer width="100%" height={Math.max(180, ventasPiso.length * 50)}>
-              <BarChart data={ventasPiso} layout="vertical" margin={{ left: 10, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 12 }} />
-                <YAxis type="category" dataKey="piso" tick={{ fontSize: 12 }} width={25} />
-                <RTooltip />
-                <Legend formatter={() => <span style={{ fontSize: 12 }}>Total</span>} />
-                <Bar dataKey="Total" fill={BLUE} barSize={22} />
-              </BarChart>
-            </ResponsiveContainer>
-            <div style={{ marginTop: 12 }}>
-              <SummaryTable col1="Piso" col2="Total vendido" rows={ventasPisoRows} />
-            </div>
-          </div>
+          <ChartCard
+            title="Ventas por piso"
+            description="Pisos con mayor movimiento comercial."
+            icon={<Building2 className="size-4" />}
+            footer={<SummaryTable col1="Piso" col2="Total vendido" rows={toRows(ventasPiso, 'piso')} />}
+          >
+            <HorizontalBarPanel data={ventasPiso} yKey="piso" color={CHART_COLORS.sky} />
+          </ChartCard>
         )}
 
-        {/* ── Barras: Ventas por metraje ── */}
         {isInterno && ventasMetraje.length > 0 && (
-          <div style={chartCard}>
-            <div style={chartTitle}>TOTAL DE VENTAS POR METRAJE</div>
-            <ResponsiveContainer width="100%" height={Math.max(200, ventasMetraje.length * 55)}>
-              <BarChart data={ventasMetraje} margin={{ left: 10, right: 30, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="metraje" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <RTooltip />
-                <Legend formatter={() => <span style={{ fontSize: 12 }}>Total</span>} />
-                <Bar dataKey="Total" fill={BLUE} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
-            <div style={{ marginTop: 12 }}>
-              <SummaryTable col1="Metraje" col2="Total vendidos" rows={ventasMetrajeRows} />
-            </div>
-          </div>
+          <ChartCard
+            title="Ventas por metraje"
+            description="Preferencias de unidades vendidas por tamano."
+            icon={<Home className="size-4" />}
+            footer={<SummaryTable col1="Metraje" col2="Total vendido" rows={toRows(ventasMetraje, 'metraje')} />}
+          >
+            <VerticalBarPanel data={ventasMetraje} xKey="metraje" color={CHART_COLORS.green} />
+          </ChartCard>
         )}
 
-        {/* ── Barras: Ventas por inmobiliaria ── */}
-        {isAdmin && ventasInmo.length > 0 && (          <div style={chartCard}>
-            <div style={chartTitle}>VENTAS POR INMOBILIARIAS</div>
-            <ResponsiveContainer width="100%" height={Math.max(200, ventasInmo.length * 28)}>
-              <BarChart data={ventasInmo} layout="vertical" margin={{ left: 10, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis
-                  type="category" dataKey="nombre" tick={{ fontSize: 10 }}
-                  width={160}
-                  tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '…' : v}
-                />
-                <RTooltip />
-                <Legend formatter={() => <span style={{ fontSize: 12 }}>Total</span>} />
-                <Bar dataKey="Total" fill={BLUE} barSize={16} />
-              </BarChart>
-            </ResponsiveContainer>
-            <div style={{ marginTop: 12 }}>
-              <SummaryTable col1="Inmobiliaria" col2="Total vendido" rows={ventasInmoRows} />
-            </div>
-          </div>
+        {isAdmin && ventasInmo.length > 0 && (
+          <ChartCard
+            title="Ventas por inmobiliaria"
+            description="Ranking de separaciones por aliado comercial."
+            icon={<CircleDollarSign className="size-4" />}
+            footer={<SummaryTable col1="Inmobiliaria" col2="Total vendido" rows={toRows(ventasInmo, 'nombre')} />}
+          >
+            <HorizontalBarPanel data={ventasInmo} yKey="nombre" color={CHART_COLORS.violet} />
+          </ChartCard>
         )}
 
-        {/* ── Demograficos ── */}
-      </Col>
-      {isInterno && demograficos && (
-        <Col xs={24}>
-          <DemograficosSection demograficos={demograficos} />
-        </Col>
-      )}
-    </Row>
-    </DashboardSection>
-    </>
+        {isInterno && (
+          <ChartCard
+            title="Contratos promesa de venta"
+            description="Estado del tramo final antes del cierre."
+            icon={<CheckCircle2 className="size-4" />}
+            footer={<SummaryTable col1="Estatus contrato" col2="Cantidad" rows={contratoRows} />}
+          >
+            <PiePanel data={contratoData} />
+          </ChartCard>
+        )}
+      </div>
+
+      {isInterno && demograficos && <DemograficosSection demograficos={demograficos} />}
+    </div>
   );
 };
 
-// ── Sección demográficos ──────────────────────────────────────────────────────
-const COLORES_DEMO = ['#2E75B6','#ED7D31','#375623','#9DC3E6','#F4B942','#70AD47','#C00000','#7030A0','#00B0F0','#FF0000'];
+const ChartCard = ({
+  title,
+  description,
+  icon,
+  children,
+  footer,
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) => (
+  <Card className="overflow-hidden">
+    <CardHeader className="pb-2">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 rounded-md border border-border bg-muted p-2 text-primary">{icon}</div>
+        <div>
+          <CardTitle className="text-base">{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      {children}
+      {footer}
+    </CardContent>
+  </Card>
+);
+
+const SummaryTable = ({ col1, col2, rows }: { col1: string; col2: string; rows: SummaryRow[] }) => (
+  <div className="overflow-hidden rounded-md border border-border">
+    <table className="w-full border-collapse text-sm">
+      <thead className="bg-muted text-muted-foreground">
+        <tr>
+          <th className="px-3 py-2 text-left font-semibold">{col1}</th>
+          <th className="px-3 py-2 text-right font-semibold">{col2}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, index) => (
+          <tr key={`${row.label}-${index}`} className={cn(index % 2 === 1 && 'bg-muted/40', row.bold && 'bg-primary/10')}>
+            <td className={cn('px-3 py-2 text-foreground', row.bold && 'font-semibold')}>{row.label}</td>
+            <td className={cn('px-3 py-2 text-right text-foreground', row.bold && 'font-semibold')}>{formatNumber(row.value)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
+const toRows = <T extends Record<string, string | number>>(items: T[], key: keyof T): SummaryRow[] => {
+  const rows: SummaryRow[] = items.map(item => ({ label: String(item[key]), value: Number(item.Total ?? 0) }));
+  return [
+    ...rows,
+    { label: 'Total', value: rows.reduce((sum, row) => sum + row.value, 0), bold: true },
+  ];
+};
+
+const EmptyChart = () => (
+  <div className="flex h-[260px] items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
+    Sin datos para graficar
+  </div>
+);
+
+const tooltipStyle = {
+  background: 'var(--popover)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  color: 'var(--popover-foreground)',
+};
+
+const PiePanel = ({ data }: { data: ChartPoint[] }) => {
+  if (data.length === 0) return <EmptyChart />;
+
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <PieChart>
+        <Pie data={data} dataKey="value" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={2}>
+          {data.map((entry, index) => (
+            <Cell key={`${entry.name}-${index}`} fill={entry.color ?? PALETTE[index % PALETTE.length]} />
+          ))}
+        </Pie>
+        <Legend
+          verticalAlign="bottom"
+          iconType="circle"
+          formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
+        />
+        <RTooltip contentStyle={tooltipStyle} />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+};
+
+const VerticalBarPanel = ({
+  data,
+  xKey,
+  color,
+}: {
+  data: Record<string, string | number>[];
+  xKey: string;
+  color: string;
+}) => {
+  if (data.length === 0) return <EmptyChart />;
+
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(260, data.length * 42)}>
+      <BarChart data={data} margin={{ left: 0, right: 12, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+        <XAxis dataKey={xKey} tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} />
+        <YAxis tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} allowDecimals={false} />
+        <RTooltip contentStyle={tooltipStyle} />
+        <Legend formatter={() => <span className="text-xs text-foreground">Total</span>} />
+        <Bar dataKey="Total" fill={color} radius={[5, 5, 0, 0]} maxBarSize={44} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+};
+
+const HorizontalBarPanel = ({
+  data,
+  yKey,
+  color,
+}: {
+  data: Record<string, string | number>[];
+  yKey: string;
+  color: string;
+}) => {
+  if (data.length === 0) return <EmptyChart />;
+
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(260, data.length * 36)}>
+      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 18 }}>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+        <XAxis type="number" tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} allowDecimals={false} />
+        <YAxis
+          type="category"
+          dataKey={yKey}
+          tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+          width={130}
+          tickFormatter={(value: string) => shortLabel(value, 18)}
+        />
+        <RTooltip contentStyle={tooltipStyle} />
+        <Legend formatter={() => <span className="text-xs text-foreground">Total</span>} />
+        <Bar dataKey="Total" fill={color} radius={[0, 5, 5, 0]} maxBarSize={28} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+};
 
 const DemograficosSection = ({ demograficos }: { demograficos: NonNullable<AnalyticsData['demograficos']> }) => {
   const { rangos_edad, pais_residencia, nacionalidad } = demograficos;
 
-  const chartCard: React.CSSProperties = {
-    background: 'var(--chart-card-bg)', border: '1px solid var(--app-border)',
-    borderRadius: 8, padding: '16px 16px 12px', marginBottom: 20,
-    boxShadow: 'var(--panel-shadow)',
-  };
-  const chartTitle: React.CSSProperties = {
-    textAlign: 'center', fontWeight: 600, fontSize: 14,
-    letterSpacing: 0, marginBottom: 12, color: 'var(--chart-title)',
-  };
+  const edadData = useMemo(() => {
+    const orden = ['<25', '25-34', '35-44', '45-54', '55+', 'Sin edad'];
+    const base = orden
+      .filter(k => (rangos_edad?.[k] ?? 0) > 0)
+      .map(k => ({ rango: k, Total: rangos_edad[k] }));
+    Object.entries(rangos_edad ?? {}).forEach(([k, v]) => {
+      if (!orden.includes(k) && v > 0) base.push({ rango: k, Total: v });
+    });
+    return base;
+  }, [rangos_edad]);
 
-  // Rangos de edad — barras verticales, ordenados naturalmente
-  const ORDEN_EDAD = ['<25','25-34','35-44','45-54','55+','Sin edad'];
-  const edadData = ORDEN_EDAD
-    .filter(k => (rangos_edad?.[k] ?? 0) > 0)
-    .map(k => ({ rango: k, Total: rangos_edad[k] }));
-  // Si hay rangos no estándar, agregarlos al final
-  Object.entries(rangos_edad ?? {}).forEach(([k, v]) => {
-    if (!ORDEN_EDAD.includes(k) && v > 0) edadData.push({ rango: k, Total: v });
-  });
-  const totalEdad = edadData.reduce((s, r) => s + r.Total, 0);
-
-  // Residencia — torta, top 8 + "Otros"
-  const residenciaEntries = Object.entries(pais_residencia ?? {})
-    .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1]);
-  const TOP = 8;
-  const residenciaTop = residenciaEntries.slice(0, TOP);
-  const residenciaOtros = residenciaEntries.slice(TOP).reduce((s, [, v]) => s + v, 0);
-  const residenciaData = [
-    ...residenciaTop.map(([pais, v], i) => ({ name: pais, value: v, color: COLORES_DEMO[i] })),
-    ...(residenciaOtros > 0 ? [{ name: 'Otros', value: residenciaOtros, color: '#94A3B8' }] : []),
-  ];
-  const residenciaRows: SummaryRow[] = [
-    ...residenciaEntries.map(([l, v]) => ({ label: l, value: v })),
-    { label: 'Total', value: residenciaEntries.reduce((s, [, v]) => s + v, 0), bold: true },
-  ];
-
-  // Nacionalidad — torta, top 8 + "Otros"
-  const nacionalidadEntries = Object.entries(nacionalidad ?? {})
-    .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1]);
-  const nacionalidadTop = nacionalidadEntries.slice(0, TOP);
-  const nacionalidadOtros = nacionalidadEntries.slice(TOP).reduce((s, [, v]) => s + v, 0);
-  const nacionalidadData = [
-    ...nacionalidadTop.map(([nac, v], i) => ({ name: nac, value: v, color: COLORES_DEMO[i] })),
-    ...(nacionalidadOtros > 0 ? [{ name: 'Otros', value: nacionalidadOtros, color: '#94A3B8' }] : []),
-  ];
-  const nacionalidadRows: SummaryRow[] = [
-    ...nacionalidadEntries.map(([l, v]) => ({ label: l, value: v })),
-    { label: 'Total', value: nacionalidadEntries.reduce((s, [, v]) => s + v, 0), bold: true },
-  ];
+  const residencia = topPieData(pais_residencia);
+  const nacionalidades = topPieData(nacionalidad);
 
   return (
-    <>
-      {/* Rangos de edad */}
-      {edadData.length > 0 && (
-        <div style={chartCard}>
-          <div style={chartTitle}>RANGO DE EDAD DE CLIENTES</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={edadData} margin={{ left: 0, right: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="rango" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-              <RTooltip formatter={(v: number) => [`${v} clientes (${totalEdad > 0 ? ((v/totalEdad)*100).toFixed(1) : 0}%)`, 'Total']} />
-              <Bar dataKey="Total" fill={ORANGE} barSize={36} radius={[3, 3, 0, 0]}
-                label={{ position: 'top', fontSize: 11, fill: 'var(--text-secondary)' }} />
-            </BarChart>
-          </ResponsiveContainer>
-          <div style={{ marginTop: 12 }}>
-            <SummaryTable col1="Rango de edad" col2="Clientes" rows={[
-              ...edadData.map(r => ({ label: r.rango, value: r.Total })),
-              { label: 'Total', value: totalEdad, bold: true },
-            ]} />
-          </div>
-        </div>
-      )}
+    <div className="space-y-4">
+      <div>
+        <h2 className="m-0 text-lg font-semibold text-foreground">Perfil de clientes</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Senales demograficas para mejorar campanas y seguimiento.</p>
+      </div>
 
-      {/* País de residencia */}
-      {residenciaData.length > 0 && (
-        <div style={chartCard}>
-          <div style={chartTitle}>PAÍS DE RESIDENCIA</div>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={residenciaData} dataKey="value" cx="40%" outerRadius={100} label={false}>
-                {residenciaData.map((e, i) => <Cell key={i} fill={e.color} />)}
-              </Pie>
-              <Legend
-                layout="vertical" align="right" verticalAlign="middle"
-                formatter={(value) => <span style={{ fontSize: 11, color: 'var(--text-main)' }}>{value}</span>}
-              />
-              <RTooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <SummaryTable col1="País de residencia" col2="Clientes" rows={residenciaRows} />
-        </div>
-      )}
+      <div className="grid gap-5 xl:grid-cols-3">
+        {edadData.length > 0 && (
+          <ChartCard
+            title="Rango de edad"
+            description="Distribucion de clientes registrados."
+            icon={<Users className="size-4" />}
+            footer={<SummaryTable col1="Rango" col2="Clientes" rows={toRows(edadData, 'rango')} />}
+          >
+            <VerticalBarPanel data={edadData} xKey="rango" color={CHART_COLORS.amber} />
+          </ChartCard>
+        )}
 
-      {/* Nacionalidad */}
-      {nacionalidadData.length > 0 && (
-        <div style={chartCard}>
-          <div style={chartTitle}>NACIONALIDAD</div>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={nacionalidadData} dataKey="value" cx="40%" outerRadius={100} label={false}>
-                {nacionalidadData.map((e, i) => <Cell key={i} fill={e.color} />)}
-              </Pie>
-              <Legend
-                layout="vertical" align="right" verticalAlign="middle"
-                formatter={(value) => <span style={{ fontSize: 11, color: 'var(--text-main)' }}>{value}</span>}
-              />
-              <RTooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <SummaryTable col1="Nacionalidad" col2="Clientes" rows={nacionalidadRows} />
-        </div>
-      )}
-    </>
+        {residencia.data.length > 0 && (
+          <ChartCard
+            title="Pais de residencia"
+            description="Top de ubicaciones declaradas."
+            icon={<PieChartIcon className="size-4" />}
+            footer={<SummaryTable col1="Pais" col2="Clientes" rows={residencia.rows} />}
+          >
+            <PiePanel data={residencia.data} />
+          </ChartCard>
+        )}
+
+        {nacionalidades.data.length > 0 && (
+          <ChartCard
+            title="Nacionalidad"
+            description="Composicion por nacionalidad."
+            icon={<PieChartIcon className="size-4" />}
+            footer={<SummaryTable col1="Nacionalidad" col2="Clientes" rows={nacionalidades.rows} />}
+          >
+            <PiePanel data={nacionalidades.data} />
+          </ChartCard>
+        )}
+      </div>
+    </div>
   );
+};
+
+const topPieData = (source: Record<string, number> = {}) => {
+  const entries = Object.entries(source)
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const top = entries.slice(0, 8);
+  const otros = entries.slice(8).reduce((sum, [, value]) => sum + value, 0);
+  const data = [
+    ...top.map(([name, value], index) => ({ name, value, color: PALETTE[index % PALETTE.length] })),
+    ...(otros > 0 ? [{ name: 'Otros', value: otros, color: CHART_COLORS.slate }] : []),
+  ];
+  const rows: SummaryRow[] = [
+    ...entries.map(([label, value]) => ({ label, value })),
+    { label: 'Total', value: entries.reduce((sum, [, value]) => sum + value, 0), bold: true },
+  ];
+
+  return { data, rows };
 };
 
 export default DashboardPage;

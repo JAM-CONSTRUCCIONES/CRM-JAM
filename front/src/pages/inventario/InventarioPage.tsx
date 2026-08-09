@@ -294,17 +294,43 @@ const InventarioPage = () => {
       )}
 
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ marginBottom: inv.vista === 'proyectos' ? 16 : 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             {inv.vista === 'unidades' && (
               <Button icon={<ArrowLeftOutlined />} onClick={inv.volverAProyectos} type="text" style={{ flexShrink: 0 }} />
             )}
-            <Title level={4} style={{ margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isMobile ? 160 : 'none' }}>
-              {inv.vista === 'proyectos' ? 'Proyectos' : inv.proyectoActual?.nombre ?? 'Inventario'}
-            </Title>
+            <div style={{
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              gap: isMobile ? 8 : 12,
+              minWidth: 0,
+            }}>
+              <Title level={4} style={{ margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: isMobile ? 160 : 'none' }}>
+                {inv.vista === 'proyectos' ? 'Proyectos' : inv.proyectoActual?.nombre ?? 'Inventario'}
+              </Title>
+              {inv.vista === 'proyectos' && (
+                <Space size={8} wrap>
+                  <Tag color="blue" style={{ margin: 0 }}>{proyectosPreview.length} proyectos</Tag>
+                  {busquedaProyecto.trim() && (
+                    <Tag style={{ margin: 0 }}>{proyectosFiltrados.length} resultados</Tag>
+                  )}
+                </Space>
+              )}
+            </div>
           </div>
-          <Space wrap>
+          <Space wrap direction="horizontal" align="center">
+            {inv.vista === 'proyectos' && (
+              <Input
+                allowClear
+                prefix={<SearchOutlined />}
+                placeholder="Buscar proyecto"
+                value={busquedaProyecto}
+                onChange={e => setBusquedaProyecto(e.target.value)}
+                style={{ width: isMobile ? '100%' : 280 }}
+              />
+            )}
             {inv.vista === 'unidades' && (
               <>
                 <Tooltip title={isPreview ? "No disponible en modo preview" : "Exportar a Excel"}>
@@ -351,29 +377,6 @@ const InventarioPage = () => {
       {/* Vista proyectos */}
       {inv.vista === 'proyectos' && (
         <>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: isMobile ? 'stretch' : 'center',
-          gap: 12,
-          marginBottom: 16,
-          flexDirection: isMobile ? 'column' : 'row',
-        }}>
-          <Space size={8} wrap>
-            <Tag color="blue" style={{ margin: 0 }}>{proyectosPreview.length} proyectos</Tag>
-            {busquedaProyecto.trim() && (
-              <Tag style={{ margin: 0 }}>{proyectosFiltrados.length} resultados</Tag>
-            )}
-          </Space>
-          <Input
-            allowClear
-            prefix={<SearchOutlined />}
-            placeholder="Buscar proyecto"
-            value={busquedaProyecto}
-            onChange={e => setBusquedaProyecto(e.target.value)}
-            style={{ width: isMobile ? '100%' : 280 }}
-          />
-        </div>
         <Row gutter={[20, 20]}>
           {proyectosFiltrados.map(p => (
             <Col key={p.proyecto_id} xs={24} sm={12} md={8} lg={6}>

@@ -1,118 +1,98 @@
-import { Layout, Drawer, Button, Grid, Space, Typography } from 'antd';
+import { Drawer, Grid } from 'antd';
+import { Menu } from 'lucide-react';
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import { MenuOutlined } from '@ant-design/icons';
+import { Button } from '@/components/ui/button';
 import Sidebar from './Sidebar';
 
-const { Content, Sider } = Layout;
 const { useBreakpoint } = Grid;
-const { Text } = Typography;
 
 const AppLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const screens = useBreakpoint();
   const isDesktop = !!screens.lg;
+  const sidebarWidth = sidebarOpen ? 250 : 64;
 
   const handleMenuClick = () => {
     if (isDesktop) {
       setSidebarOpen(open => !open);
-    } else {
-      setDrawerOpen(true);
+      return;
     }
+    setDrawerOpen(true);
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: 'var(--app-bg)' }}>
-      {/* Sidebar desktop */}
-      {isDesktop && sidebarOpen && (
-        <Sider
-          width={250}
-          style={{
-            background: 'var(--sidebar-bg)',
-            borderRight: '1px solid var(--app-border)',
-            position: 'fixed',
-            left: 0, top: 0, bottom: 0,
-            height: '100vh',
-            overflow: 'hidden',
-            zIndex: 100,
-            transition: 'all 0.2s ease',
-          }}
-          trigger={null}
+    <div className="min-h-screen bg-background text-foreground">
+      {isDesktop && (
+        <aside
+          className="fixed inset-y-0 left-0 z-[100] h-screen overflow-hidden border-r border-border bg-card transition-[width] duration-200"
+          style={{ width: sidebarWidth }}
         >
-          <Sidebar onSelect={() => {}} />
-        </Sider>
+          <Sidebar onSelect={() => {}} collapsed={!sidebarOpen} />
+        </aside>
       )}
 
-      {/* Drawer móvil */}
       <Drawer
         placement="left"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         styles={{ body: { padding: 0 } }}
-        width={220}
+        width={232}
         title={null}
         closable={false}
       >
         <Sidebar onSelect={() => setDrawerOpen(false)} />
       </Drawer>
 
-      <Layout style={{
-        marginLeft: isDesktop && sidebarOpen ? 250 : 0,
-        background: 'var(--app-bg)',
-        transition: 'margin-left 0.2s ease',
-      }}>
-        <div
-          className="app-shell-topbar"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: isDesktop ? '10px 28px' : '10px 16px',
-            position: 'sticky',
-            top: 0,
-            zIndex: 99,
-          }}
-        >
-          <Space size={10}>
-            <Button
-              type="text"
-              icon={<MenuOutlined />}
-              onClick={handleMenuClick}
-              aria-label={isDesktop ? 'Alternar menu lateral' : 'Abrir menu'}
-            />
-            <div>
-              <Text strong style={{ fontSize: 15, color: 'var(--text-main)', display: 'block', lineHeight: 1.15 }}>
-                JAM Construcciones
-              </Text>
-              {isDesktop && (
-                <Text type="secondary" style={{ fontSize: 11, lineHeight: 1.1 }}>
-                  Gestion comercial e inventario
-                </Text>
-              )}
+      <div
+        className="min-h-screen transition-[margin-left] duration-200"
+        style={{ marginLeft: isDesktop ? sidebarWidth : 0 }}
+      >
+        <header className="app-shell-topbar sticky top-0 z-[99]">
+          <div className="flex items-center justify-between px-4 py-2.5 lg:px-7">
+            <div className="flex min-w-0 items-center gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleMenuClick}
+                aria-label={isDesktop ? 'Alternar menu lateral' : 'Abrir menu'}
+              >
+                <Menu className="size-5" />
+              </Button>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold leading-tight text-foreground">
+                  JAM Construcciones
+                </div>
+                {isDesktop && (
+                  <div className="truncate text-[11px] leading-tight text-muted-foreground">
+                    Gestion comercial e inventario
+                  </div>
+                )}
+              </div>
             </div>
-          </Space>
-        </div>
+          </div>
+        </header>
 
-        <Content style={{ padding: isDesktop ? '28px 28px 20px' : '16px 12px 18px', minHeight: '100vh', color: 'var(--text-main)' }}>
+        <main className="min-h-screen px-3 py-4 text-foreground lg:px-7 lg:py-7">
           <div className="app-content-frame">
             <Outlet />
           </div>
-          <div style={{
-            textAlign: isDesktop ? 'right' : 'center',
-            padding: '24px 0 8px',
-            fontSize: 12,
-            color: 'var(--text-muted)',
-          }}>
+          <footer className="px-1 pb-2 pt-6 text-center text-xs text-muted-foreground lg:text-right">
             Hecho por{' '}
-            <a href="https://methodicatechnology.com/" target="_blank" rel="noopener noreferrer"
-              style={{ color: 'var(--text-secondary)', fontWeight: 600, textDecoration: 'none' }}>
+            <a
+              href="https://methodicatechnology.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-muted-foreground no-underline hover:text-primary"
+            >
               Methodica Technology &amp; Co
             </a>
-          </div>
-        </Content>
-      </Layout>
-    </Layout>
+          </footer>
+        </main>
+      </div>
+    </div>
   );
 };
 

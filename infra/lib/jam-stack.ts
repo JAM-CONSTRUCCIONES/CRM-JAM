@@ -288,6 +288,32 @@ export class JamStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    const metaConversacionesTable = new dynamodb.Table(this, 'JamMetaConversacionesTable', {
+      tableName: resourceName('jam-meta-conversaciones'),
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    metaConversacionesTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-external-event',
+      partitionKey: { name: 'external_event_id', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'created_at', type: dynamodb.AttributeType.STRING },
+    });
+
+    metaConversacionesTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-channel-account',
+      partitionKey: { name: 'channel_account', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'event_timestamp', type: dynamodb.AttributeType.STRING },
+    });
+
+    metaConversacionesTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-contact',
+      partitionKey: { name: 'contact_key', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'event_timestamp', type: dynamodb.AttributeType.STRING },
+    });
+
     const tareasTable = new dynamodb.Table(this, 'JamTareasTable', {
       tableName: resourceName('jam-tareas'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
@@ -559,6 +585,20 @@ export class JamStack extends cdk.Stack {
         INVENTARIO_TABLE: inventarioTable.tableName,
         USUARIOS_TABLE: usuariosTable.tableName,
         HISTORIAL_TABLE: historialTable.tableName,
+        META_CONVERSACIONES_TABLE: metaConversacionesTable.tableName,
+        INSTAGRAM_TOKEN_PARAM_JAM: isProd
+          ? '/jam/prod/meta/instagram/jamconstruccionessrl/access-token'
+          : '/jam/dev/meta/instagram/jamconstruccionessrl/access-token',
+        INSTAGRAM_TOKEN_PARAM_CANEY: isProd
+          ? '/jam/prod/meta/instagram/caneyoriental/access-token'
+          : '/jam/dev/meta/instagram/caneyoriental/access-token',
+        MESSENGER_PAGE_TOKEN_PARAM_JAM: isProd
+          ? '/jam/prod/meta/messenger/jam-construcciones/page-access-token'
+          : '/jam/dev/meta/messenger/jam-construcciones/page-access-token',
+        WHATSAPP_TOKEN_PARAM_JAM: isProd
+          ? '/jam/prod/meta/whatsapp/jam-construcciones/access-token'
+          : '/jam/dev/meta/whatsapp/jam-construcciones/access-token',
+        WHATSAPP_PHONE_NUMBER_ID_JAM: '109857822123688',
         SQS_URL: notificacionesQueue.queueUrl,
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         CRM_LAMBDA_ARN: crmLambdaArn,
@@ -572,6 +612,7 @@ export class JamStack extends cdk.Stack {
     procesosTable.grantReadWriteData(crmLambda);
     inventarioTable.grantReadWriteData(crmLambda);
     historialTable.grantReadWriteData(crmLambda);
+    metaConversacionesTable.grantReadWriteData(crmLambda);
     notificacionesQueue.grantSendMessages(crmLambda);
     crmLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['dynamodb:TransactWriteItems'],
@@ -579,6 +620,16 @@ export class JamStack extends cdk.Stack {
         clientesTable.tableArn,
         procesosTable.tableArn,
         inventarioTable.tableArn,
+      ],
+    }));
+
+    crmLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:GetParameter'],
+      resources: [
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/jamconstruccionessrl/access-token`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/caneyoriental/access-token`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/messenger/jam-construcciones/page-access-token`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/whatsapp/jam-construcciones/access-token`,
       ],
     }));
 
@@ -598,6 +649,43 @@ export class JamStack extends cdk.Stack {
     }));
 
     // ─── LAMBDA jam-campanias ────────────────────────────────────────────────
+
+    const metaWebhooksLambda = new lambda.Function(this, 'JamMetaWebhooksLambda', {
+      functionName: resourceName('jam-meta-webhooks'),
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/jam-meta-webhooks')),
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        META_WEBHOOK_VERIFY_TOKEN: isProd
+          ? 'jam-crm-meta-webhook-prod'
+          : 'jam-crm-meta-webhook-dev',
+        INSTAGRAM_TOKEN_PARAM_JAM: isProd
+          ? '/jam/prod/meta/instagram/jamconstruccionessrl/access-token'
+          : '/jam/dev/meta/instagram/jamconstruccionessrl/access-token',
+        INSTAGRAM_TOKEN_PARAM_CANEY: isProd
+          ? '/jam/prod/meta/instagram/caneyoriental/access-token'
+          : '/jam/dev/meta/instagram/caneyoriental/access-token',
+        INSTAGRAM_ACCOUNT_ID_JAM: '17841451399457183',
+        INSTAGRAM_ACCOUNT_ID_CANEY: '17841479714105082',
+        MESSENGER_PAGE_ID_JAM: '134590556407660',
+        WHATSAPP_BUSINESS_ACCOUNT_ID_JAM: '12798130284042',
+        WHATSAPP_PHONE_NUMBER_ID_JAM: '109857822123688',
+        WHATSAPP_TOKEN_PARAM_JAM: isProd
+          ? '/jam/prod/meta/whatsapp/jam-construcciones/access-token'
+          : '/jam/dev/meta/whatsapp/jam-construcciones/access-token',
+        META_CONVERSACIONES_TABLE: metaConversacionesTable.tableName,
+      },
+    });
+    metaConversacionesTable.grantReadWriteData(metaWebhooksLambda);
+    metaWebhooksLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:GetParameter'],
+      resources: [
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/jamconstruccionessrl/access-token`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/caneyoriental/access-token`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/whatsapp/jam-construcciones/access-token`,
+      ],
+    }));
 
     const campaniasLambda = new lambda.Function(this, 'JamCampaniasLambda', {
       functionName: resourceName('jam-campanias'),
@@ -890,6 +978,7 @@ def handler(event, context):
     const bloqueosLambdaIntegration = new apigateway.LambdaIntegration(bloqueosLambda);
     const captacionLambdaIntegration = new apigateway.LambdaIntegration(captacionLambda);
     const crmLambdaIntegration = new apigateway.LambdaIntegration(crmLambda);
+    const metaWebhooksLambdaIntegration = new apigateway.LambdaIntegration(metaWebhooksLambda);
     const campaniasLambdaIntegration = new apigateway.LambdaIntegration(campaniasLambda);
     const tareasLambdaIntegration = new apigateway.LambdaIntegration(tareasLambda);
 
@@ -1285,7 +1374,16 @@ def handler(event, context):
     });
 
     // /admin/procesos
-    adminResource.addResource('procesos').addMethod('GET', crmLambdaIntegration, {
+    const adminProcesosResource = adminResource.addResource('procesos');
+    adminProcesosResource.addMethod('GET', crmLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    adminProcesosResource.addMethod('PUT', crmLambdaIntegration, {
+      authorizer: cognitoAuthorizer,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+    });
+    adminProcesosResource.addMethod('POST', crmLambdaIntegration, {
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
@@ -1306,6 +1404,12 @@ def handler(event, context):
 
     const publicoClientesResource = publicoResource.addResource('clientes');
     publicoClientesResource.addMethod('POST', captacionLambdaIntegration);
+
+    // /webhooks/meta — ruta pública para verificación y eventos de Meta
+    const webhooksResource = api.root.addResource('webhooks');
+    const metaWebhookResource = webhooksResource.addResource('meta');
+    metaWebhookResource.addMethod('GET', metaWebhooksLambdaIntegration);
+    metaWebhookResource.addMethod('POST', metaWebhooksLambdaIntegration);
 
     // CORS en respuestas de error del Gateway (401, 403, 5xx)
     api.addGatewayResponse('GatewayResponseDefault4XX', {
@@ -1398,6 +1502,10 @@ def handler(event, context):
     assetsBucket.grantReadWrite(campaniasLambda);
     campaniasLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
     campaniasLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
+
+    assetsBucket.grantReadWrite(metaWebhooksLambda);
+    metaWebhooksLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
+    metaWebhooksLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
 
     // Permisos: proyectosLambda puede leer/escribir en archivos (Excel migrations)
     archivosBucket.grantReadWrite(proyectosLambda);
@@ -1511,6 +1619,7 @@ def handler(event, context):
         backup.BackupResource.fromDynamoDbTable(historialEstatusTable),
         backup.BackupResource.fromDynamoDbTable(historialTable),
         backup.BackupResource.fromDynamoDbTable(campaniasTable),
+        backup.BackupResource.fromDynamoDbTable(metaConversacionesTable),
         backup.BackupResource.fromDynamoDbTable(tareasTable),
       ],
     });

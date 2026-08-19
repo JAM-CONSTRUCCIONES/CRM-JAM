@@ -3,6 +3,7 @@ from utils.response import forbidden, not_found, bad_request
 from routes import estatus as estatus_routes
 from routes import analytics as analytics_routes
 from routes import traspaso_cliente as traspaso_cliente_routes
+from routes import meta as meta_routes
 
 
 def handler(event, context):
@@ -29,7 +30,28 @@ def handler(event, context):
     if method == 'GET' and path == '/admin/procesos':
         if not es_admin and get_rol(event) != 'inmobiliaria':
             return forbidden()
+        query = event.get('queryStringParameters') or {}
+        if query.get('tipo') == 'meta-leads':
+            return meta_routes.listar_leads(event)
+        if query.get('tipo') == 'meta-conversacion':
+            return meta_routes.ver_conversacion(event)
         return estatus_routes.listar_todos_procesos(event)
+
+    if method == 'PUT' and path == '/admin/procesos':
+        if not es_admin:
+            return forbidden()
+        query = event.get('queryStringParameters') or {}
+        if query.get('tipo') == 'meta-lead' and query.get('accion') == 'convertir':
+            return meta_routes.convertir_lead(event)
+        if query.get('tipo') == 'meta-lead':
+            return meta_routes.gestionar_lead(event)
+
+    if method == 'POST' and path == '/admin/procesos':
+        if not es_admin:
+            return forbidden()
+        query = event.get('queryStringParameters') or {}
+        if query.get('tipo') == 'meta-mensaje':
+            return meta_routes.enviar_mensaje(event)
 
     # El resto de endpoints solo para admin/coordinador/supervisor
     if not es_admin:

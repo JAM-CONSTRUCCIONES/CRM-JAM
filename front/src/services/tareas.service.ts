@@ -29,6 +29,10 @@ export interface TareaJam {
   proyecto_id?: string;
   proyecto_nombre?: string;
   unidad_id?: string;
+  relacion_tipo?: string;
+  relacion_id?: string;
+  relacion_nombre?: string;
+  recordatorio_minutos_antes?: number;
   creado_por?: string;
   creado_por_nombre?: string;
   creado_en?: string;
@@ -42,6 +46,8 @@ export interface TareasFiltros {
   trabajador_id?: string;
   estado?: EstadoTarea;
   prioridad?: PrioridadTarea;
+  relacion_tipo?: string;
+  relacion_id?: string;
 }
 
 const query = (params: Record<string, string | undefined>) => {

@@ -18,7 +18,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { ClockCircleOutlined, MessageOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, MessageOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
   convertirMetaLead,
@@ -31,6 +31,7 @@ import {
 import { getUsuariosSistema, type UsuarioSistema } from '../../services/sistema.service';
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
 import { getProyectos, getUnidades } from '../../services/proyectos.service';
+import { actualizarTarea, crearTarea, getTareas, type TareaJam } from '../../services/tareas.service';
 import type { Proyecto, Unidad } from '../../types';
 
 const { Paragraph, Text, Title } = Typography;
@@ -62,6 +63,8 @@ const estadoColor: Record<string, string> = {
   cerrado: 'default',
 };
 
+const SIN_ASIGNAR = '__sin_asignar__';
+
 const motivosCierre = [
   'No interesado',
   'No responde',
@@ -82,6 +85,54 @@ const formatDate = (value?: string) => {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
+};
+
+const todayKey = () => new Date().toISOString().slice(0, 10);
+
+const nextHourKey = () => {
+  const date = new Date();
+  date.setHours(date.getHours() + 1, 0, 0, 0);
+  return `${String(date.getHours()).padStart(2, '0')}:00`;
+};
+
+const isTareaVencida = (tarea: TareaJam) => {
+  if (!['pendiente', 'en_progreso'].includes(tarea.estado)) return false;
+  const date = new Date(`${tarea.fecha}T${tarea.hora}:00`);
+  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+};
+
+const hasAdsOrigin = (lead?: MetaLead | null) => Boolean(
+  lead && (
+    lead.campaign_id ||
+    lead.campaign_name ||
+    lead.adset_id ||
+    lead.adset_name ||
+    lead.ad_id ||
+    lead.ad_name ||
+    lead.form_id ||
+    lead.form_name ||
+    lead.referral_source ||
+    lead.referral_type ||
+    lead.referral_url ||
+    lead.ctwa_clid
+  ),
+);
+
+const adsOriginLabel = (lead: MetaLead) => (
+  lead.campaign_name ||
+  lead.ad_name ||
+  lead.form_name ||
+  lead.campaign_id ||
+  lead.ad_id ||
+  lead.form_id ||
+  lead.referral_type ||
+  lead.referral_source ||
+  'Meta Ads'
+);
+
+const idWithName = (name?: string, id?: string) => {
+  if (name && id) return `${name} (${id})`;
+  return name || id || '';
 };
 
 const getProyectoLabel = (proyectos: Proyecto[], proyectoId?: string) => (
@@ -109,11 +160,17 @@ export default function MetaLeadsPage() {
   const [loading, setLoading] = useState(false);
   const [canal, setCanal] = useState<string>();
   const [estado, setEstado] = useState<string>();
+  const [responsableFiltro, setResponsableFiltro] = useState<string>();
+  const [inmobiliariaFiltro, setInmobiliariaFiltro] = useState<string>();
   const [busqueda, setBusqueda] = useState('');
   const [selectedLead, setSelectedLead] = useState<MetaLead | null>(null);
   const [timeline, setTimeline] = useState<MetaTimelineItem[]>([]);
+  const [tareasLead, setTareasLead] = useState<TareaJam[]>([]);
   const [historialOpen, setHistorialOpen] = useState(false);
   const [conversationLoading, setConversationLoading] = useState(false);
+  const [tareasLoading, setTareasLoading] = useState(false);
+  const [tareaOpen, setTareaOpen] = useState(false);
+  const [savingTarea, setSavingTarea] = useState(false);
   const [savingLead, setSavingLead] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [savingConversion, setSavingConversion] = useState(false);
@@ -124,6 +181,7 @@ export default function MetaLeadsPage() {
   const [loadingUnidades, setLoadingUnidades] = useState(false);
   const [form] = Form.useForm();
   const [convertForm] = Form.useForm();
+  const [tareaForm] = Form.useForm();
   const estadoGestion = Form.useWatch('estado', form);
 
   const stats = useMemo(() => {
@@ -134,6 +192,12 @@ export default function MetaLeadsPage() {
     const whatsapp = leads.filter((lead) => lead.channel === 'whatsapp').length;
     return { totalMensajes, pendientes, instagram, messenger, whatsapp };
   }, [leads]);
+
+  const resumenTareas = useMemo(() => {
+    const pendientes = tareasLead.filter((tarea) => ['pendiente', 'en_progreso'].includes(tarea.estado));
+    const vencidas = pendientes.filter(isTareaVencida);
+    return { pendientes: pendientes.length, vencidas: vencidas.length };
+  }, [tareasLead]);
 
   const leadsFiltrados = useMemo(() => {
     const text = busqueda.trim().toLowerCase();
@@ -153,7 +217,7 @@ export default function MetaLeadsPage() {
 
   useEffect(() => {
     cargarLeads();
-  }, [canal, estado]);
+  }, [canal, estado, responsableFiltro, inmobiliariaFiltro]);
 
   useEffect(() => {
     cargarAsignables();
@@ -177,7 +241,12 @@ export default function MetaLeadsPage() {
   const cargarLeads = async () => {
     setLoading(true);
     try {
-      const data = await listarMetaLeads({ canal, estado });
+      const data = await listarMetaLeads({
+        canal,
+        estado,
+        responsable_id: responsableFiltro,
+        inmobiliaria_id: inmobiliariaFiltro,
+      });
       setLeads(data.items || []);
     } catch (error: any) {
       message.error(error?.message || 'No se pudieron cargar los leads Meta');
@@ -186,12 +255,29 @@ export default function MetaLeadsPage() {
     }
   };
 
+  const cargarTareasLead = async (lead: MetaLead) => {
+    setTareasLoading(true);
+    try {
+      const data = await getTareas({
+        relacion_tipo: 'meta_lead',
+        relacion_id: lead.pk,
+      });
+      setTareasLead(data || []);
+    } catch (error: any) {
+      message.warning(error?.message || 'No se pudieron cargar las tareas del lead');
+    } finally {
+      setTareasLoading(false);
+    }
+  };
+
   const abrirConversacion = async (lead: MetaLead) => {
     setSelectedLead(lead);
     setConversationLoading(true);
     try {
       const data = await getMetaConversacion(lead.pk);
+      setSelectedLead(data.lead || lead);
       setTimeline(data.timeline || []);
+      await cargarTareasLead(data.lead || lead);
       form.setFieldsValue({
         estado: data.lead?.estado || lead.estado || 'nuevo',
         responsable_id: data.lead?.responsable_id || lead.responsable_id,
@@ -201,9 +287,69 @@ export default function MetaLeadsPage() {
       });
     } catch (error: any) {
       setTimeline([]);
+      setTareasLead([]);
       message.error(error?.message || 'No se pudo cargar la conversacion');
     } finally {
       setConversationLoading(false);
+    }
+  };
+
+  const abrirNuevaTareaLead = () => {
+    if (!selectedLead) return;
+    tareaForm.resetFields();
+    tareaForm.setFieldsValue({
+      titulo: 'Dar seguimiento a lead Meta',
+      descripcion: selectedLead.ultimo_mensaje_texto || '',
+      trabajador_id: selectedLead.responsable_id?.replace('USUARIO#', '') || undefined,
+      fecha: todayKey(),
+      hora: nextHourKey(),
+      prioridad: 'media',
+      recordatorio_minutos_antes: 60,
+    });
+    setTareaOpen(true);
+  };
+
+  const guardarTareaLead = async () => {
+    if (!selectedLead) return;
+    const values = await tareaForm.validateFields();
+    setSavingTarea(true);
+    try {
+      await crearTarea({
+        ...values,
+        estado: 'pendiente',
+        relacion_tipo: 'meta_lead',
+        relacion_id: selectedLead.pk,
+        relacion_nombre: `${canalLabel[selectedLead.channel] || selectedLead.channel} - ${selectedLead.external_contact_id}`,
+      });
+      await gestionarMetaLead(selectedLead.pk, {
+        nota: `Tarea creada: ${values.titulo} (${values.fecha} ${values.hora})`,
+      });
+      message.success('Tarea creada para el lead');
+      setTareaOpen(false);
+      await abrirConversacion(selectedLead);
+      await cargarLeads();
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo crear la tarea');
+    } finally {
+      setSavingTarea(false);
+    }
+  };
+
+  const completarTareaLead = async (tarea: TareaJam) => {
+    if (!selectedLead) return;
+    setTareasLoading(true);
+    try {
+      await actualizarTarea(tarea.tarea_id, { estado: 'completada' });
+      await gestionarMetaLead(selectedLead.pk, {
+        nota: `Tarea completada: ${tarea.titulo}`,
+      });
+      message.success('Tarea completada');
+      await abrirConversacion(selectedLead);
+      await cargarLeads();
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo completar la tarea');
+    } finally {
+      setTareasLoading(false);
     }
   };
 
@@ -338,6 +484,27 @@ export default function MetaLeadsPage() {
       render: (value: string) => value || <Text type="secondary">Sin asignar</Text>,
     },
     {
+      title: 'Inmobiliaria',
+      dataIndex: 'inmobiliaria_nombre',
+      width: 180,
+      render: (value: string) => value || <Text type="secondary">Sin asignar</Text>,
+    },
+    {
+      title: 'Origen',
+      key: 'origen_meta',
+      width: 190,
+      render: (_: unknown, lead: MetaLead) => (
+        hasAdsOrigin(lead) ? (
+          <Space direction="vertical" size={0}>
+            <Tag color="purple">Meta Ads</Tag>
+            <Text className="text-xs" ellipsis>{adsOriginLabel(lead)}</Text>
+          </Space>
+        ) : (
+          <Text type="secondary">{lead.fuente || 'Meta'}</Text>
+        )
+      ),
+    },
+    {
       title: 'Ultimo mensaje',
       dataIndex: 'ultimo_mensaje_texto',
       ellipsis: true,
@@ -433,6 +600,38 @@ export default function MetaLeadsPage() {
                 { value: 'cerrado', label: 'Cerrado' },
               ]}
             />
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Responsable"
+              className="w-full md:w-64"
+              value={responsableFiltro}
+              onChange={setResponsableFiltro}
+              options={[
+                { value: SIN_ASIGNAR, label: 'Sin responsable' },
+                ...usuarios.map((usuario) => ({
+                  value: usuario.pk,
+                  label: usuario.nombre || usuario.cognito_username || usuario.pk,
+                })),
+              ]}
+            />
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Inmobiliaria"
+              className="w-full md:w-64"
+              value={inmobiliariaFiltro}
+              onChange={setInmobiliariaFiltro}
+              options={[
+                { value: SIN_ASIGNAR, label: 'Sin inmobiliaria' },
+                ...inmobiliarias.map((inmobiliaria) => ({
+                  value: inmobiliaria.pk,
+                  label: inmobiliaria.nombre,
+                })),
+              ]}
+            />
           </Space>
           <Search
             allowClear
@@ -467,7 +666,7 @@ export default function MetaLeadsPage() {
           columns={columns}
           dataSource={leadsFiltrados}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 980 }}
+          scroll={{ x: 1310 }}
           locale={{ emptyText: <Empty description="Sin leads Meta registrados" /> }}
         />
       </Card>
@@ -496,7 +695,10 @@ export default function MetaLeadsPage() {
         onClose={() => {
           setSelectedLead(null);
           setTimeline([]);
+          setTareasLead([]);
+          setTareaOpen(false);
           form.resetFields();
+          tareaForm.resetFields();
         }}
         width={isMobile ? '100%' : 720}
       >
@@ -532,6 +734,131 @@ export default function MetaLeadsPage() {
                 </Space>
               </Descriptions.Item>
             </Descriptions>
+
+            {hasAdsOrigin(selectedLead) && (
+              <Card size="small" title="Origen publicitario">
+                <Descriptions column={1} size="small" bordered>
+                  {(selectedLead.campaign_name || selectedLead.campaign_id) && (
+                    <Descriptions.Item label="Campania">
+                      {idWithName(selectedLead.campaign_name, selectedLead.campaign_id)}
+                    </Descriptions.Item>
+                  )}
+                  {(selectedLead.adset_name || selectedLead.adset_id) && (
+                    <Descriptions.Item label="Conjunto">
+                      {idWithName(selectedLead.adset_name, selectedLead.adset_id)}
+                    </Descriptions.Item>
+                  )}
+                  {(selectedLead.ad_name || selectedLead.ad_id) && (
+                    <Descriptions.Item label="Anuncio">
+                      {idWithName(selectedLead.ad_name, selectedLead.ad_id)}
+                    </Descriptions.Item>
+                  )}
+                  {(selectedLead.form_name || selectedLead.form_id) && (
+                    <Descriptions.Item label="Formulario">
+                      {idWithName(selectedLead.form_name, selectedLead.form_id)}
+                    </Descriptions.Item>
+                  )}
+                  {(selectedLead.referral_source || selectedLead.referral_type) && (
+                    <Descriptions.Item label="Referral">
+                      <Space direction="vertical" size={0}>
+                        {selectedLead.referral_type && <Text>{selectedLead.referral_type}</Text>}
+                        {selectedLead.referral_source && <Text type="secondary">{selectedLead.referral_source}</Text>}
+                      </Space>
+                    </Descriptions.Item>
+                  )}
+                  {selectedLead.referral_url && (
+                    <Descriptions.Item label="URL">
+                      <a href={selectedLead.referral_url} target="_blank" rel="noreferrer">
+                        {selectedLead.referral_url}
+                      </a>
+                    </Descriptions.Item>
+                  )}
+                  {selectedLead.ctwa_clid && (
+                    <Descriptions.Item label="CTWA CLID">{selectedLead.ctwa_clid}</Descriptions.Item>
+                  )}
+                </Descriptions>
+              </Card>
+            )}
+
+            <Card
+              size="small"
+              title={
+                <Space>
+                  <span>Tareas y recordatorios</span>
+                  <Tag color={resumenTareas.vencidas ? 'red' : resumenTareas.pendientes ? 'gold' : 'default'}>
+                    {resumenTareas.vencidas ? `${resumenTareas.vencidas} vencida(s)` : `${resumenTareas.pendientes} pendiente(s)`}
+                  </Tag>
+                </Space>
+              }
+              extra={
+                <Space wrap>
+                  <Button size="small" onClick={() => selectedLead && cargarTareasLead(selectedLead)} loading={tareasLoading}>
+                    Actualizar
+                  </Button>
+                  <Button size="small" type="primary" icon={<PlusOutlined />} onClick={abrirNuevaTareaLead}>
+                    Crear tarea
+                  </Button>
+                </Space>
+              }
+            >
+              {tareasLead.length ? (
+                <Table
+                  size="small"
+                  pagination={false}
+                  loading={tareasLoading}
+                  rowKey="tarea_id"
+                  dataSource={tareasLead}
+                  columns={[
+                    {
+                      title: 'Tarea',
+                      render: (_, tarea) => (
+                        <Space direction="vertical" size={0}>
+                          <Text strong>{tarea.titulo}</Text>
+                          {tarea.descripcion && <Text type="secondary" className="text-xs">{tarea.descripcion}</Text>}
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: 'Responsable',
+                      dataIndex: 'trabajador_nombre',
+                      width: 160,
+                    },
+                    {
+                      title: 'Vence',
+                      width: 150,
+                      render: (_, tarea) => (
+                        <Space direction="vertical" size={0}>
+                          <Text>{`${tarea.fecha} ${tarea.hora}`}</Text>
+                          {isTareaVencida(tarea) && <Tag color="red">Vencida</Tag>}
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: 'Estado',
+                      dataIndex: 'estado',
+                      width: 120,
+                      render: (value: string) => <Tag>{value}</Tag>,
+                    },
+                    {
+                      title: '',
+                      width: 120,
+                      render: (_, tarea) => (
+                        <Button
+                          size="small"
+                          type={tarea.estado === 'completada' ? 'default' : 'primary'}
+                          disabled={tarea.estado === 'completada' || tarea.estado === 'cancelada'}
+                          onClick={() => completarTareaLead(tarea)}
+                        >
+                          Lista
+                        </Button>
+                      ),
+                    },
+                  ]}
+                />
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin tareas de seguimiento" />
+              )}
+            </Card>
 
             <Card
               size="small"
@@ -717,6 +1044,81 @@ export default function MetaLeadsPage() {
         ) : (
           <Empty description="Sin historial registrado" />
         )}
+      </Modal>
+
+      <Modal
+        title="Crear tarea de seguimiento"
+        open={tareaOpen}
+        onCancel={() => setTareaOpen(false)}
+        onOk={guardarTareaLead}
+        okText="Crear tarea"
+        cancelText="Cancelar"
+        confirmLoading={savingTarea}
+        width={640}
+      >
+        <Form form={tareaForm} layout="vertical">
+          <Form.Item
+            name="titulo"
+            label="Titulo"
+            rules={[{ required: true, message: 'Ingresa el titulo de la tarea' }]}
+          >
+            <Input placeholder="Ej: Dar seguimiento a lead Meta" />
+          </Form.Item>
+          <Form.Item
+            name="trabajador_id"
+            label="Responsable"
+            rules={[{ required: true, message: 'Selecciona un responsable' }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Seleccionar usuario"
+              options={usuarios.map((usuario) => ({
+                value: usuario.pk.replace('USUARIO#', ''),
+                label: `${usuario.nombre || usuario.cognito_username} (${usuario.rol})`,
+              }))}
+            />
+          </Form.Item>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Form.Item
+              name="fecha"
+              label="Fecha"
+              rules={[{ required: true, message: 'Selecciona fecha' }]}
+            >
+              <Input type="date" />
+            </Form.Item>
+            <Form.Item
+              name="hora"
+              label="Hora"
+              rules={[{ required: true, message: 'Selecciona hora' }]}
+            >
+              <Input type="time" />
+            </Form.Item>
+            <Form.Item name="prioridad" label="Prioridad">
+              <Select
+                options={[
+                  { value: 'baja', label: 'Baja' },
+                  { value: 'media', label: 'Media' },
+                  { value: 'alta', label: 'Alta' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="recordatorio_minutos_antes" label="Recordatorio">
+              <Select
+                allowClear
+                placeholder="Sin recordatorio"
+                options={[
+                  { value: 30, label: '30 minutos antes' },
+                  { value: 60, label: '1 hora antes' },
+                  { value: 1440, label: '1 dia antes' },
+                ]}
+              />
+            </Form.Item>
+          </div>
+          <Form.Item name="descripcion" label="Descripcion">
+            <TextArea rows={3} maxLength={500} showCount placeholder="Detalle para el seguimiento" />
+          </Form.Item>
+        </Form>
       </Modal>
 
       <Modal

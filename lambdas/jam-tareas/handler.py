@@ -2,8 +2,10 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from html import escape
+from zoneinfo import ZoneInfo
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
@@ -13,8 +15,15 @@ from utils.response import bad_request, created, forbidden, not_found, ok
 
 
 dynamodb = boto3.resource('dynamodb')
+scheduler = boto3.client('scheduler')
+ses = boto3.client('ses', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 TAREAS_TABLE = os.environ['TAREAS_TABLE']
 USUARIOS_TABLE = os.environ['USUARIOS_TABLE']
+SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
+TAREAS_LAMBDA_ARN = os.environ.get('TAREAS_LAMBDA_ARN', '')
+FROM_EMAIL = os.environ.get('FROM_EMAIL', '')
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '')
+BUSINESS_TZ = os.environ.get('BUSINESS_TZ', 'America/Santo_Domingo')
 tareas_t = dynamodb.Table(TAREAS_TABLE)
 usuarios_t = dynamodb.Table(USUARIOS_TABLE)
 
@@ -22,9 +31,13 @@ ESTADOS_TAREA = ('pendiente', 'en_progreso', 'completada', 'cancelada')
 PRIORIDADES = ('baja', 'media', 'alta')
 ROLES_JAM = ('admin', 'coordinador', 'supervisor')
 HORA_RE = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
+EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
 
 def handler(event, context):
+    if event.get('source') == 'scheduler' and event.get('tipo') == 'recordatorio_tarea':
+        return procesar_recordatorio_tarea(event)
+
     if not puede_ver(event):
         return forbidden()
 
@@ -119,6 +132,167 @@ def _to_decimal(value):
     return Decimal(str(value)) if value is not None else None
 
 
+def _to_int(value):
+    if value in (None, ''):
+        return None
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_schedule_part(value):
+    return re.sub(r'[^A-Za-z0-9_-]+', '-', str(value or ''))[:48]
+
+
+def _schedule_name_tarea(tarea_id):
+    return f"tarea-rem-{_safe_schedule_part(tarea_id)}"[:64]
+
+
+def _fecha_hora_tarea(tarea):
+    return datetime.strptime(
+        f"{tarea.get('fecha')} {tarea.get('hora')}",
+        '%Y-%m-%d %H:%M',
+    ).replace(tzinfo=ZoneInfo(BUSINESS_TZ))
+
+
+def _recordatorio_datetime(tarea):
+    minutos = _to_int(tarea.get('recordatorio_minutos_antes'))
+    if not minutos:
+        return None
+    return _fecha_hora_tarea(tarea) - timedelta(minutes=minutos)
+
+
+def _cancelar_schedule_recordatorio(tarea_id):
+    if not tarea_id:
+        return
+    try:
+        scheduler.delete_schedule(Name=_schedule_name_tarea(tarea_id))
+    except scheduler.exceptions.ResourceNotFoundException:
+        return
+    except Exception as exc:
+        print(f'No se pudo cancelar schedule de tarea {tarea_id}: {type(exc).__name__}: {exc}')
+
+
+def _crear_schedule_recordatorio(tarea):
+    tarea_id = tarea.get('tarea_id')
+    recordatorio_en = _recordatorio_datetime(tarea)
+    if not tarea_id or not recordatorio_en or not SCHEDULER_ROLE_ARN or not TAREAS_LAMBDA_ARN:
+        return None
+
+    if tarea.get('estado') not in ('pendiente', 'en_progreso'):
+        _cancelar_schedule_recordatorio(tarea_id)
+        return None
+
+    now = datetime.now(ZoneInfo(BUSINESS_TZ))
+    if recordatorio_en <= now:
+        _cancelar_schedule_recordatorio(tarea_id)
+        return None
+
+    schedule_name = _schedule_name_tarea(tarea_id)
+    _cancelar_schedule_recordatorio(tarea_id)
+    scheduler.create_schedule(
+        Name=schedule_name,
+        ScheduleExpression=f"at({recordatorio_en.strftime('%Y-%m-%dT%H:%M:%S')})",
+        ScheduleExpressionTimezone=BUSINESS_TZ,
+        FlexibleTimeWindow={'Mode': 'OFF'},
+        Target={
+            'Arn': TAREAS_LAMBDA_ARN,
+            'RoleArn': SCHEDULER_ROLE_ARN,
+            'Input': json.dumps({
+                'source': 'scheduler',
+                'tipo': 'recordatorio_tarea',
+                'tarea_id': tarea_id,
+            }),
+        },
+        ActionAfterCompletion='DELETE',
+    )
+    return recordatorio_en.isoformat()
+
+
+def _correo_usuario(usuario):
+    for field in ('correo', 'email', 'cognito_username'):
+        value = str(usuario.get(field) or '').strip()
+        if EMAIL_RE.match(value):
+            return value
+    return ADMIN_EMAIL
+
+
+def _enviar_recordatorio_tarea(tarea, usuario):
+    destinatario = _correo_usuario(usuario)
+    if not destinatario or not FROM_EMAIL:
+        raise ValueError('Correo origen o destino no configurado para recordatorio de tarea')
+
+    titulo = tarea.get('titulo') or 'Tarea pendiente'
+    responsable = usuario.get('nombre') or usuario.get('cognito_username') or tarea.get('trabajador_nombre') or 'Usuario'
+    fecha_hora = f"{tarea.get('fecha', '')} {tarea.get('hora', '')}".strip()
+    relacion = tarea.get('relacion_nombre') or tarea.get('proyecto_nombre') or tarea.get('unidad_id') or 'CRM JAM'
+    descripcion = tarea.get('descripcion') or ''
+
+    html = f"""
+    <h2>Recordatorio de tarea</h2>
+    <p>Hola {escape(responsable)}, tienes una tarea pendiente de seguimiento.</p>
+    <ul>
+      <li><strong>Tarea:</strong> {escape(titulo)}</li>
+      <li><strong>Fecha y hora:</strong> {escape(fecha_hora)}</li>
+      <li><strong>Prioridad:</strong> {escape(tarea.get('prioridad') or 'media')}</li>
+      <li><strong>Relacion:</strong> {escape(relacion)}</li>
+    </ul>
+    {f"<p><strong>Detalle:</strong> {escape(descripcion)}</p>" if descripcion else ""}
+    <p>Revisa la Agenda / Tareas del CRM para darle seguimiento.</p>
+    """
+    text = (
+        f"Recordatorio de tarea\n\n"
+        f"Responsable: {responsable}\n"
+        f"Tarea: {titulo}\n"
+        f"Fecha y hora: {fecha_hora}\n"
+        f"Prioridad: {tarea.get('prioridad') or 'media'}\n"
+        f"Relacion: {relacion}\n"
+        f"Detalle: {descripcion}\n"
+    )
+
+    ses.send_email(
+        Source=FROM_EMAIL,
+        Destination={'ToAddresses': [destinatario]},
+        Message={
+            'Subject': {'Data': f'Recordatorio CRM: {titulo}', 'Charset': 'UTF-8'},
+            'Body': {
+                'Text': {'Data': text, 'Charset': 'UTF-8'},
+                'Html': {'Data': html, 'Charset': 'UTF-8'},
+            },
+        },
+    )
+
+
+def procesar_recordatorio_tarea(event):
+    tarea_id = _clean_text(event.get('tarea_id'))
+    if not tarea_id:
+        return {'ok': False, 'message': 'tarea_id requerido'}
+
+    tarea = tareas_t.get_item(Key={'pk': f'TAREA#{tarea_id}', 'sk': 'METADATA'}).get('Item')
+    if not tarea:
+        return {'ok': False, 'message': 'Tarea no encontrada'}
+    if tarea.get('estado') not in ('pendiente', 'en_progreso'):
+        return {'ok': True, 'message': 'Tarea no pendiente; recordatorio omitido'}
+    if tarea.get('recordatorio_enviado'):
+        return {'ok': True, 'message': 'Recordatorio ya enviado'}
+
+    usuario = _get_usuario_jam(tarea.get('trabajador_id')) or {}
+    _enviar_recordatorio_tarea(tarea, usuario)
+
+    now = _now()
+    tareas_t.update_item(
+        Key={'pk': f'TAREA#{tarea_id}', 'sk': 'METADATA'},
+        UpdateExpression='SET recordatorio_enviado = :enviado, recordatorio_enviado_en = :now, actualizado_en = :now',
+        ExpressionAttributeValues={
+            ':enviado': True,
+            ':now': now,
+        },
+    )
+    return {'ok': True, 'message': 'Recordatorio enviado'}
+
+
 def _get_usuario_jam(usuario_id):
     if not usuario_id:
         return None
@@ -155,6 +329,8 @@ def listar_tareas(event):
     trabajador_id = (qs.get('trabajador_id') or '').strip()
     estado = (qs.get('estado') or '').strip()
     prioridad = (qs.get('prioridad') or '').strip()
+    relacion_tipo = (qs.get('relacion_tipo') or '').strip()
+    relacion_id = (qs.get('relacion_id') or '').strip()
 
     if fecha:
         items = _query_all(
@@ -199,6 +375,10 @@ def listar_tareas(event):
         items = [item for item in items if item.get('estado') == estado]
     if prioridad:
         items = [item for item in items if item.get('prioridad') == prioridad]
+    if relacion_tipo:
+        items = [item for item in items if item.get('relacion_tipo') == relacion_tipo]
+    if relacion_id:
+        items = [item for item in items if item.get('relacion_id') == relacion_id]
 
     items.sort(key=lambda item: item.get('fecha_hora_inicio', ''))
     return ok(items[:300])
@@ -225,6 +405,7 @@ def crear_tarea(event):
     estado = _clean_text(body.get('estado') or 'pendiente')
     prioridad = _clean_text(body.get('prioridad') or 'media')
     duracion = _int_or_none(body.get('duracion_minutos'))
+    recordatorio = _int_or_none(body.get('recordatorio_minutos_antes'))
 
     if not titulo:
         return bad_request('titulo es requerido')
@@ -263,11 +444,20 @@ def crear_tarea(event):
         'proyecto_id': _clean_text(body.get('proyecto_id')),
         'proyecto_nombre': _clean_text(body.get('proyecto_nombre')),
         'unidad_id': _clean_text(body.get('unidad_id')),
+        'relacion_tipo': _clean_text(body.get('relacion_tipo')),
+        'relacion_id': _clean_text(body.get('relacion_id')),
+        'relacion_nombre': _clean_text(body.get('relacion_nombre')),
+        'recordatorio_minutos_antes': _to_decimal(recordatorio),
+        'recordatorio_enviado': False,
         'creado_por': usuario.get('sub', ''),
         'creado_por_nombre': usuario.get('nombre', ''),
         'creado_en': now,
         'actualizado_en': now,
     }
+    recordatorio_en = _crear_schedule_recordatorio(item)
+    if recordatorio_en:
+        item['recordatorio_en'] = recordatorio_en
+        item['recordatorio_schedule_name'] = _schedule_name_tarea(tarea_id)
     item = {k: v for k, v in item.items() if v not in (None, '')}
     tareas_t.put_item(Item=item)
     return created(item)
@@ -287,7 +477,16 @@ def actualizar_tarea(event):
         return not_found('Tarea no encontrada')
 
     next_item = dict(current)
-    for field in ('titulo', 'descripcion', 'proyecto_id', 'proyecto_nombre', 'unidad_id'):
+    for field in (
+        'titulo',
+        'descripcion',
+        'proyecto_id',
+        'proyecto_nombre',
+        'unidad_id',
+        'relacion_tipo',
+        'relacion_id',
+        'relacion_nombre',
+    ):
         if field in body:
             next_item[field] = _clean_text(body.get(field)) if field != 'descripcion' else str(body.get(field) or '').strip()
 
@@ -307,6 +506,8 @@ def actualizar_tarea(event):
         next_item['fecha'] = fecha
         next_item['hora'] = hora
         next_item['fecha_hora_inicio'] = f'{fecha}T{hora}:00'
+        next_item['recordatorio_enviado'] = False
+        next_item.pop('recordatorio_enviado_en', None)
 
     if 'estado' in body:
         estado = _clean_text(body.get('estado'))
@@ -323,11 +524,30 @@ def actualizar_tarea(event):
         if body.get('duracion_minutos') not in (None, '') and not duracion:
             return bad_request('duracion_minutos debe ser mayor a 0')
         next_item['duracion_minutos'] = _to_decimal(duracion)
+    if 'recordatorio_minutos_antes' in body:
+        recordatorio = _int_or_none(body.get('recordatorio_minutos_antes'))
+        if body.get('recordatorio_minutos_antes') not in (None, '') and not recordatorio:
+            return bad_request('recordatorio_minutos_antes debe ser mayor a 0')
+        next_item['recordatorio_minutos_antes'] = _to_decimal(recordatorio)
+        next_item['recordatorio_enviado'] = False
+        next_item.pop('recordatorio_enviado_en', None)
 
     if not next_item.get('titulo'):
         return bad_request('titulo es requerido')
 
     next_item['actualizado_en'] = _now()
+    if next_item.get('estado') in ('pendiente', 'en_progreso'):
+        recordatorio_en = _crear_schedule_recordatorio(next_item)
+        if recordatorio_en:
+            next_item['recordatorio_en'] = recordatorio_en
+            next_item['recordatorio_schedule_name'] = _schedule_name_tarea(tarea_id)
+        else:
+            next_item.pop('recordatorio_en', None)
+            next_item.pop('recordatorio_schedule_name', None)
+    else:
+        _cancelar_schedule_recordatorio(tarea_id)
+        next_item.pop('recordatorio_en', None)
+        next_item.pop('recordatorio_schedule_name', None)
     next_item = {k: v for k, v in next_item.items() if v not in (None, '')}
     tareas_t.put_item(Item=next_item)
     return ok(next_item)
@@ -344,6 +564,9 @@ def cancelar_tarea(event):
         return not_found('Tarea no encontrada')
     current['estado'] = 'cancelada'
     current['actualizado_en'] = _now()
+    _cancelar_schedule_recordatorio(tarea_id)
+    current.pop('recordatorio_en', None)
+    current.pop('recordatorio_schedule_name', None)
     tareas_t.put_item(Item=current)
     return ok(current)
 

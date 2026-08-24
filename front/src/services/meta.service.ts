@@ -11,6 +11,20 @@ export interface MetaLead {
   external_contact_id: string;
   fuente: string;
   origen: string;
+  origen_detalle?: Record<string, unknown>;
+  campaign_id?: string;
+  campaign_name?: string;
+  adset_id?: string;
+  adset_name?: string;
+  ad_id?: string;
+  ad_name?: string;
+  form_id?: string;
+  form_name?: string;
+  referral_source?: string;
+  referral_type?: string;
+  referral_url?: string;
+  ctwa_clid?: string;
+  ads_origin?: Record<string, unknown>;
   estado: string;
   primer_mensaje_en?: string;
   ultimo_mensaje_en?: string;
@@ -64,6 +78,20 @@ export interface MetaMensaje {
   external_event_id: string;
   event_timestamp: string;
   text?: string;
+  campaign_id?: string;
+  campaign_name?: string;
+  adset_id?: string;
+  adset_name?: string;
+  ad_id?: string;
+  ad_name?: string;
+  form_id?: string;
+  form_name?: string;
+  referral_source?: string;
+  referral_type?: string;
+  referral_url?: string;
+  ctwa_clid?: string;
+  ads_origin?: Record<string, unknown>;
+  payload_summary?: Record<string, unknown>;
   attachments?: Array<{
     type?: string;
     url?: string;
@@ -147,10 +175,14 @@ export interface MetaConversacionResponse {
 export const listarMetaLeads = (params?: {
   canal?: string;
   estado?: string;
+  responsable_id?: string;
+  inmobiliaria_id?: string;
 }): Promise<MetaLeadsResponse> => {
   const query = new URLSearchParams({ tipo: 'meta-leads' });
   if (params?.canal) query.set('canal', params.canal);
   if (params?.estado) query.set('estado', params.estado);
+  if (params?.responsable_id) query.set('responsable_id', params.responsable_id);
+  if (params?.inmobiliaria_id) query.set('inmobiliaria_id', params.inmobiliaria_id);
   return apiGet<MetaLeadsResponse>(`/admin/procesos?${query.toString()}`);
 };
 

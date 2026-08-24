@@ -174,6 +174,7 @@ def _upsert_meta_lead(message_item):
     lead_key = _lead_key(message_item)
     legacy_lead_key = _legacy_lead_key(message_item)
     origen_detalle = _origin_metadata(message_item)
+    ads_metadata = _ads_origin_metadata(message_item)
     if legacy_lead_key != lead_key:
         existing_legacy = conversaciones_table.get_item(
             Key={'pk': legacy_lead_key, 'sk': 'METADATA'}
@@ -198,12 +199,19 @@ def _upsert_meta_lead(message_item):
         'origen_cuenta_alias = :origen_cuenta_alias',
         'origen_contacto_id = :origen_contacto_id',
         'origen_detalle = :origen_detalle',
-        'campaign_id = if_not_exists(campaign_id, :empty)',
-        'campaign_name = if_not_exists(campaign_name, :empty)',
-        'ad_id = if_not_exists(ad_id, :empty)',
-        'ad_name = if_not_exists(ad_name, :empty)',
-        'form_id = if_not_exists(form_id, :empty)',
-        'form_name = if_not_exists(form_name, :empty)',
+        'campaign_id = if_not_exists(campaign_id, :campaign_id)',
+        'campaign_name = if_not_exists(campaign_name, :campaign_name)',
+        'adset_id = if_not_exists(adset_id, :adset_id)',
+        'adset_name = if_not_exists(adset_name, :adset_name)',
+        'ad_id = if_not_exists(ad_id, :ad_id)',
+        'ad_name = if_not_exists(ad_name, :ad_name)',
+        'form_id = if_not_exists(form_id, :form_id)',
+        'form_name = if_not_exists(form_name, :form_name)',
+        'referral_source = if_not_exists(referral_source, :referral_source)',
+        'referral_type = if_not_exists(referral_type, :referral_type)',
+        'referral_url = if_not_exists(referral_url, :referral_url)',
+        'ctwa_clid = if_not_exists(ctwa_clid, :ctwa_clid)',
+        'ads_origin = if_not_exists(ads_origin, :ads_origin)',
         'estado = if_not_exists(estado, :estado)',
         'primer_mensaje_en = if_not_exists(primer_mensaje_en, :primer_mensaje_en)',
         'ultimo_mensaje_en = :ultimo_mensaje_en',
@@ -239,7 +247,19 @@ def _upsert_meta_lead(message_item):
             ':origen_cuenta_alias': origen_detalle['cuenta_alias'],
             ':origen_contacto_id': origen_detalle['contacto_id'],
             ':origen_detalle': origen_detalle,
-            ':empty': '',
+            ':campaign_id': ads_metadata['campaign_id'],
+            ':campaign_name': ads_metadata['campaign_name'],
+            ':adset_id': ads_metadata['adset_id'],
+            ':adset_name': ads_metadata['adset_name'],
+            ':ad_id': ads_metadata['ad_id'],
+            ':ad_name': ads_metadata['ad_name'],
+            ':form_id': ads_metadata['form_id'],
+            ':form_name': ads_metadata['form_name'],
+            ':referral_source': ads_metadata['referral_source'],
+            ':referral_type': ads_metadata['referral_type'],
+            ':referral_url': ads_metadata['referral_url'],
+            ':ctwa_clid': ads_metadata['ctwa_clid'],
+            ':ads_origin': ads_metadata,
             ':estado': 'nuevo',
             ':primer_mensaje_en': message_item.get('event_timestamp', now),
             ':ultimo_mensaje_en': message_item.get('event_timestamp', now),
@@ -285,9 +305,150 @@ def _source_label(channel):
     return labels.get(channel, 'Meta')
 
 
+def _first_str(*values):
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ''
+
+
+def _compact_dict(value):
+    if not isinstance(value, dict):
+        return {}
+    compacted = {}
+    for key, item in value.items():
+        if item in (None, '', [], {}):
+            continue
+        if isinstance(item, dict):
+            nested = _compact_dict(item)
+            if nested:
+                compacted[key] = nested
+        elif isinstance(item, list):
+            compacted[key] = item[:10]
+        else:
+            compacted[key] = item
+    return compacted
+
+
+def _ads_metadata_empty():
+    return {
+        'campaign_id': '',
+        'campaign_name': '',
+        'adset_id': '',
+        'adset_name': '',
+        'ad_id': '',
+        'ad_name': '',
+        'form_id': '',
+        'form_name': '',
+        'referral_source': '',
+        'referral_type': '',
+        'referral_url': '',
+        'referral_ref': '',
+        'source_id': '',
+        'source_type': '',
+        'ctwa_clid': '',
+        'raw': {},
+    }
+
+
+def _ads_origin_metadata(message_item):
+    metadata = _ads_metadata_empty()
+    for source in [
+        message_item.get('ads_origin'),
+        message_item.get('payload_summary', {}).get('ads_origin') if isinstance(message_item.get('payload_summary'), dict) else None,
+    ]:
+        if not isinstance(source, dict):
+            continue
+        for key in metadata:
+            if key == 'raw':
+                continue
+            metadata[key] = metadata[key] or _first_str(source.get(key))
+        raw = source.get('raw')
+        if isinstance(raw, dict) and raw:
+            metadata['raw'] = raw
+    return metadata
+
+
+def _extract_meta_ads_metadata(event_payload):
+    message = event_payload.get('message') or {}
+    postback = event_payload.get('postback') or {}
+    optin = event_payload.get('optin') or {}
+    raw_sources = [
+        event_payload.get('referral'),
+        message.get('referral'),
+        message.get('ads_context_data'),
+        event_payload.get('ads_context_data'),
+        postback.get('referral'),
+        optin.get('referral'),
+    ]
+    raw = {}
+    for source in raw_sources:
+        raw.update(_compact_dict(source))
+
+    metadata = _ads_metadata_empty()
+    metadata.update({
+        'campaign_id': _first_str(raw.get('campaign_id'), raw.get('campaignID')),
+        'campaign_name': _first_str(raw.get('campaign_name'), raw.get('campaignName')),
+        'adset_id': _first_str(raw.get('adset_id'), raw.get('ad_set_id')),
+        'adset_name': _first_str(raw.get('adset_name'), raw.get('ad_set_name')),
+        'ad_id': _first_str(raw.get('ad_id'), raw.get('adID'), raw.get('source_id')),
+        'ad_name': _first_str(raw.get('ad_name'), raw.get('ad_title'), raw.get('headline')),
+        'form_id': _first_str(raw.get('form_id'), raw.get('leadgen_id')),
+        'form_name': _first_str(raw.get('form_name'), raw.get('form_title')),
+        'referral_source': _first_str(raw.get('source'), raw.get('referral_source')),
+        'referral_type': _first_str(raw.get('type'), raw.get('source_type')),
+        'referral_url': _first_str(raw.get('referer_uri'), raw.get('source_url'), raw.get('url')),
+        'referral_ref': _first_str(raw.get('ref')),
+        'source_id': _first_str(raw.get('source_id'), raw.get('post_id')),
+        'source_type': _first_str(raw.get('source_type')),
+        'ctwa_clid': _first_str(raw.get('ctwa_clid')),
+        'raw': raw,
+    })
+    return metadata
+
+
+def _extract_whatsapp_ads_metadata(event_payload):
+    raw = _compact_dict(event_payload.get('referral'))
+    context = event_payload.get('context') or {}
+    if isinstance(context, dict):
+        raw_context = _compact_dict({
+            'context_id': context.get('id'),
+            'forwarded': context.get('forwarded'),
+            'frequently_forwarded': context.get('frequently_forwarded'),
+            'referred_product': context.get('referred_product'),
+        })
+        if raw_context:
+            raw['context'] = raw_context
+
+    metadata = _ads_metadata_empty()
+    metadata.update({
+        'campaign_id': _first_str(raw.get('campaign_id')),
+        'campaign_name': _first_str(raw.get('campaign_name')),
+        'adset_id': _first_str(raw.get('adset_id'), raw.get('ad_set_id')),
+        'adset_name': _first_str(raw.get('adset_name'), raw.get('ad_set_name')),
+        'ad_id': _first_str(raw.get('ad_id'), raw.get('source_id')),
+        'ad_name': _first_str(raw.get('ad_name'), raw.get('headline')),
+        'form_id': _first_str(raw.get('form_id')),
+        'form_name': _first_str(raw.get('form_name')),
+        'referral_source': _first_str(raw.get('source_url'), raw.get('source')),
+        'referral_type': _first_str(raw.get('source_type'), raw.get('media_type')),
+        'referral_url': _first_str(raw.get('source_url')),
+        'referral_ref': _first_str(raw.get('ref')),
+        'source_id': _first_str(raw.get('source_id')),
+        'source_type': _first_str(raw.get('source_type')),
+        'ctwa_clid': _first_str(raw.get('ctwa_clid')),
+        'raw': raw,
+    })
+    return metadata
+
+
 def _origin_metadata(message_item):
     channel = str(message_item.get('channel') or '').lower()
     event_type = str(message_item.get('event_type') or 'message')
+    ads_metadata = _ads_origin_metadata(message_item)
     interaction_labels = {
         'message': 'mensaje',
         'messages': 'mensaje',
@@ -317,12 +478,18 @@ def _origin_metadata(message_item):
         'cuenta_alias': str(message_item.get('account_alias') or ''),
         'contacto_id': str(message_item.get('external_contact_id') or ''),
         'fuente_tecnica': str(message_item.get('channel_account') or ''),
-        'campaign_id': '',
-        'campaign_name': '',
-        'ad_id': '',
-        'ad_name': '',
-        'form_id': '',
-        'form_name': '',
+        'campaign_id': ads_metadata['campaign_id'],
+        'campaign_name': ads_metadata['campaign_name'],
+        'adset_id': ads_metadata['adset_id'],
+        'adset_name': ads_metadata['adset_name'],
+        'ad_id': ads_metadata['ad_id'],
+        'ad_name': ads_metadata['ad_name'],
+        'form_id': ads_metadata['form_id'],
+        'form_name': ads_metadata['form_name'],
+        'referral_source': ads_metadata['referral_source'],
+        'referral_type': ads_metadata['referral_type'],
+        'referral_url': ads_metadata['referral_url'],
+        'ctwa_clid': ads_metadata['ctwa_clid'],
     }
 
 
@@ -456,6 +623,7 @@ def _build_conversation_item(channel, account_id, account_alias, owned_account_i
     message = event_payload.get('message') or {}
     attachments = _message_attachments(message)
     text = (message.get('text') or _attachment_text(attachments))[:4000]
+    ads_metadata = _extract_meta_ads_metadata(event_payload)
 
     return {
         'pk': f'CONVERSACION#{channel}#{account_alias}#{contact_id}',
@@ -475,6 +643,19 @@ def _build_conversation_item(channel, account_id, account_alias, owned_account_i
         'event_timestamp': event_timestamp,
         'text': text,
         'attachments': attachments,
+        'ads_origin': ads_metadata,
+        'campaign_id': ads_metadata['campaign_id'],
+        'campaign_name': ads_metadata['campaign_name'],
+        'adset_id': ads_metadata['adset_id'],
+        'adset_name': ads_metadata['adset_name'],
+        'ad_id': ads_metadata['ad_id'],
+        'ad_name': ads_metadata['ad_name'],
+        'form_id': ads_metadata['form_id'],
+        'form_name': ads_metadata['form_name'],
+        'referral_source': ads_metadata['referral_source'],
+        'referral_type': ads_metadata['referral_type'],
+        'referral_url': ads_metadata['referral_url'],
+        'ctwa_clid': ads_metadata['ctwa_clid'],
         'payload_summary': _payload_summary(event_payload),
         'created_at': created_at,
     }
@@ -501,6 +682,7 @@ def _build_whatsapp_message_item(
     media = _whatsapp_media_summary(event_payload, message_type)
     if media:
         media = _archive_whatsapp_media(account_alias, media)
+    ads_metadata = _extract_whatsapp_ads_metadata(event_payload)
 
     return {
         'pk': f'CONVERSACION#whatsapp#{account_alias}#{contact_id}',
@@ -523,6 +705,19 @@ def _build_whatsapp_message_item(
         'event_timestamp': event_timestamp,
         'text': text,
         'media': media,
+        'ads_origin': ads_metadata,
+        'campaign_id': ads_metadata['campaign_id'],
+        'campaign_name': ads_metadata['campaign_name'],
+        'adset_id': ads_metadata['adset_id'],
+        'adset_name': ads_metadata['adset_name'],
+        'ad_id': ads_metadata['ad_id'],
+        'ad_name': ads_metadata['ad_name'],
+        'form_id': ads_metadata['form_id'],
+        'form_name': ads_metadata['form_name'],
+        'referral_source': ads_metadata['referral_source'],
+        'referral_type': ads_metadata['referral_type'],
+        'referral_url': ads_metadata['referral_url'],
+        'ctwa_clid': ads_metadata['ctwa_clid'],
         'payload_summary': _whatsapp_payload_summary(event_payload, message_type),
         'created_at': created_at,
     }
@@ -715,11 +910,17 @@ def _media_extension(mime_type, filename):
 
 
 def _whatsapp_payload_summary(event_payload, message_type):
+    ads_metadata = _extract_whatsapp_ads_metadata(event_payload)
     return {
         'message_type': message_type,
         'has_text': bool(_whatsapp_text(event_payload, message_type)),
         'has_media': message_type in ('image', 'video', 'audio', 'document', 'sticker'),
         'has_context': 'context' in event_payload,
+        'has_referral': bool(ads_metadata.get('raw')),
+        'has_campaign': bool(ads_metadata.get('campaign_id') or ads_metadata.get('campaign_name')),
+        'has_ad': bool(ads_metadata.get('ad_id') or ads_metadata.get('ad_name')),
+        'has_ctwa_clid': bool(ads_metadata.get('ctwa_clid')),
+        'ads_origin': ads_metadata,
     }
 
 
@@ -764,6 +965,7 @@ def _direction(owned_account_id, sender_id, recipient_id):
 def _payload_summary(event_payload):
     message = event_payload.get('message') or {}
     attachments = _message_attachments(message)
+    ads_metadata = _extract_meta_ads_metadata(event_payload)
     return {
         'has_text': bool(message.get('text')),
         'attachment_count': len(attachments) if isinstance(attachments, list) else 0,
@@ -771,6 +973,11 @@ def _payload_summary(event_payload):
         'has_postback': 'postback' in event_payload,
         'has_read': 'read' in event_payload,
         'has_delivery': 'delivery' in event_payload,
+        'has_referral': bool(ads_metadata.get('raw')),
+        'has_ads_context_data': bool(message.get('ads_context_data') or event_payload.get('ads_context_data')),
+        'has_campaign': bool(ads_metadata.get('campaign_id') or ads_metadata.get('campaign_name')),
+        'has_ad': bool(ads_metadata.get('ad_id') or ads_metadata.get('ad_name')),
+        'ads_origin': ads_metadata,
     }
 
 

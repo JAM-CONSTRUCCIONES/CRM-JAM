@@ -374,6 +374,7 @@ export class JamStack extends cdk.Stack {
     // Construir ARNs manualmente para evitar dependencia circular
     const bloqueosLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-bloqueos')}`;
     const captacionLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-captacion')}`;
+    const tareasLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-tareas')}`;
 
     const bloqueosLambda = new lambda.Function(this, 'JamBloqueosLambda', {
       functionName: resourceName('jam-bloqueos'),
@@ -721,12 +722,33 @@ export class JamStack extends cdk.Stack {
         TAREAS_TABLE: tareasTable.tableName,
         USUARIOS_TABLE: usuariosTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,
+        SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
+        TAREAS_LAMBDA_ARN: tareasLambdaArn,
+        FROM_EMAIL: notificationEmail,
+        ADMIN_EMAIL: notificationEmail,
+        BUSINESS_TZ: 'America/Santo_Domingo',
       },
     });
 
     tareasTable.grantReadWriteData(tareasLambda);
     usuariosTable.grantReadData(tareasLambda);
     inventarioTable.grantReadData(tareasLambda);
+    tareasLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['scheduler:CreateSchedule', 'scheduler:DeleteSchedule'],
+      resources: ['*'],
+    }));
+    tareasLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [schedulerRole.roleArn],
+    }));
+    tareasLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: ['*'],
+    }));
+    schedulerRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['lambda:InvokeFunction'],
+      resources: [tareasLambdaArn],
+    }));
 
     // ─── LAMBDA jam-transferir-cliente ───────────────────────────────────────
 

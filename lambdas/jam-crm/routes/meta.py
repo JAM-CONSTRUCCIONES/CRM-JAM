@@ -42,6 +42,7 @@ WHATSAPP_PHONE_NUMBER_IDS = {
 DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 ESTADOS_META_LEAD = {'nuevo', 'en_seguimiento', 'convertido', 'cerrado'}
+SIN_ASIGNAR = '__sin_asignar__'
 MOTIVOS_CIERRE_META = {
     'No interesado',
     'No responde',
@@ -60,6 +61,8 @@ def listar_leads(event):
     params = event.get('queryStringParameters') or {}
     canal = str(params.get('canal') or '').strip().lower()
     estado = str(params.get('estado') or '').strip().lower()
+    responsable_id = str(params.get('responsable_id') or '').strip()
+    inmobiliaria_id = str(params.get('inmobiliaria_id') or '').strip()
 
     items = _scan_all()
     leads = [item for item in items if item.get('tipo') == 'META_LEAD']
@@ -67,6 +70,20 @@ def listar_leads(event):
         leads = [item for item in leads if item.get('channel') == canal]
     if estado:
         leads = [item for item in leads if item.get('estado') == estado]
+    if responsable_id:
+        if responsable_id == SIN_ASIGNAR:
+            leads = [item for item in leads if not item.get('responsable_id')]
+        else:
+            leads = [item for item in leads if item.get('responsable_id') == responsable_id]
+    if inmobiliaria_id:
+        if inmobiliaria_id == SIN_ASIGNAR:
+            leads = [item for item in leads if not item.get('inmobiliaria_id')]
+        else:
+            inmobiliaria_normalizada = _normalizar_inmo_id(inmobiliaria_id)
+            leads = [
+                item for item in leads
+                if _normalizar_inmo_id(item.get('inmobiliaria_id')) == inmobiliaria_normalizada
+            ]
 
     leads.sort(key=lambda item: item.get('ultimo_mensaje_en', ''), reverse=True)
     return ok({
@@ -495,10 +512,17 @@ def convertir_lead(event):
         'origen_detalle': lead.get('origen_detalle') or {},
         'campaign_id': lead.get('campaign_id', ''),
         'campaign_name': lead.get('campaign_name', ''),
+        'adset_id': lead.get('adset_id', ''),
+        'adset_name': lead.get('adset_name', ''),
         'ad_id': lead.get('ad_id', ''),
         'ad_name': lead.get('ad_name', ''),
         'form_id': lead.get('form_id', ''),
         'form_name': lead.get('form_name', ''),
+        'referral_source': lead.get('referral_source', ''),
+        'referral_type': lead.get('referral_type', ''),
+        'referral_url': lead.get('referral_url', ''),
+        'ctwa_clid': lead.get('ctwa_clid', ''),
+        'ads_origin': lead.get('ads_origin') or {},
         'meta_lead_pk': lead_pk,
         'meta_channel': lead.get('channel', ''),
         'meta_contact_id': lead.get('external_contact_id', ''),
@@ -559,10 +583,17 @@ def convertir_lead(event):
             'origen_detalle': lead.get('origen_detalle') or {},
             'campaign_id': lead.get('campaign_id', ''),
             'campaign_name': lead.get('campaign_name', ''),
+            'adset_id': lead.get('adset_id', ''),
+            'adset_name': lead.get('adset_name', ''),
             'ad_id': lead.get('ad_id', ''),
             'ad_name': lead.get('ad_name', ''),
             'form_id': lead.get('form_id', ''),
             'form_name': lead.get('form_name', ''),
+            'referral_source': lead.get('referral_source', ''),
+            'referral_type': lead.get('referral_type', ''),
+            'referral_url': lead.get('referral_url', ''),
+            'ctwa_clid': lead.get('ctwa_clid', ''),
+            'ads_origin': lead.get('ads_origin') or {},
             'meta_lead_pk': lead_pk,
         }
         procesos_table.put_item(Item=proceso)

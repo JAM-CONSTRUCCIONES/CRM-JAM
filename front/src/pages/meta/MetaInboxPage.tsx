@@ -146,6 +146,9 @@ export default function MetaInboxPage() {
   const [busqueda, setBusqueda] = useState('');
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
+  const [hasMoreMensajes, setHasMoreMensajes] = useState(false);
+  const [loadingMoreMensajes, setLoadingMoreMensajes] = useState(false);
+  const CONVERSATION_PAGE_SIZE = 50;
   const [loadingUnidades, setLoadingUnidades] = useState(false);
   const [savingLead, setSavingLead] = useState(false);
   const [savingConversion, setSavingConversion] = useState(false);
@@ -160,6 +163,8 @@ export default function MetaInboxPage() {
   // Refs para el polling: evitan closures obsoletos y permiten
   // pausar el refresco automatico mientras el usuario esta trabajando.
   const selectedLeadRef = useRef<MetaLead | null>(null);
+  const mensajesRef = useRef<MetaMensaje[]>([]);
+  const convCycleRef = useRef(0);
   const busyRef = useRef(false);
   const LEADS_POLL_MS = 10000;
   const CONVERSATION_POLL_MS = 7000;
@@ -212,6 +217,11 @@ export default function MetaInboxPage() {
   useEffect(() => {
     selectedLeadRef.current = selectedLead;
   }, [selectedLead]);
+
+  // Ref con los mensajes actuales para que el polling no use closures obsoletos.
+  useEffect(() => {
+    mensajesRef.current = mensajes;
+  }, [mensajes]);
 
   // Marca actividad del usuario (enviando/guardando) para pausar el polling.
   useEffect(() => {
@@ -266,24 +276,42 @@ export default function MetaInboxPage() {
     }
   };
 
-  // Actualiza los mensajes y timeline de la conversacion abierta sin
-  // tocar el scroll, el texto en edicion ni el formulario de gestion.
+  // Refresco incremental de la conversacion abierta: solo pide los mensajes
+  // MAS NUEVOS que el ultimo que ya tenemos (parametro 'after'), en vez de
+  // releer toda la conversacion. Barato aunque el chat sea muy largo.
   const refrescarConversacionSilencioso = async (lead: MetaLead) => {
     try {
-      const data = await getMetaConversacion(lead.pk);
+      const lastSk = mensajesRef.current[mensajesRef.current.length - 1]?.sk;
+      // Cada 4 ciclos (o si no hay mensajes) refrescamos la ultima pagina para
+      // captar cambios de estado (entregado/leido). El resto: incremental barato.
+      convCycleRef.current = (convCycleRef.current + 1) % 4;
+      const doStatusRefresh = !lastSk || convCycleRef.current === 0;
+      const data = await getMetaConversacion(
+        lead.pk,
+        doStatusRefresh ? { limit: CONVERSATION_PAGE_SIZE } : { after: lastSk },
+      );
       // Si el usuario cambio de conversacion mientras cargaba, descartamos.
       if (selectedLeadRef.current?.pk !== lead.pk) return;
       convFailRef.current = 0; // exito: se resetea el backoff
-      const nextMensajes = data.mensajes || [];
-      setMensajes((prev) =>
-        // #3: refrescamos si cambia la cantidad O el estado de algun mensaje
-        // (sent/delivered/read), no solo el conteo.
-        mensajesSignature(prev) !== mensajesSignature(nextMensajes) ? nextMensajes : prev,
-      );
-      setTimeline((prev) => {
-        const next = data.timeline || [];
-        return next.length !== prev.length ? next : prev;
-      });
+      const traidos = data.mensajes || [];
+      if (data.incremental) {
+        if (!traidos.length) return;
+        // Append de los nuevos, evitando duplicados por sk.
+        setMensajes((prev) => {
+          const existentes = new Set(prev.map((m) => m.sk));
+          const faltantes = traidos.filter((m) => !existentes.has(m.sk));
+          return faltantes.length ? [...prev, ...faltantes] : prev;
+        });
+      } else {
+        // Refresh de estado: fusiona la ultima pagina con el historial ya cargado
+        // (que puede tener mensajes mas antiguos por "cargar anteriores").
+        setMensajes((prev) => {
+          const traidosSks = new Set(traidos.map((m) => m.sk));
+          const anteriores = prev.filter((m) => !traidosSks.has(m.sk));
+          const fusion = [...anteriores, ...traidos];
+          return mensajesSignature(prev) !== mensajesSignature(fusion) ? fusion : prev;
+        });
+      }
     } catch {
       // Silencioso. Aplicamos backoff.
       scheduleBackoff(convFailRef, convSkipRef);
@@ -325,11 +353,14 @@ export default function MetaInboxPage() {
     if (clearText) setRespuesta('');
     setLoadingConversation(true);
     try {
-      const data = await getMetaConversacion(lead.pk);
+      // Solo cargamos la ultima pagina (mensajes mas recientes). Los anteriores
+      // se cargan bajo demanda con "cargar mensajes anteriores".
+      const data = await getMetaConversacion(lead.pk, { limit: CONVERSATION_PAGE_SIZE });
       const currentLead = data.lead || lead;
       setSelectedLead(currentLead);
       setMensajes(data.mensajes || []);
       setTimeline(data.timeline || []);
+      setHasMoreMensajes(Boolean(data.has_more));
       form.setFieldsValue({
         estado: currentLead.estado || 'nuevo',
         responsable_id: currentLead.responsable_id,
@@ -339,9 +370,39 @@ export default function MetaInboxPage() {
     } catch (error: any) {
       setMensajes([]);
       setTimeline([]);
+      setHasMoreMensajes(false);
       message.error(error?.message || 'No se pudo abrir la conversacion');
     } finally {
       setLoadingConversation(false);
+    }
+  };
+
+  // Carga mensajes anteriores (historial hacia arriba) usando el sk mas antiguo.
+  const cargarMensajesAnteriores = async () => {
+    const lead = selectedLeadRef.current;
+    if (!lead || loadingMoreMensajes) return;
+    const oldest = mensajes[0]?.sk;
+    if (!oldest) return;
+    setLoadingMoreMensajes(true);
+    try {
+      const data = await getMetaConversacion(lead.pk, {
+        limit: CONVERSATION_PAGE_SIZE,
+        before: oldest,
+      });
+      const previos = data.mensajes || [];
+      if (previos.length) {
+        // Prepend evitando duplicados por sk.
+        setMensajes((prev) => {
+          const existentes = new Set(prev.map((m) => m.sk));
+          const nuevos = previos.filter((m) => !existentes.has(m.sk));
+          return [...nuevos, ...prev];
+        });
+      }
+      setHasMoreMensajes(Boolean(data.has_more));
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudieron cargar mensajes anteriores');
+    } finally {
+      setLoadingMoreMensajes(false);
     }
   };
 
@@ -572,6 +633,18 @@ export default function MetaInboxPage() {
                   </div>
                 ) : mensajes.length ? (
                   <div className="space-y-3">
+                    {hasMoreMensajes && (
+                      <div className="flex justify-center">
+                        <Button
+                          size="small"
+                          type="link"
+                          loading={loadingMoreMensajes}
+                          onClick={cargarMensajesAnteriores}
+                        >
+                          Cargar mensajes anteriores
+                        </Button>
+                      </div>
+                    )}
                     {mensajes.map((mensaje) => {
                       const incoming = mensaje.direction === 'incoming';
                       return (

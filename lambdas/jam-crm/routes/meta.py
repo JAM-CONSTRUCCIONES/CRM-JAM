@@ -114,16 +114,57 @@ def ver_conversacion(event):
     if not lead:
         return ok({'lead': None, 'mensajes': []})
 
+    # Paginacion / incremental para no traer conversaciones enteras de golpe.
+    #  - after:  solo mensajes mas nuevos que ese sk (modo polling incremental)
+    #  - before: mensajes anteriores a ese sk (cargar historial hacia arriba)
+    #  - limit:  cantidad por pagina (default 50, tope 200)
+    after_sk = str(params.get('after') or '').strip()
+    before_sk = str(params.get('before') or '').strip()
+    try:
+        limit = int(params.get('limit') or 50)
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 200))
+
     conversation_pk = _conversation_pk_from_lead(lead)
-    mensajes = []
-    if conversation_pk:
-        mensajes = _query_all(
+
+    # ── Modo incremental (polling): solo lo nuevo tras 'after' ───────────────
+    if after_sk and conversation_pk:
+        nuevos = _query_all(
             KeyConditionExpression=(
                 Key('pk').eq(conversation_pk)
-                & Key('sk').begins_with('MENSAJE#')
+                & Key('sk').gt(after_sk)
             ),
             ScanIndexForward=True,
         )
+        nuevos = [m for m in nuevos if str(m.get('sk', '')).startswith('MENSAJE#')]
+        return ok({
+            'lead': lead,
+            'mensajes': nuevos,
+            'incremental': True,
+            'count': len(nuevos),
+        })
+
+    # ── Modo paginado: ultimos 'limit' mensajes (o anteriores a 'before') ────
+    mensajes = []
+    has_more = False
+    if conversation_pk:
+        key_condition = Key('pk').eq(conversation_pk)
+        if before_sk:
+            key_condition = key_condition & Key('sk').lt(before_sk)
+        else:
+            key_condition = key_condition & Key('sk').begins_with('MENSAJE#')
+        # Traemos los mas recientes primero (limit+1 para saber si hay mas atras)
+        result = meta_table.query(
+            KeyConditionExpression=key_condition,
+            ScanIndexForward=False,
+            Limit=limit + 1,
+        )
+        page = [m for m in result.get('Items', []) if str(m.get('sk', '')).startswith('MENSAJE#')]
+        has_more = len(page) > limit
+        page = page[:limit]
+        # Devolvemos en orden cronologico ascendente (viejo -> nuevo)
+        mensajes = list(reversed(page))
 
     actividades = _query_all(
         KeyConditionExpression=(
@@ -140,6 +181,9 @@ def ver_conversacion(event):
         'actividades': actividades,
         'timeline': timeline,
         'count': len(mensajes),
+        'has_more': has_more,
+        # cursor para "cargar anteriores": el sk del mensaje mas antiguo cargado
+        'oldest_sk': mensajes[0].get('sk') if mensajes else '',
     })
 
 

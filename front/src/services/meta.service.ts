@@ -170,6 +170,9 @@ export interface MetaConversacionResponse {
   actividades?: MetaActividad[];
   timeline?: MetaTimelineItem[];
   count: number;
+  has_more?: boolean;
+  oldest_sk?: string;
+  incremental?: boolean;
 }
 
 export const listarMetaLeads = (params?: {
@@ -186,11 +189,17 @@ export const listarMetaLeads = (params?: {
   return apiGet<MetaLeadsResponse>(`/admin/procesos?${query.toString()}`);
 };
 
-export const getMetaConversacion = (leadPk: string): Promise<MetaConversacionResponse> => {
+export const getMetaConversacion = (
+  leadPk: string,
+  opts?: { limit?: number; before?: string; after?: string },
+): Promise<MetaConversacionResponse> => {
   const query = new URLSearchParams({
     tipo: 'meta-conversacion',
     lead_pk: leadPk,
   });
+  if (opts?.limit) query.set('limit', String(opts.limit));
+  if (opts?.before) query.set('before', opts.before);
+  if (opts?.after) query.set('after', opts.after);
   return apiGet<MetaConversacionResponse>(`/admin/procesos?${query.toString()}`);
 };
 

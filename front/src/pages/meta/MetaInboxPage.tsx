@@ -89,7 +89,7 @@ const motivosCierre = [
   'Otro',
 ];
 
-const METHODICA_WHATSAPP_ONBOARDING_URL = 'https://auth.methodicatechnology.com/admin/configuracion/mensajeria';
+const METHODICA_WHATSAPP_ONBOARDING_URL = 'https://methodicatechnology.com/whatsapp/onboarding';
 const JAM_WHATSAPP_WEBHOOK_URL = 'https://agfdz17sk6.execute-api.us-east-1.amazonaws.com/api/webhooks/whatsapp';
 const JAM_META_INBOX_URL = 'https://d12nm0khvt8zd9.cloudfront.net/meta-inbox';
 
@@ -152,6 +152,13 @@ export default function MetaInboxPage() {
   const mensajesPanelRef = useRef<HTMLDivElement | null>(null);
   const estadoGestion = Form.useWatch('estado', form);
 
+  // Refs para el polling: evitan closures obsoletos y permiten
+  // pausar el refresco automatico mientras el usuario esta trabajando.
+  const selectedLeadRef = useRef<MetaLead | null>(null);
+  const busyRef = useRef(false);
+  const LEADS_POLL_MS = 10000;
+  const CONVERSATION_POLL_MS = 7000;
+
   const conversaciones = useMemo(() => {
     const text = busqueda.trim().toLowerCase();
     return leads.filter((lead) => {
@@ -188,6 +195,65 @@ export default function MetaInboxPage() {
     cargarLeads();
     cargarAsignables();
   }, []);
+
+  // Mantiene el ref sincronizado con el lead seleccionado para el polling.
+  useEffect(() => {
+    selectedLeadRef.current = selectedLead;
+  }, [selectedLead]);
+
+  // Marca actividad del usuario (enviando/guardando) para pausar el polling.
+  useEffect(() => {
+    busyRef.current = sending || savingLead || savingConversion;
+  }, [sending, savingLead, savingConversion]);
+
+  // Refresco automatico silencioso de la lista de conversaciones.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.hidden || busyRef.current) return;
+      refrescarLeadsSilencioso();
+    }, LEADS_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Refresco automatico silencioso de la conversacion abierta.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.hidden || busyRef.current) return;
+      const lead = selectedLeadRef.current;
+      if (lead) refrescarConversacionSilencioso(lead);
+    }, CONVERSATION_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // Actualiza la lista de leads sin spinner ni abrir conversacion.
+  const refrescarLeadsSilencioso = async () => {
+    try {
+      const data = await listarMetaLeads();
+      setLeads(data.items || []);
+    } catch {
+      // Silencioso: no interrumpimos al usuario por un fallo de refresco.
+    }
+  };
+
+  // Actualiza los mensajes y timeline de la conversacion abierta sin
+  // tocar el scroll, el texto en edicion ni el formulario de gestion.
+  const refrescarConversacionSilencioso = async (lead: MetaLead) => {
+    try {
+      const data = await getMetaConversacion(lead.pk);
+      // Si el usuario cambio de conversacion mientras cargaba, descartamos.
+      if (selectedLeadRef.current?.pk !== lead.pk) return;
+      setMensajes((prev) => {
+        const next = data.mensajes || [];
+        return next.length !== prev.length ? next : prev;
+      });
+      setTimeline((prev) => {
+        const next = data.timeline || [];
+        return next.length !== prev.length ? next : prev;
+      });
+    } catch {
+      // Silencioso.
+    }
+  };
 
   const cargarLeads = async () => {
     setLoadingLeads(true);

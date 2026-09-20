@@ -600,7 +600,7 @@ export class JamStack extends cdk.Stack {
         WHATSAPP_TOKEN_PARAM_JAM: isProd
           ? '/jam/prod/meta/whatsapp/jam-construcciones/access-token'
           : '/jam/dev/meta/whatsapp/jam-construcciones/access-token',
-        WHATSAPP_PHONE_NUMBER_ID_JAM: '109857822123688',
+        WHATSAPP_PHONE_NUMBER_ID_JAM: '1072749679263713',
         METHODICA_CHANNEL_MESSAGES_URL: 'https://1ojgtdj4qf.execute-api.us-east-1.amazonaws.com/prod/channels/messages',
         METHODICA_CHANNEL_KEY_PARAM: isProd
           ? '/jam/prod/methodica/channel-api-key'
@@ -677,8 +677,8 @@ export class JamStack extends cdk.Stack {
         INSTAGRAM_ACCOUNT_ID_JAM: '17841451399457183',
         INSTAGRAM_ACCOUNT_ID_CANEY: '17841479714105082',
         MESSENGER_PAGE_ID_JAM: '134590556407660',
-        WHATSAPP_BUSINESS_ACCOUNT_ID_JAM: '12798130284042',
-        WHATSAPP_PHONE_NUMBER_ID_JAM: '109857822123688',
+        WHATSAPP_BUSINESS_ACCOUNT_ID_JAM: '2173053779923477',
+        WHATSAPP_PHONE_NUMBER_ID_JAM: '1072749679263713',
         WHATSAPP_TOKEN_PARAM_JAM: isProd
           ? '/jam/prod/meta/whatsapp/jam-construcciones/access-token'
           : '/jam/dev/meta/whatsapp/jam-construcciones/access-token',

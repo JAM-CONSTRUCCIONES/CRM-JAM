@@ -1060,7 +1060,7 @@ def handler(event, context):
     method = event.get('httpMethod')
     path = (event.get('path') or '').rstrip('/')
 
-    if path != '/webhooks/meta':
+    if path not in {'/webhooks/meta', '/webhooks/whatsapp'}:
         return _json_response(404, {'message': 'Not found'})
 
     if method == 'GET':

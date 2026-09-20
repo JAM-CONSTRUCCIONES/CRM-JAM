@@ -1433,6 +1433,9 @@ def handler(event, context):
     const metaWebhookResource = webhooksResource.addResource('meta');
     metaWebhookResource.addMethod('GET', metaWebhooksLambdaIntegration);
     metaWebhookResource.addMethod('POST', metaWebhooksLambdaIntegration);
+    const whatsappWebhookResource = webhooksResource.addResource('whatsapp');
+    whatsappWebhookResource.addMethod('GET', metaWebhooksLambdaIntegration);
+    whatsappWebhookResource.addMethod('POST', metaWebhooksLambdaIntegration);
 
     // CORS en respuestas de error del Gateway (401, 403, 5xx)
     api.addGatewayResponse('GatewayResponseDefault4XX', {

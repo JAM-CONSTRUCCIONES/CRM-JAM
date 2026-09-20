@@ -109,6 +109,11 @@ const attachmentsOf = (mensaje: MetaMensaje) => {
   return [];
 };
 
+// Firma de la lista de mensajes: id + estado de cada uno. Permite detectar
+// tanto mensajes nuevos como cambios de estado (sent/delivered/read).
+const mensajesSignature = (mensajes: MetaMensaje[]) =>
+  mensajes.map((m) => `${m.sk}:${m.message_status || ''}`).join('|');
+
 const getProyectoLabel = (proyectos: Proyecto[], proyectoId?: string) => (
   proyectos.find((proyecto) => proyecto.proyecto_id === proyectoId)?.nombre || proyectoId || '-'
 );
@@ -158,6 +163,13 @@ export default function MetaInboxPage() {
   const busyRef = useRef(false);
   const LEADS_POLL_MS = 10000;
   const CONVERSATION_POLL_MS = 7000;
+  // #4 Backoff: cuando la API falla, se saltan ciclos de forma progresiva
+  // (1, 2, 4... hasta un tope) y se vuelve al ritmo normal al recuperarse.
+  const MAX_BACKOFF_STEPS = 6;
+  const leadsFailRef = useRef(0);
+  const leadsSkipRef = useRef(0);
+  const convFailRef = useRef(0);
+  const convSkipRef = useRef(0);
 
   const conversaciones = useMemo(() => {
     const text = busqueda.trim().toLowerCase();
@@ -210,6 +222,11 @@ export default function MetaInboxPage() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.hidden || busyRef.current) return;
+      // #4 backoff: si venimos fallando, saltamos ciclos antes de reintentar.
+      if (leadsSkipRef.current > 0) {
+        leadsSkipRef.current -= 1;
+        return;
+      }
       refrescarLeadsSilencioso();
     }, LEADS_POLL_MS);
     return () => window.clearInterval(timer);
@@ -219,19 +236,33 @@ export default function MetaInboxPage() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.hidden || busyRef.current) return;
+      if (convSkipRef.current > 0) {
+        convSkipRef.current -= 1;
+        return;
+      }
       const lead = selectedLeadRef.current;
       if (lead) refrescarConversacionSilencioso(lead);
     }, CONVERSATION_POLL_MS);
     return () => window.clearInterval(timer);
   }, []);
 
+  // Programa el proximo intento tras un fallo, saltando ciclos de forma
+  // progresiva (backoff exponencial con tope). Devuelve la cuenta de fallos.
+  const scheduleBackoff = (failRef: React.MutableRefObject<number>, skipRef: React.MutableRefObject<number>) => {
+    failRef.current = Math.min(failRef.current + 1, MAX_BACKOFF_STEPS);
+    // fallos 1->salta 1 ciclo, 2->2, 3->4, 4->8... (2^(fallos-1)), con tope.
+    skipRef.current = Math.min(2 ** (failRef.current - 1), 2 ** (MAX_BACKOFF_STEPS - 1));
+  };
+
   // Actualiza la lista de leads sin spinner ni abrir conversacion.
   const refrescarLeadsSilencioso = async () => {
     try {
       const data = await listarMetaLeads();
       setLeads(data.items || []);
+      leadsFailRef.current = 0; // exito: se resetea el backoff
     } catch {
-      // Silencioso: no interrumpimos al usuario por un fallo de refresco.
+      // Silencioso: no interrumpimos al usuario. Aplicamos backoff.
+      scheduleBackoff(leadsFailRef, leadsSkipRef);
     }
   };
 
@@ -242,16 +273,20 @@ export default function MetaInboxPage() {
       const data = await getMetaConversacion(lead.pk);
       // Si el usuario cambio de conversacion mientras cargaba, descartamos.
       if (selectedLeadRef.current?.pk !== lead.pk) return;
-      setMensajes((prev) => {
-        const next = data.mensajes || [];
-        return next.length !== prev.length ? next : prev;
-      });
+      convFailRef.current = 0; // exito: se resetea el backoff
+      const nextMensajes = data.mensajes || [];
+      setMensajes((prev) =>
+        // #3: refrescamos si cambia la cantidad O el estado de algun mensaje
+        // (sent/delivered/read), no solo el conteo.
+        mensajesSignature(prev) !== mensajesSignature(nextMensajes) ? nextMensajes : prev,
+      );
       setTimeline((prev) => {
         const next = data.timeline || [];
         return next.length !== prev.length ? next : prev;
       });
     } catch {
-      // Silencioso.
+      // Silencioso. Aplicamos backoff.
+      scheduleBackoff(convFailRef, convSkipRef);
     }
   };
 

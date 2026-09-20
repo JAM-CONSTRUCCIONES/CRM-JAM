@@ -442,12 +442,33 @@ export default function MetaInboxPage() {
       message.warning('Escribe una respuesta');
       return;
     }
+    const lead = selectedLead;
+    // UI optimista: mostramos el mensaje al instante y limpiamos el input,
+    // sin recargar todo el chat ni bloquear con spinner.
+    const tempSk = `MENSAJE#pending#${Date.now()}`;
+    const optimista = {
+      pk: lead.pk,
+      sk: tempSk,
+      tipo: 'META_MENSAJE',
+      channel: lead.channel,
+      texto,
+      direction: 'outgoing',
+      message_status: 'enviando',
+      creado_en: new Date().toISOString(),
+    } as unknown as MetaMensaje;
+    setMensajes((prev) => [...prev, optimista]);
+    setRespuesta('');
     setSending(true);
     try {
-      const result = await enviarMetaMensaje(selectedLead.pk, { texto });
-      setRespuesta('');
-      await abrirConversacion(selectedLead, false);
-      await cargarLeads();
+      const result = await enviarMetaMensaje(lead.pk, { texto });
+      // Reemplazamos la burbuja temporal por el mensaje real devuelto.
+      setMensajes((prev) => {
+        const sinTemp = prev.filter((m) => m.sk !== tempSk);
+        if (result.item && !sinTemp.some((m) => m.sk === result.item!.sk)) {
+          return [...sinTemp, result.item as MetaMensaje];
+        }
+        return sinTemp.length !== prev.length ? sinTemp : prev;
+      });
       if (result.sent) {
         message.success('Mensaje enviado');
       } else if (result.status === 'pendiente_configuracion') {
@@ -455,7 +476,12 @@ export default function MetaInboxPage() {
       } else {
         message.warning('Mensaje registrado, pero Meta rechazo el envio real.');
       }
+      // Refresco en segundo plano, sin spinner ni recarga completa.
+      refrescarConversacionSilencioso(lead);
+      cargarLeads();
     } catch (error: any) {
+      // Quitamos la burbuja optimista si fallo el envio.
+      setMensajes((prev) => prev.filter((m) => m.sk !== tempSk));
       message.error(error?.message || 'No se pudo enviar el mensaje');
     } finally {
       setSending(false);

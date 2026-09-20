@@ -38,6 +38,12 @@ WHATSAPP_TOKEN_PARAMS = {
 WHATSAPP_PHONE_NUMBER_IDS = {
     'jam_construcciones': os.environ.get('WHATSAPP_PHONE_NUMBER_ID_JAM', ''),
 }
+METHODICA_CHANNEL_MESSAGES_URL = os.environ.get(
+    'METHODICA_CHANNEL_MESSAGES_URL',
+    'https://1ojgtdj4qf.execute-api.us-east-1.amazonaws.com/prod/channels/messages',
+)
+METHODICA_CHANNEL_KEY_PARAM = os.environ.get('METHODICA_CHANNEL_KEY_PARAM', '')
+METHODICA_TENANT_ID = os.environ.get('METHODICA_TENANT_ID', 'jam')
 
 DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
@@ -853,22 +859,20 @@ def _send_meta_message(lead, texto):
 
     try:
         if canal == 'whatsapp':
-            token = _get_token(WHATSAPP_TOKEN_PARAMS.get(account_alias))
             phone_number_id = (
                 str(lead.get('phone_number_id') or '')
                 or WHATSAPP_PHONE_NUMBER_IDS.get(account_alias, '')
             )
-            if not token or not phone_number_id:
-                return _pending_config('WhatsApp no tiene token o phone_number_id configurado')
-            return _post_graph(
-                f'https://graph.facebook.com/v26.0/{phone_number_id}/messages',
-                token,
+            return _post_methodica_channel_message(
                 {
-                    'messaging_product': 'whatsapp',
+                    'tenant': METHODICA_TENANT_ID,
+                    'provider': 'whatsapp',
+                    'phoneNumberId': phone_number_id,
                     'to': contact_id,
-                    'type': 'text',
-                    'text': {'preview_url': False, 'body': texto},
-                },
+                    'text': texto,
+                    'leadPk': lead.get('pk', ''),
+                    'accountAlias': account_alias,
+                }
             )
 
         if canal == 'messenger':
@@ -915,6 +919,39 @@ def _pending_config(message):
         'status': 'pendiente_configuracion',
         'message': message,
         'response': {},
+    }
+
+
+def _post_methodica_channel_message(payload):
+    channel_key = _get_token(METHODICA_CHANNEL_KEY_PARAM)
+    if not METHODICA_CHANNEL_MESSAGES_URL or not channel_key:
+        return _pending_config('Methodica hub no tiene API key configurada para WhatsApp')
+    request = urllib.request.Request(
+        METHODICA_CHANNEL_MESSAGES_URL,
+        data=json.dumps(payload).encode('utf-8'),
+        headers={
+            'Content-Type': 'application/json',
+            'X-Methodica-Channel-Key': channel_key,
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            body = json.loads(response.read().decode('utf-8') or '{}')
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode('utf-8', 'replace')[:1000]
+        return {
+            'ok': False,
+            'status': 'fallido',
+            'message': f'Methodica hub rechazo el envio: {detail}',
+            'response': {},
+        }
+    return {
+        'ok': bool(body.get('ok')),
+        'status': body.get('status') or ('enviado' if body.get('sent') else 'fallido'),
+        'message': body.get('message') or '',
+        'message_id': body.get('providerMessageId') or '',
+        'response': body,
     }
 
 

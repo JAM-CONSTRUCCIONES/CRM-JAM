@@ -601,6 +601,11 @@ export class JamStack extends cdk.Stack {
           ? '/jam/prod/meta/whatsapp/jam-construcciones/access-token'
           : '/jam/dev/meta/whatsapp/jam-construcciones/access-token',
         WHATSAPP_PHONE_NUMBER_ID_JAM: '109857822123688',
+        METHODICA_CHANNEL_MESSAGES_URL: 'https://1ojgtdj4qf.execute-api.us-east-1.amazonaws.com/prod/channels/messages',
+        METHODICA_CHANNEL_KEY_PARAM: isProd
+          ? '/jam/prod/methodica/channel-api-key'
+          : '/jam/dev/methodica/channel-api-key',
+        METHODICA_TENANT_ID: 'jam',
         SQS_URL: notificacionesQueue.queueUrl,
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         CRM_LAMBDA_ARN: crmLambdaArn,
@@ -632,6 +637,7 @@ export class JamStack extends cdk.Stack {
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/caneyoriental/access-token`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/messenger/jam-construcciones/page-access-token`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/whatsapp/jam-construcciones/access-token`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/methodica/channel-api-key`,
       ],
     }));
 

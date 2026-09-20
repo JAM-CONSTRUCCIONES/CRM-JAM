@@ -158,6 +158,11 @@ export default function MetaInboxPage() {
   const [form] = Form.useForm();
   const [convertForm] = Form.useForm();
   const mensajesPanelRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  // Indica si el usuario esta cerca del fondo (para auto-scroll no intrusivo).
+  const nearBottomRef = useRef(true);
+  const prevSelectedPkRef = useRef<string | undefined>(undefined);
   const estadoGestion = Form.useWatch('estado', form);
 
   // Refs para el polling: evitan closures obsoletos y permiten
@@ -222,6 +227,32 @@ export default function MetaInboxPage() {
   useEffect(() => {
     mensajesRef.current = mensajes;
   }, [mensajes]);
+
+  // Auto-scroll al ultimo mensaje: siempre al cambiar de chat; y al llegar
+  // mensajes nuevos solo si el usuario ya estaba cerca del fondo (no interrumpe
+  // si esta leyendo mensajes anteriores mas arriba).
+  useEffect(() => {
+    const cambioDeChat = prevSelectedPkRef.current !== selectedLead?.pk;
+    prevSelectedPkRef.current = selectedLead?.pk;
+    if (!mensajes.length) return;
+    if (cambioDeChat || nearBottomRef.current) {
+      // Sin animacion al abrir el chat; suave al llegar mensajes nuevos.
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: cambioDeChat ? 'auto' : 'smooth',
+          block: 'end',
+        });
+      });
+    }
+  }, [mensajes, selectedLead?.pk]);
+
+  // Detecta si el usuario esta cerca del fondo del panel de mensajes.
+  const onMensajesScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanciaAlFondo = el.scrollHeight - el.scrollTop - el.clientHeight;
+    nearBottomRef.current = distanciaAlFondo < 120;
+  };
 
   // Marca actividad del usuario (enviando/guardando) para pausar el polling.
   useEffect(() => {
@@ -652,7 +683,11 @@ export default function MetaInboxPage() {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto bg-[var(--panel-soft-bg)] p-4">
+              <div
+                ref={scrollContainerRef}
+                onScroll={onMensajesScroll}
+                className="min-h-0 flex-1 overflow-y-auto bg-[var(--panel-soft-bg)] p-4"
+              >
                 {loadingConversation ? (
                   <div className="grid h-full place-items-center">
                     <Spin />
@@ -726,6 +761,7 @@ export default function MetaInboxPage() {
                         </div>
                       );
                     })}
+                    <div ref={messagesEndRef} />
                   </div>
                 ) : (
                   <div className="grid h-full place-items-center">

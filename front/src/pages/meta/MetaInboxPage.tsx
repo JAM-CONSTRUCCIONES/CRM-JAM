@@ -89,7 +89,7 @@ const motivosCierre = [
   'Otro',
 ];
 
-const METHODICA_WHATSAPP_ONBOARDING_URL = 'https://methodicatechnology.com/admin/configuracion/mensajeria';
+const METHODICA_WHATSAPP_ONBOARDING_URL = 'https://auth.methodicatechnology.com/admin/configuracion/mensajeria';
 const JAM_WHATSAPP_WEBHOOK_URL = 'https://agfdz17sk6.execute-api.us-east-1.amazonaws.com/api/webhooks/whatsapp';
 const JAM_META_INBOX_URL = 'https://d12nm0khvt8zd9.cloudfront.net/meta-inbox';
 

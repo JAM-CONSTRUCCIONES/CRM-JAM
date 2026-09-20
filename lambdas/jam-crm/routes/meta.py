@@ -1054,7 +1054,10 @@ def _buscar_clientes_por_contacto(proyecto_sk, telefono='', correo=''):
     if not clientes_table or not any([telefono, correo]):
         return []
 
-    filters = [Attr('sk').eq(proyecto_sk), Attr('tipo').eq('CLIENTE')]
+    proyecto_id = str(proyecto_sk or '').replace('PROYECTO#', '')
+    if not proyecto_id:
+        return []
+
     contact_filter = None
     if telefono:
         contact_filter = Attr('telefono').eq(telefono)
@@ -1064,11 +1067,21 @@ def _buscar_clientes_por_contacto(proyecto_sk, telefono='', correo=''):
     if contact_filter is None:
         return []
 
-    result = clientes_table.scan(
-        FilterExpression=filters[0] & filters[1] & contact_filter,
-        Limit=10,
-    )
-    items = result.get('Items', [])
+    items = []
+    kwargs = {
+        'IndexName': 'gsi-proyecto-clientes',
+        'KeyConditionExpression': Key('proyecto_id').eq(proyecto_id),
+        'FilterExpression': contact_filter,
+        'Limit': 10,
+    }
+    while len(items) < 10:
+        result = clientes_table.query(**kwargs)
+        items.extend(result.get('Items', []))
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            break
+        kwargs['ExclusiveStartKey'] = last_key
+    items = items[:10]
     for item in items:
         if telefono and item.get('telefono') == telefono:
             item['coincidencia_por'] = 'telefono'

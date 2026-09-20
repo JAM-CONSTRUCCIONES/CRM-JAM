@@ -20,16 +20,16 @@ SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
 CRM_LAMBDA_ARN = os.environ.get('CRM_LAMBDA_ARN', '')
 BLOQUEOS_LAMBDA_ARN = os.environ.get('BLOQUEOS_LAMBDA_ARN', '')
 
-DIAS_SEPARACION = 30
+DIAS_RESERVA = 30
 HORAS_BLOQUEO = 48
 HORAS_ALERTA_BLOQUEO = 43
 
 TRANSICIONES = {
     'captacion':       ['reserva'],
-    'reserva':         ['separacion', 'desvinculado', 'captacion'],
-    'separacion':      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva', 'captacion'],
-    'inicial':         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion', 'reserva'],
-    'pagos_atrasados': ['inicial', 'desvinculado', 'separacion'],
+    'reserva':         ['separacion', 'pagos_atrasados', 'desvinculado', 'captacion'],
+    'pagos_atrasados': ['separacion', 'desvinculado', 'reserva'],
+    'separacion':      ['inicial', 'desvinculado', 'pagos_atrasados'],
+    'inicial':         ['contra_entrega', 'desvinculado', 'separacion'],
     'contra_entrega':  ['vendida', 'desvinculado', 'inicial'],
     'vendida':         ['contra_entrega'],
 }
@@ -83,15 +83,25 @@ def _schedule_name_separacion(cedula, unidad_id):
     return f"sep-{safe_cedula}-{safe_unidad}"[:64]
 
 
-def _crear_alerta_separacion_en(
+def _schedule_name_reserva(cedula, unidad_id):
+    safe_cedula = cedula.replace('/', '-').replace('#', '-').replace(' ', '-')
+    safe_unidad = unidad_id.replace('/', '-').replace('#', '-')
+    return f"res-{safe_cedula}-{safe_unidad}"[:64]
+
+
+def _crear_alerta_reserva_en(
     cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre, fecha_alerta
 ):
-    """Crea un EventBridge Scheduler que dispara a los 30 días si no se avanzó a inicial."""
+    """Crea un EventBridge Scheduler que dispara a los 30 dias si no se avanzo a separacion."""
     if not SCHEDULER_ROLE_ARN or not CRM_LAMBDA_ARN:
         return
     schedule_expr = f"at({fecha_alerta.strftime('%Y-%m-%dT%H:%M:%S')})"
-    nombre = _schedule_name_separacion(cedula, unidad_id)
+    nombre = _schedule_name_reserva(cedula, unidad_id)
     try:
+        try:
+            scheduler_client.delete_schedule(Name=nombre)
+        except Exception:
+            pass
         scheduler_client.create_schedule(
             Name=nombre,
             ScheduleExpression=schedule_expr,
@@ -102,7 +112,7 @@ def _crear_alerta_separacion_en(
                 'RoleArn': SCHEDULER_ROLE_ARN,
                 'Input': json.dumps({
                     'source': 'scheduler',
-                    'tipo': 'alerta_separacion_vencida',
+                    'tipo': 'alerta_reserva_vencida',
                     'cedula': cedula,
                     'inmobiliaria_id': inmobiliaria_id,
                     'proyecto_id': proyecto_id,
@@ -116,16 +126,16 @@ def _crear_alerta_separacion_en(
         pass  # No crítico si falla la creación del schedule
 
 
-def _crear_alerta_separacion(cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre):
-    _crear_alerta_separacion_en(
+def _crear_alerta_reserva(cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre):
+    _crear_alerta_reserva_en(
         cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre,
-        datetime.now(timezone.utc) + timedelta(days=DIAS_SEPARACION),
+        datetime.now(timezone.utc) + timedelta(days=DIAS_RESERVA),
     )
 
 
-def _cancelar_alerta_separacion(cedula, unidad_id):
-    """Cancela el scheduler de alerta de separación si existe."""
-    nombre = _schedule_name_separacion(cedula, unidad_id)
+def _cancelar_alerta_reserva(cedula, unidad_id):
+    """Cancela el scheduler de alerta de reserva si existe."""
+    nombre = _schedule_name_reserva(cedula, unidad_id)
     try:
         scheduler_client.delete_schedule(Name=nombre)
     except Exception:
@@ -133,6 +143,14 @@ def _cancelar_alerta_separacion(cedula, unidad_id):
 
 
 # ─── Procesos ────────────────────────────────────────────────────────────────
+
+def _cancelar_alerta_separacion_legacy(cedula, unidad_id):
+    nombre = _schedule_name_separacion(cedula, unidad_id)
+    try:
+        scheduler_client.delete_schedule(Name=nombre)
+    except Exception:
+        pass
+
 
 def crear_proceso(cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre=''):
     """Crea un proceso de venta para cliente + unidad. Llamado desde jam-captacion."""
@@ -183,12 +201,13 @@ def crear_proceso_admin(event, cedula):
         return conflict('Ya existe un proceso activo para este cliente y unidad')
 
     # Verificar que la unidad no esté en proceso activo de otro cliente
-    otros = procesos_table.query(
-        IndexName='gsi-proyecto-procesos',
-        KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
-        FilterExpression=Attr('unidad_id').eq(unidad_id),
+    otros = _procesos_proyecto_por_estados(
+        proyecto_id,
+        ('captacion', 'reserva', 'pagos_atrasados', 'separacion', 'inicial', 'contra_entrega'),
     )
-    for proc in otros.get('Items', []):
+    for proc in otros:
+        if proc.get('unidad_id') != unidad_id:
+            continue
         if proc.get('estado') not in ('desvinculado',) and proc.get('cedula') != cedula:
             return conflict('Esta unidad ya tiene un proceso de venta activo con otro cliente')
 
@@ -226,6 +245,23 @@ def _resolver_nombre_unidad(proyecto_id, unidad_id):
         return id_unidad
     except Exception:
         return unidad_id
+
+
+def _procesos_proyecto_por_estados(proyecto_id, estados):
+    items = []
+    for estado in estados:
+        kwargs = {
+            'IndexName': 'gsi-proyecto-procesos',
+            'KeyConditionExpression': Key('proyecto_id').eq(proyecto_id) & Key('estado').eq(estado),
+        }
+        while True:
+            result = procesos_table.query(**kwargs)
+            items.extend(result.get('Items', []))
+            last_key = result.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            kwargs['ExclusiveStartKey'] = last_key
+    return items
 
 
 def listar_procesos(event, cedula):
@@ -556,6 +592,26 @@ def _limpiar_campos_separacion(pk, sk):
         pass
 
 
+def _limpiar_alerta_reserva(pk, sk):
+    try:
+        procesos_table.update_item(
+            Key={'pk': pk, 'sk': sk},
+            UpdateExpression='REMOVE alerta_reserva_vencida, alerta_separacion_vencida',
+        )
+    except Exception:
+        pass
+
+
+def _limpiar_campos_reserva(pk, sk):
+    try:
+        procesos_table.update_item(
+            Key={'pk': pk, 'sk': sk},
+            UpdateExpression='REMOVE fecha_reserva, alerta_reserva_vencida, alerta_separacion_vencida',
+        )
+    except Exception:
+        pass
+
+
 def _limpiar_pago_confirmado(pk, sk):
     try:
         procesos_table.update_item(
@@ -651,8 +707,9 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
 
     # Actualizar unidad en inventario y manejar schedules según estado destino
     if nuevo_estatus == 'reserva':
-        _cancelar_alerta_separacion(cedula, unidad_id)
-        _limpiar_campos_separacion(pk, sk)
+        _cancelar_alerta_reserva(cedula, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula, unidad_id)
+        _limpiar_alerta_reserva(pk, sk)
         _limpiar_pago_confirmado(pk, sk)
         if estatus_actual == 'captacion':
             unidad_actual = inventario_table.get_item(
@@ -665,9 +722,20 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
                 nombre_admin,
                 ahora,
             )
+        procesos_table.update_item(
+            Key={'pk': pk, 'sk': sk},
+            UpdateExpression='SET fecha_reserva = :fr REMOVE alerta_reserva_vencida, alerta_separacion_vencida',
+            ExpressionAttributeValues={':fr': ahora},
+        )
+        _crear_alerta_reserva(
+            cedula, inmobiliaria_id, proyecto_id, unidad_id,
+            proceso.get('unidad_nombre', unidad_id)
+        )
         _marcar_unidad_no_disponible(proyecto_id, unidad_id)
     elif nuevo_estatus == 'captacion':
-        _cancelar_alerta_separacion(cedula, unidad_id)
+        _cancelar_alerta_reserva(cedula, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula, unidad_id)
+        _limpiar_campos_reserva(pk, sk)
         _limpiar_campos_separacion(pk, sk)
         _limpiar_pago_confirmado(pk, sk)
         _activar_bloqueo_desde_proceso(
@@ -677,32 +745,42 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
     elif nuevo_estatus == 'separacion':
         _limpiar_pago_confirmado(pk, sk)
         _marcar_unidad_no_disponible(proyecto_id, unidad_id)
-        _cancelar_alerta_separacion(cedula, unidad_id)
+        _cancelar_alerta_reserva(cedula, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula, unidad_id)
+        _limpiar_alerta_reserva(pk, sk)
         procesos_table.update_item(
             Key={'pk': pk, 'sk': sk},
-            UpdateExpression='SET fecha_separacion = :fs',
+            UpdateExpression='SET fecha_separacion = :fs REMOVE alerta_reserva_vencida, alerta_separacion_vencida',
             ExpressionAttributeValues={':fs': ahora},
-        )
-        _crear_alerta_separacion(
-            cedula, inmobiliaria_id, proyecto_id, unidad_id,
-            proceso.get('unidad_nombre', unidad_id)
         )
     elif nuevo_estatus == 'inicial':
         _marcar_unidad_no_disponible(proyecto_id, unidad_id)
-        _cancelar_alerta_separacion(cedula, unidad_id)
+        _cancelar_alerta_reserva(cedula, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula, unidad_id)
+        _limpiar_alerta_reserva(pk, sk)
+    elif nuevo_estatus == 'pagos_atrasados':
+        _cancelar_alerta_reserva(cedula, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula, unidad_id)
         procesos_table.update_item(
             Key={'pk': pk, 'sk': sk},
-            UpdateExpression='SET pago_confirmado = :v',
+            UpdateExpression='SET alerta_reserva_vencida = :v REMOVE alerta_separacion_vencida',
             ExpressionAttributeValues={':v': True},
         )
-    elif nuevo_estatus in ('pagos_atrasados', 'contra_entrega'):
-        _cancelar_alerta_separacion(cedula, unidad_id)
+        _marcar_unidad_no_disponible(proyecto_id, unidad_id)
+    elif nuevo_estatus == 'contra_entrega':
+        _cancelar_alerta_reserva(cedula, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula, unidad_id)
+        _limpiar_alerta_reserva(pk, sk)
         _marcar_unidad_no_disponible(proyecto_id, unidad_id)
     elif nuevo_estatus == 'vendida':
-        _cancelar_alerta_separacion(cedula, unidad_id)
+        _cancelar_alerta_reserva(cedula, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula, unidad_id)
+        _limpiar_alerta_reserva(pk, sk)
         _marcar_unidad_vendida(proyecto_id, unidad_id)
     elif nuevo_estatus == 'desvinculado':
-        _cancelar_alerta_separacion(cedula, unidad_id)
+        _cancelar_alerta_reserva(cedula, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula, unidad_id)
+        _limpiar_campos_reserva(pk, sk)
         _limpiar_campos_separacion(pk, sk)
         _limpiar_pago_confirmado(pk, sk)
         _liberar_unidad_por_desvinculacion(proyecto_id, unidad_id)
@@ -751,8 +829,8 @@ def ver_historial(event, cedula, proyecto_id, unidad_id):
     return ok(historial)
 
 
-def manejar_alerta_separacion(event):
-    """Invocado por EventBridge Scheduler cuando vencen los 30 días de separación sin pago."""
+def manejar_alerta_reserva(event):
+    """Invocado por EventBridge Scheduler cuando vencen los 30 dias de reserva sin separacion."""
     cedula = event.get('cedula')
     inmobiliaria_id = event.get('inmobiliaria_id')
     proyecto_id = event.get('proyecto_id')
@@ -769,27 +847,28 @@ def manejar_alerta_separacion(event):
     sk = f'UNIDAD#{unidad_id}'
     proceso = procesos_table.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
 
-    # Solo notificar si sigue en separacion y no se confirmó pago
-    if not proceso or proceso.get('estado') != 'separacion' or proceso.get('pago_confirmado'):
+    # Solo mover si sigue en reserva. Si ya avanzo, el schedule no hace nada.
+    if not proceso or proceso.get('estado') != 'reserva':
         return
 
     # Marcar alerta en el proceso
     ahora = _now()
     entrada_historial = {
-        'estatus_anterior': 'separacion',
+        'estatus_anterior': 'reserva',
         'estatus_nuevo': 'pagos_atrasados',
         'ejecutado_por': 'sistema',
         'ejecutado_por_nombre': 'Sistema',
         'notificacion_enviada': 'admin',
-        'origen': 'vencimiento_separacion_30_dias',
+        'origen': 'vencimiento_reserva_30_dias',
         'timestamp': ahora,
     }
 
     procesos_table.update_item(
         Key={'pk': pk, 'sk': sk},
         UpdateExpression=(
-            'SET #estado = :estado, alerta_separacion_vencida = :v, actualizado_en = :ts, '
+            'SET #estado = :estado, alerta_reserva_vencida = :v, actualizado_en = :ts, '
             'historial = list_append(if_not_exists(historial, :empty), :entrada)'
+            ' REMOVE alerta_separacion_vencida'
         ),
         ExpressionAttributeNames={'#estado': 'estado'},
         ExpressionAttributeValues={
@@ -810,7 +889,7 @@ def manejar_alerta_separacion(event):
             'proyecto_id': proyecto_id,
             'inmobiliaria_id': inmobiliaria_id,
             'unidad_id': unidad_id,
-            'estatus_anterior': 'separacion',
+            'estatus_anterior': 'reserva',
             'estatus_nuevo': 'pagos_atrasados',
             'notificar': 'admin',
             'correo': cliente.get('correo'),
@@ -821,6 +900,10 @@ def manejar_alerta_separacion(event):
             'timestamp': ahora,
         }, ensure_ascii=False),
     )
+
+
+def manejar_alerta_separacion(event):
+    print(f"alerta_separacion_vencida legacy ignorada: {event}")
 
 
 def _actualizar_unidad(proyecto_id, unidad_id, nuevo_estado):

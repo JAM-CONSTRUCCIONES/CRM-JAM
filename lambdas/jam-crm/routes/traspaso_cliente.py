@@ -11,7 +11,11 @@ from botocore.exceptions import ClientError
 
 from utils.auth import get_nombre, get_sub
 from utils.response import bad_request, conflict, not_found, ok
-from routes.estatus import _cancelar_alerta_separacion, _crear_alerta_separacion_en
+from routes.estatus import (
+    _cancelar_alerta_reserva,
+    _cancelar_alerta_separacion_legacy,
+    _crear_alerta_reserva_en,
+)
 
 
 dynamodb = boto3.resource('dynamodb')
@@ -306,21 +310,25 @@ def traspasar_cliente(event, cedula_actual, proyecto_id, unidad_id):
             print(f'Error creando vencimiento de exclusividad: {type(exc).__name__}: {exc}')
             advertencias.append('se debe revisar el vencimiento de exclusividad del cliente nuevo')
 
-    if proceso.get('estado') == 'separacion' and proceso.get('fecha_separacion'):
+    if proceso.get('estado') == 'reserva' and proceso.get('fecha_reserva'):
         try:
             fecha_alerta = (
-                datetime.fromisoformat(proceso['fecha_separacion'].replace('Z', '+00:00'))
+                datetime.fromisoformat(proceso['fecha_reserva'].replace('Z', '+00:00'))
                 .astimezone(timezone.utc) + timedelta(days=30)
             )
-            _cancelar_alerta_separacion(cedula_actual, unidad_id)
+            _cancelar_alerta_reserva(cedula_actual, unidad_id)
+            _cancelar_alerta_separacion_legacy(cedula_actual, unidad_id)
             if fecha_alerta > datetime.now(timezone.utc):
-                _crear_alerta_separacion_en(
+                _crear_alerta_reserva_en(
                     cedula_destino, inmobiliaria_id, proyecto_id, unidad_id,
                     proceso.get('unidad_nombre', unidad_id), fecha_alerta,
                 )
         except Exception as exc:
-            print(f'Error migrando alerta de separacion: {type(exc).__name__}: {exc}')
-            advertencias.append('se debe revisar la alerta de separacion')
+            print(f'Error migrando alerta de reserva: {type(exc).__name__}: {exc}')
+            advertencias.append('se debe revisar la alerta de reserva')
+    else:
+        _cancelar_alerta_reserva(cedula_actual, unidad_id)
+        _cancelar_alerta_separacion_legacy(cedula_actual, unidad_id)
 
     respuesta = {
         'message': 'Cliente traspasado correctamente',

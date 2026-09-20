@@ -13,6 +13,7 @@ import {
   Select,
   Space,
   Statistic,
+  Tabs,
   Table,
   Tag,
   Typography,
@@ -77,6 +78,8 @@ const motivosCierre = [
 
 const toNumber = (value: unknown) => Number(value || 0);
 
+const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+
 const formatDate = (value?: string) => {
   if (!value) return '-';
   const date = new Date(value);
@@ -130,6 +133,11 @@ const adsOriginLabel = (lead: MetaLead) => (
   'Meta Ads'
 );
 
+const conversionesLead = (lead: MetaLead) => {
+  const historial = lead.historial_conversiones?.length || 0;
+  return historial || (lead.estado === 'convertido' ? 1 : 0);
+};
+
 const idWithName = (name?: string, id?: string) => {
   if (name && id) return `${name} (${id})`;
   return name || id || '';
@@ -150,6 +158,14 @@ const timelineColor: Record<string, string> = {
   actividad: 'purple',
   nota: 'gold',
   oportunidad: 'green',
+};
+
+type MetaReportRow = {
+  key: string;
+  nombre: string;
+  leads: number;
+  ventas: number;
+  tasa: number;
 };
 
 export default function MetaLeadsPage() {
@@ -209,11 +225,52 @@ export default function MetaLeadsPage() {
         lead.ultimo_mensaje_texto,
         lead.responsable_nombre,
         lead.inmobiliaria_nombre,
+        lead.fuente,
+        lead.campaign_name,
+        lead.campaign_id,
+        lead.ad_name,
+        lead.ad_id,
       ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(text)),
     );
   }, [busqueda, leads]);
+
+  const reporteMeta = useMemo(() => {
+    const buildRows = (getName: (lead: MetaLead) => string) => {
+      const groups = new Map<string, MetaReportRow>();
+      leadsFiltrados.forEach((lead) => {
+        const nombre = getName(lead) || 'Sin dato';
+        const key = nombre.toLowerCase();
+        const row = groups.get(key) || {
+          key,
+          nombre,
+          leads: 0,
+          ventas: 0,
+          tasa: 0,
+        };
+        row.leads += 1;
+        row.ventas += conversionesLead(lead);
+        row.tasa = row.leads ? (row.ventas / row.leads) * 100 : 0;
+        groups.set(key, row);
+      });
+      return Array.from(groups.values()).sort((a, b) => b.leads - a.leads || b.ventas - a.ventas);
+    };
+
+    const leadsCaptados = leadsFiltrados.length;
+    const ventasGeneradas = leadsFiltrados.reduce((acc, lead) => acc + conversionesLead(lead), 0);
+
+    return {
+      leadsCaptados,
+      ventasGeneradas,
+      tasaConversion: leadsCaptados ? (ventasGeneradas / leadsCaptados) * 100 : 0,
+      porFuente: buildRows((lead) => lead.fuente || canalLabel[lead.channel] || lead.channel || 'Meta'),
+      porVendedor: buildRows((lead) => lead.responsable_nombre || 'Sin vendedor'),
+      porInmobiliaria: buildRows((lead) => lead.inmobiliaria_nombre || 'Sin inmobiliaria'),
+      porCampania: buildRows((lead) => (hasAdsOrigin(lead) ? adsOriginLabel(lead) : 'Sin campania registrada')),
+      porEstado: buildRows((lead) => lead.estado || 'nuevo'),
+    };
+  }, [leadsFiltrados]);
 
   useEffect(() => {
     cargarLeads();
@@ -450,6 +507,34 @@ export default function MetaLeadsPage() {
     }
   };
 
+  const reportColumns = [
+    {
+      title: 'Nombre',
+      dataIndex: 'nombre',
+      ellipsis: true,
+      render: (value: string) => value || <Text type="secondary">Sin dato</Text>,
+    },
+    {
+      title: 'Leads',
+      dataIndex: 'leads',
+      width: 90,
+      align: 'right' as const,
+    },
+    {
+      title: 'Ventas',
+      dataIndex: 'ventas',
+      width: 90,
+      align: 'right' as const,
+    },
+    {
+      title: 'Tasa',
+      dataIndex: 'tasa',
+      width: 90,
+      align: 'right' as const,
+      render: (value: number) => formatPercent(value || 0),
+    },
+  ];
+
   const columns = [
     {
       title: 'Canal',
@@ -554,122 +639,207 @@ export default function MetaLeadsPage() {
         description="Un lead Meta se crea con el identificador externo del contacto. Para convertirlo en cliente formal falta completar datos como cedula, proyecto e inmobiliaria."
       />
 
-      <div className="grid gap-3 md:grid-cols-5">
-        <Card>
-          <Statistic title="Leads Meta" value={leads.length} />
-        </Card>
-        <Card>
-          <Statistic title="Nuevos" value={stats.pendientes} />
-        </Card>
-        <Card>
-          <Statistic title="Mensajes registrados" value={stats.totalMensajes} />
-        </Card>
-        <Card>
-          <Statistic title="Instagram" value={stats.instagram} />
-        </Card>
-        <Card>
-          <Statistic title="Messenger / WhatsApp" value={stats.messenger + stats.whatsapp} />
-        </Card>
-      </div>
+      <Tabs
+        items={[
+          {
+            key: 'gestion',
+            label: 'Gestion',
+            children: (
+              <Space direction="vertical" size={16} className="w-full">
+                <div className="grid gap-3 md:grid-cols-5">
+                  <Card>
+                    <Statistic title="Leads Meta" value={leads.length} />
+                  </Card>
+                  <Card>
+                    <Statistic title="Nuevos" value={stats.pendientes} />
+                  </Card>
+                  <Card>
+                    <Statistic title="Mensajes registrados" value={stats.totalMensajes} />
+                  </Card>
+                  <Card>
+                    <Statistic title="Instagram" value={stats.instagram} />
+                  </Card>
+                  <Card>
+                    <Statistic title="Messenger / WhatsApp" value={stats.messenger + stats.whatsapp} />
+                  </Card>
+                </div>
 
-      <Card>
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <Space wrap>
-            <Select
-              allowClear
-              placeholder="Canal"
-              className="w-full md:w-56"
-              value={canal}
-              onChange={setCanal}
-              options={[
-                { value: 'instagram', label: 'Instagram' },
-                { value: 'messenger', label: 'Messenger' },
-                { value: 'whatsapp', label: 'WhatsApp' },
-              ]}
-            />
-            <Select
-              allowClear
-              placeholder="Estado"
-              className="w-full md:w-56"
-              value={estado}
-              onChange={setEstado}
-              options={[
-                { value: 'nuevo', label: 'Nuevo' },
-                { value: 'en_seguimiento', label: 'En seguimiento' },
-                { value: 'convertido', label: 'Convertido' },
-                { value: 'cerrado', label: 'Cerrado' },
-              ]}
-            />
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              placeholder="Responsable"
-              className="w-full md:w-64"
-              value={responsableFiltro}
-              onChange={setResponsableFiltro}
-              options={[
-                { value: SIN_ASIGNAR, label: 'Sin responsable' },
-                ...usuarios.map((usuario) => ({
-                  value: usuario.pk,
-                  label: usuario.nombre || usuario.cognito_username || usuario.pk,
-                })),
-              ]}
-            />
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              placeholder="Inmobiliaria"
-              className="w-full md:w-64"
-              value={inmobiliariaFiltro}
-              onChange={setInmobiliariaFiltro}
-              options={[
-                { value: SIN_ASIGNAR, label: 'Sin inmobiliaria' },
-                ...inmobiliarias.map((inmobiliaria) => ({
-                  value: inmobiliaria.pk,
-                  label: inmobiliaria.nombre,
-                })),
-              ]}
-            />
-          </Space>
-          <Search
-            allowClear
-            placeholder="Buscar contacto, mensaje o responsable"
-            className="w-full lg:w-80"
-            value={busqueda}
-            onChange={(event) => setBusqueda(event.target.value)}
-          />
-        </div>
+                <Card>
+                  <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <Space wrap>
+                      <Select
+                        allowClear
+                        placeholder="Canal"
+                        className="w-full md:w-56"
+                        value={canal}
+                        onChange={setCanal}
+                        options={[
+                          { value: 'instagram', label: 'Instagram' },
+                          { value: 'messenger', label: 'Messenger' },
+                          { value: 'whatsapp', label: 'WhatsApp' },
+                        ]}
+                      />
+                      <Select
+                        allowClear
+                        placeholder="Estado"
+                        className="w-full md:w-56"
+                        value={estado}
+                        onChange={setEstado}
+                        options={[
+                          { value: 'nuevo', label: 'Nuevo' },
+                          { value: 'en_seguimiento', label: 'En seguimiento' },
+                          { value: 'convertido', label: 'Convertido' },
+                          { value: 'cerrado', label: 'Cerrado' },
+                        ]}
+                      />
+                      <Select
+                        allowClear
+                        showSearch
+                        optionFilterProp="label"
+                        placeholder="Responsable"
+                        className="w-full md:w-64"
+                        value={responsableFiltro}
+                        onChange={setResponsableFiltro}
+                        options={[
+                          { value: SIN_ASIGNAR, label: 'Sin responsable' },
+                          ...usuarios.map((usuario) => ({
+                            value: usuario.pk,
+                            label: usuario.nombre || usuario.cognito_username || usuario.pk,
+                          })),
+                        ]}
+                      />
+                      <Select
+                        allowClear
+                        showSearch
+                        optionFilterProp="label"
+                        placeholder="Inmobiliaria"
+                        className="w-full md:w-64"
+                        value={inmobiliariaFiltro}
+                        onChange={setInmobiliariaFiltro}
+                        options={[
+                          { value: SIN_ASIGNAR, label: 'Sin inmobiliaria' },
+                          ...inmobiliarias.map((inmobiliaria) => ({
+                            value: inmobiliaria.pk,
+                            label: inmobiliaria.nombre,
+                          })),
+                        ]}
+                      />
+                    </Space>
+                    <Search
+                      allowClear
+                      placeholder="Buscar contacto, mensaje o responsable"
+                      className="w-full lg:w-80"
+                      value={busqueda}
+                      onChange={(event) => setBusqueda(event.target.value)}
+                    />
+                  </div>
 
-        <div className="mb-4 flex flex-wrap gap-2">
-          {[
-            { key: undefined, label: 'Todos', count: leads.length },
-            { key: 'instagram', label: 'Instagram', count: stats.instagram },
-            { key: 'messenger', label: 'Messenger', count: stats.messenger },
-            { key: 'whatsapp', label: 'WhatsApp', count: stats.whatsapp },
-          ].map((item) => (
-            <Button
-              key={item.label}
-              size="small"
-              type={canal === item.key ? 'primary' : 'default'}
-              onClick={() => setCanal(item.key)}
-            >
-              {item.label} ({item.count})
-            </Button>
-          ))}
-        </div>
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {[
+                      { key: undefined, label: 'Todos', count: leads.length },
+                      { key: 'instagram', label: 'Instagram', count: stats.instagram },
+                      { key: 'messenger', label: 'Messenger', count: stats.messenger },
+                      { key: 'whatsapp', label: 'WhatsApp', count: stats.whatsapp },
+                    ].map((item) => (
+                      <Button
+                        key={item.label}
+                        size="small"
+                        type={canal === item.key ? 'primary' : 'default'}
+                        onClick={() => setCanal(item.key)}
+                      >
+                        {item.label} ({item.count})
+                      </Button>
+                    ))}
+                  </div>
 
-        <Table
-          rowKey="pk"
-          loading={loading}
-          columns={columns}
-          dataSource={leadsFiltrados}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 1310 }}
-          locale={{ emptyText: <Empty description="Sin leads Meta registrados" /> }}
-        />
-      </Card>
+                  <Table
+                    rowKey="pk"
+                    loading={loading}
+                    columns={columns}
+                    dataSource={leadsFiltrados}
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: 1310 }}
+                    locale={{ emptyText: <Empty description="Sin leads Meta registrados" /> }}
+                  />
+                </Card>
+              </Space>
+            ),
+          },
+          {
+            key: 'dashboard',
+            label: 'Dashboard',
+            children: (
+              <Space direction="vertical" size={16} className="w-full">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Card>
+                    <Statistic title="Leads captados" value={reporteMeta.leadsCaptados} />
+                  </Card>
+                  <Card>
+                    <Statistic title="Tasa de conversion" value={formatPercent(reporteMeta.tasaConversion)} />
+                  </Card>
+                  <Card>
+                    <Statistic title="Ventas generadas" value={reporteMeta.ventasGeneradas} />
+                  </Card>
+                </div>
+
+                <div className="grid gap-3 xl:grid-cols-2">
+                  <Card title="Rendimiento por fuente" size="small">
+                    <Table<MetaReportRow>
+                      size="small"
+                      rowKey="key"
+                      dataSource={reporteMeta.porFuente}
+                      columns={reportColumns}
+                      pagination={false}
+                      locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" /> }}
+                    />
+                  </Card>
+                  <Card title="Rendimiento por vendedor" size="small">
+                    <Table<MetaReportRow>
+                      size="small"
+                      rowKey="key"
+                      dataSource={reporteMeta.porVendedor}
+                      columns={reportColumns}
+                      pagination={false}
+                      locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" /> }}
+                    />
+                  </Card>
+                  <Card title="Rendimiento por inmobiliaria" size="small">
+                    <Table<MetaReportRow>
+                      size="small"
+                      rowKey="key"
+                      dataSource={reporteMeta.porInmobiliaria}
+                      columns={reportColumns}
+                      pagination={false}
+                      locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" /> }}
+                    />
+                  </Card>
+                  <Card title="Resultados por campania" size="small">
+                    <Table<MetaReportRow>
+                      size="small"
+                      rowKey="key"
+                      dataSource={reporteMeta.porCampania}
+                      columns={reportColumns}
+                      pagination={false}
+                      locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" /> }}
+                    />
+                  </Card>
+                </div>
+
+                <Card title="Estado general del proceso comercial" size="small">
+                  <Table<MetaReportRow>
+                    size="small"
+                    rowKey="key"
+                    dataSource={reporteMeta.porEstado}
+                    columns={reportColumns}
+                    pagination={false}
+                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" /> }}
+                  />
+                </Card>
+              </Space>
+            ),
+          },
+        ]}
+      />
 
       <Drawer
         title={selectedLead ? (

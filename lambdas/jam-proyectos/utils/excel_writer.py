@@ -108,6 +108,7 @@ sqs = boto3.client('sqs')
 # Variables de entorno
 LAMBDA_ARN = os.environ.get('BLOQUEOS_LAMBDA_ARN', '')
 CAPTACION_LAMBDA_ARN = os.environ.get('CAPTACION_LAMBDA_ARN', '')
+CRM_LAMBDA_ARN = os.environ.get('CRM_LAMBDA_ARN', '')
 SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
 SQS_URL = os.environ.get('SQS_URL', '')
 
@@ -115,6 +116,7 @@ SQS_URL = os.environ.get('SQS_URL', '')
 HORAS_BLOQUEO_MIGRACION = 48
 HORAS_ALERTA_MIGRACION = 43  # alerta 5 horas antes del vencimiento
 MESES_EXCLUSIVIDAD = 3
+DIAS_RESERVA = 30
 
 
 def escribir_migracion(proyecto_id, filas):
@@ -488,6 +490,9 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
     estado_proceso = fila.get('estado_proceso')
     if estado_proceso:
         unidad_id = fila.get('_unidad_id', '')
+        fecha_base_dt = _parse_dt(fila.get('fecha_bloqueo')) or _parse_dt(ahora) or datetime.now(timezone.utc)
+        fecha_base = fecha_base_dt.isoformat()
+        historial_proceso = _historial_proceso_migracion(estado_proceso, fecha_base)
         proceso_item = {
             'pk':             f'PROCESO#{cedula}#{inmo_id}',
             'sk':             f'UNIDAD#{unidad_id}',
@@ -497,14 +502,24 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
             'unidad_id':      unidad_id,
             'unidad_nombre':  id_unidad,  # sin torre, solo el id legible
             'estado':         estado_proceso,
-            'historial':      [],
-            'fecha_inicio':   fila.get('fecha_bloqueo') or ahora,
+            'historial':      historial_proceso,
+            'fecha_inicio':   fecha_base,
             'actualizado_en': ahora,
             'origen':         'migracion',
         }
+        if estado_proceso in ('reserva', 'pagos_atrasados', 'separacion', 'inicial', 'contra_entrega'):
+            proceso_item['fecha_reserva'] = fecha_base
+        if estado_proceso in ('separacion', 'inicial', 'contra_entrega'):
+            proceso_item['fecha_separacion'] = fecha_base
+        if estado_proceso == 'inicial':
+            proceso_item['fecha_inicial'] = fecha_base
+        if estado_proceso == 'pagos_atrasados':
+            proceso_item['alerta_reserva_vencida'] = True
         if fila.get('fecha_bloqueo'):
             proceso_item['fecha_bloqueo_historica'] = fila.get('fecha_bloqueo')
         procesos_t.put_item(Item=proceso_item)
+        if estado_proceso == 'reserva':
+            _crear_schedule_reserva(cedula, inmo_id, proyecto_id, unidad_id, id_unidad, fecha_base_dt)
 
 
 def _escribir_historial(proyecto_id, fila, inmo_id, cedula, ahora):
@@ -599,6 +614,94 @@ def _crear_schedule_exclusividad(cedula, inmobiliaria_id, proyecto_id, fecha_ven
         print(f'OK Schedule de exclusividad creado para {cedula} at {ts_vencimiento}')
     except Exception as e:
         print(f'ERROR _crear_schedule_exclusividad: {type(e).__name__}: {e}')
+
+
+def _historial_proceso_migracion(estado_proceso, fecha_base):
+    pasos = {
+        'captacion': [],
+        'reserva': [('captacion', 'reserva')],
+        'pagos_atrasados': [('captacion', 'reserva'), ('reserva', 'pagos_atrasados')],
+        'separacion': [('captacion', 'reserva'), ('reserva', 'separacion')],
+        'inicial': [('captacion', 'reserva'), ('reserva', 'separacion'), ('separacion', 'inicial')],
+        'contra_entrega': [
+            ('captacion', 'reserva'),
+            ('reserva', 'separacion'),
+            ('separacion', 'inicial'),
+            ('inicial', 'contra_entrega'),
+        ],
+        'vendida': [
+            ('captacion', 'reserva'),
+            ('reserva', 'separacion'),
+            ('separacion', 'inicial'),
+            ('inicial', 'contra_entrega'),
+            ('contra_entrega', 'vendida'),
+        ],
+        'vendido': [
+            ('captacion', 'reserva'),
+            ('reserva', 'separacion'),
+            ('separacion', 'inicial'),
+            ('inicial', 'contra_entrega'),
+            ('contra_entrega', 'vendido'),
+        ],
+    }
+    return [
+        {
+            'estatus_anterior': anterior,
+            'estatus_nuevo': nuevo,
+            'ejecutado_por': 'migracion',
+            'ejecutado_por_nombre': 'Migracion Excel',
+            'notificacion_enviada': False,
+            'origen': 'migracion',
+            'timestamp': fecha_base,
+        }
+        for anterior, nuevo in pasos.get(estado_proceso, [])
+    ]
+
+
+def _schedule_name_reserva(cedula, unidad_id):
+    safe_cedula = cedula.replace('/', '-').replace('#', '-').replace(' ', '-')
+    safe_unidad = unidad_id.replace('/', '-').replace('#', '-')
+    return f"res-{safe_cedula}-{safe_unidad}"[:64]
+
+
+def _crear_schedule_reserva(cedula, inmobiliaria_id, proyecto_id, unidad_id, unidad_nombre, fecha_reserva):
+    if not CRM_LAMBDA_ARN or not SCHEDULER_ROLE_ARN:
+        print('WARN _crear_schedule_reserva: CRM_LAMBDA_ARN o SCHEDULER_ROLE_ARN no configurados')
+        return
+
+    try:
+        vencimiento = fecha_reserva.astimezone(timezone.utc) + timedelta(days=DIAS_RESERVA)
+        ahora_utc = datetime.now(timezone.utc)
+        fecha_schedule = vencimiento if vencimiento > ahora_utc else ahora_utc + timedelta(minutes=10)
+        ts_schedule = fecha_schedule.strftime('%Y-%m-%dT%H:%M:%S')
+        schedule_name = _schedule_name_reserva(cedula, unidad_id)
+        try:
+            scheduler.delete_schedule(Name=schedule_name)
+        except Exception:
+            pass
+        scheduler.create_schedule(
+            Name=schedule_name,
+            ScheduleExpression=f"at({ts_schedule})",
+            ScheduleExpressionTimezone='UTC',
+            FlexibleTimeWindow={'Mode': 'OFF'},
+            Target={
+                'Arn': CRM_LAMBDA_ARN,
+                'RoleArn': SCHEDULER_ROLE_ARN,
+                'Input': json.dumps({
+                    'source': 'scheduler',
+                    'tipo': 'alerta_reserva_vencida',
+                    'cedula': cedula,
+                    'inmobiliaria_id': inmobiliaria_id,
+                    'proyecto_id': proyecto_id,
+                    'unidad_id': unidad_id,
+                    'unidad_nombre': unidad_nombre,
+                }),
+            },
+            ActionAfterCompletion='DELETE',
+        )
+        print(f'OK Schedule de reserva creado para {cedula}/{unidad_id} at {ts_schedule}')
+    except Exception as e:
+        print(f'ERROR _crear_schedule_reserva: {type(e).__name__}: {e}')
 
 
 def _schedule_name(unidad_id, suffix):

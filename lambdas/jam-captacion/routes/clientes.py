@@ -147,6 +147,24 @@ def _get_inmobiliarias_map():
     return result
 
 
+def _listar_proyectos_activos_ids():
+    inv = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
+    items = _query_all(
+        inv,
+        IndexName='gsi-tipo',
+        KeyConditionExpression=Key('tipo').eq('PROYECTO'),
+    )
+    return [item.get('proyecto_id') for item in items if item.get('proyecto_id') and item.get('activo', True)]
+
+
+def _listar_todos_clientes_por_proyectos():
+    items = []
+    for proyecto_id in _listar_proyectos_activos_ids():
+        items.extend(_listar_clientes_base(proyecto_id))
+    items.sort(key=lambda x: x.get('fecha_captacion', ''), reverse=True)
+    return items
+
+
 def _listar_clientes_base(proyecto_id, inmobiliaria_id=None):
     items = _query_all(
         clientes,
@@ -161,6 +179,28 @@ def _listar_clientes_base(proyecto_id, inmobiliaria_id=None):
             if _normalizar_inmo_id(item.get('inmobiliaria_id')) == inmo_norm
         ]
     return items
+
+
+def _listar_clientes_por_filtros(proyecto_id=None, inmobiliaria_id=None):
+    if proyecto_id:
+        return _listar_clientes_base(proyecto_id, inmobiliaria_id)
+    if inmobiliaria_id:
+        inmo_norm = _normalizar_inmo_id(inmobiliaria_id)
+        items = _query_all(
+            clientes,
+            IndexName='gsi-inmobiliaria-clientes',
+            KeyConditionExpression=Key('inmobiliaria_id').eq(inmo_norm),
+            ScanIndexForward=False,
+        )
+        if not items:
+            items = _query_all(
+                clientes,
+                IndexName='gsi-inmobiliaria-clientes',
+                KeyConditionExpression=Key('inmobiliaria_id').eq(f'INMOBILIARIA#{inmo_norm}'),
+                ScanIndexForward=False,
+            )
+        return items
+    return _listar_todos_clientes_por_proyectos()
 
 
 def _listar_procesos_proyecto(proyecto_id, inmobiliaria_id=None):
@@ -616,11 +656,8 @@ def listar_admin(event):
             kwargs['ScanIndexForward'] = False  # Más recientes primero
             result = clientes.query(**kwargs)
     else:
-        result = clientes.scan(**kwargs)
+        result = {'Items': _listar_todos_clientes_por_proyectos()[:limit]}
         # Ordenar por fecha de captación descendente cuando se usa scan
-        items = result.get('Items', [])
-        items.sort(key=lambda x: x.get('fecha_captacion', ''), reverse=True)
-        result['Items'] = items
 
     resp = {'items': result.get('Items', [])}
     if result.get('LastEvaluatedKey'):
@@ -1180,19 +1217,12 @@ def buscar_clientes_admin(event):
                 
                 # Si no encuentra nada con búsqueda exacta, intentar búsqueda parcial con scan
                 if not items:
-                    print(f'DEBUG GSI no encontró nada, intentando scan parcial')
-                    filter_expr = Attr('cedula').contains(cedula_busqueda) & Attr('proyecto_id').eq(proyecto_id)
-                    scan_kwargs = {'FilterExpression': filter_expr}
-                    
-                    while True:
-                        result = clientes.scan(**scan_kwargs)
-                        items.extend(result.get('Items', []))
-                        
-                        if 'LastEvaluatedKey' not in result:
-                            break
-                        scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
-                    
-                    print(f'DEBUG scan parcial encontró: {len(items)} items')
+                    print(f'DEBUG GSI no encontró nada, filtrando clientes del proyecto')
+                    items = [
+                        item for item in _listar_clientes_por_filtros(proyecto_id, inmobiliaria_id)
+                        if cedula_busqueda in str(item.get('cedula') or '')
+                    ]
+                    print(f'DEBUG filtro parcial por proyecto encontró: {len(items)} items')
             else:
                 # Sin proyecto, usar GSI solo con cédula
                 print(f'DEBUG usando GSI sin proyecto: cedula={cedula_busqueda}')
@@ -1213,19 +1243,12 @@ def buscar_clientes_admin(event):
                 
                 # Si no encuentra nada con búsqueda exacta, intentar búsqueda parcial con scan
                 if not items:
-                    print(f'DEBUG GSI no encontró nada, intentando scan parcial')
-                    filter_expr = Attr('cedula').contains(cedula_busqueda)
-                    scan_kwargs = {'FilterExpression': filter_expr}
-                    
-                    while True:
-                        result = clientes.scan(**scan_kwargs)
-                        items.extend(result.get('Items', []))
-                        
-                        if 'LastEvaluatedKey' not in result:
-                            break
-                        scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
-                    
-                    print(f'DEBUG scan parcial encontró: {len(items)} items')
+                    print(f'DEBUG GSI no encontró nada, filtrando clientes acotados')
+                    items = [
+                        item for item in _listar_clientes_por_filtros(None, inmobiliaria_id)
+                        if cedula_busqueda in str(item.get('cedula') or '')
+                    ]
+                    print(f'DEBUG filtro parcial encontró: {len(items)} items')
         except Exception as e:
             print(f'ERROR en búsqueda por cédula: {e}')
             import traceback
@@ -1234,7 +1257,7 @@ def buscar_clientes_admin(event):
         
         print(f'DEBUG total items cédula: {len(items)}')
     else:
-        # Búsqueda por nombre - usar scan completo con paginación automática (SIN LÍMITES)
+        # Búsqueda por nombre: usar Query cuando venga proyecto/inmobiliaria y filtrar en memoria.
         # DynamoDB contains es case-sensitive, así que buscamos en múltiples variaciones
         
         # Buscar en minúsculas, Title Case y MAYÚSCULAS
@@ -1243,33 +1266,9 @@ def buscar_clientes_admin(event):
             if len(token) >= 2
         ]
         
-        filter_expr = None
-        
-        if proyecto_id:
-            filter_expr = Attr('proyecto_id').eq(proyecto_id)
-        
         try:
-            # Scan completo con paginación automática - SIN LÍMITE
-            scan_kwargs = {}
-            if filter_expr is not None:
-                scan_kwargs['FilterExpression'] = filter_expr
-            
-            # Paginar hasta obtener TODOS los resultados
-            while True:
-                result = clientes.scan(**scan_kwargs)
-                items.extend(result.get('Items', []))
-                
-                print(f'DEBUG scan página: {len(result.get("Items", []))} items, total acumulado: {len(items)}')
-                
-                # Si no hay más páginas, salir
-                if 'LastEvaluatedKey' not in result:
-                    print(f'DEBUG scan completado, no hay más páginas')
-                    break
-                    
-                # Continuar con la siguiente página
-                scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
-            
-            print(f'DEBUG scan total encontró: {len(items)} items')
+            items = _listar_clientes_por_filtros(proyecto_id, inmobiliaria_id)
+            print(f'DEBUG universo clientes encontró: {len(items)} items')
             if query_tokens:
                 items_antes = len(items)
                 items = [

@@ -1,0 +1,170 @@
+﻿{
+    "timestamp":  "2026-08-25T16:43:18.8981149+00:00",
+    "aplicados":  20,
+    "errores":  0,
+    "detalle":  [
+                    {
+                        "cedula":  "09000230731",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "16ED39EF",
+                        "unidad_nombre":  "C-N-302",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "03700601366",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "60462FDB",
+                        "unidad_nombre":  "C-N-104",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "40222221547",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "1F5A5BA8",
+                        "unidad_nombre":  "C-M-101",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "22500422716",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "4446A0F6",
+                        "unidad_nombre":  "D-S-403",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "960297",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "6423F286",
+                        "unidad_nombre":  "C-�-104",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "22500402858",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "C379CB27",
+                        "unidad_nombre":  "D-Q-304",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "00108659152",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "6D528B98",
+                        "unidad_nombre":  "D-S-203",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "40223866878",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "DA4742CE",
+                        "unidad_nombre":  "E-W-202",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "00115618175",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "9FAA54CA",
+                        "unidad_nombre":  "D-S-404",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "40235194194",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "7BC8F983",
+                        "unidad_nombre":  "E-Y-102",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "40226637789",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "07279226",
+                        "unidad_nombre":  "E-Y-404",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "02801101060",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "179B7A37",
+                        "unidad_nombre":  "E-W-401",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "22900103064",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "123317B2",
+                        "unidad_nombre":  "E-Y-402",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "643654304",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "DD1C6440",
+                        "unidad_nombre":  "D-Q-101",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "40224599874",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "23429A2E",
+                        "unidad_nombre":  "C-L-303",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "708679087",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "76FB7516",
+                        "unidad_nombre":  "D-S-201",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "04700607742",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "3E6C7D1B",
+                        "unidad_nombre":  "B-F-201",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "40240306916",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "8759068D",
+                        "unidad_nombre":  "E-W-404",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "40231552775",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "E475BC32",
+                        "unidad_nombre":  "D-T-401",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    },
+                    {
+                        "cedula":  "40223274370",
+                        "proyecto_id":  "0E3CF406",
+                        "unidad_id":  "3DF2E6BE",
+                        "unidad_nombre":  "E-W-304",
+                        "estado":  "pagos_atrasados",
+                        "actualizado_en":  "2026-08-25T16:43:18.8981149+00:00"
+                    }
+                ],
+    "detalle_errores":  [
+
+                        ]
+}

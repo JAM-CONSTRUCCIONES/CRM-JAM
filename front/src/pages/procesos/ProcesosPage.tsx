@@ -236,9 +236,9 @@ const ProcesosPage = () => {
 
   const PASO_ANTERIOR: Record<string, string> = {
     reserva:        'captacion',
-    separacion:     'reserva',
+    pagos_atrasados:'reserva',
+    separacion:     'pagos_atrasados',
     inicial:        'separacion',
-    pagos_atrasados:'separacion',
     contra_entrega: 'inicial',
     vendida:        'contra_entrega',
   };
@@ -608,11 +608,11 @@ const ProcesosPage = () => {
 
   // ── Render helpers ────────────────────────────────────────────────────────
   const alertaInfo = (p: ProcesoEnriquecido) => {
-    const vencida = p.alerta_separacion_vencida && p.estado === 'separacion' && !p.pago_confirmado;
-    const dias = p.fecha_separacion
-      ? Math.floor((Date.now() - new Date(p.fecha_separacion).getTime()) / 86400000)
+    const vencida = p.alerta_reserva_vencida && p.estado === 'pagos_atrasados';
+    const dias = p.fecha_reserva
+      ? Math.floor((Date.now() - new Date(p.fecha_reserva).getTime()) / 86400000)
       : null;
-    const proxima = !vencida && p.estado === 'separacion' && dias !== null && dias >= 25;
+    const proxima = !vencida && p.estado === 'reserva' && dias !== null && dias >= 25;
     return { vencida, proxima, dias };
   };
 
@@ -694,7 +694,7 @@ const ProcesosPage = () => {
         {vencida && (
           <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--danger-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#ff7875', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 14 }}>⚠️</span>
-            <span style={{ flex: 1 }}>Separación vencida (30 días)</span>
+            <span style={{ flex: 1 }}>Reserva vencida (30 dias)</span>
             {puedeAvanzar && <Button size="small" type="link" danger style={{ padding: 0, height: 'auto', fontSize: 11 }} onClick={() => setEstatusModal(p)}>Cambiar estatus</Button>}
           </div>
         )}
@@ -780,7 +780,7 @@ const ProcesosPage = () => {
                 <ClockCircleOutlined style={{ marginRight: 4 }} />{formatTiempo(tiempoRestante)}
               </Text>
             )}
-            {vencida && <Tooltip title="Separación vencida (30 días sin pago)"><span style={{ fontSize: 12, color: '#cf1322' }}>⚠️</span></Tooltip>}
+            {vencida && <Tooltip title="Reserva vencida (30 dias sin separacion)"><span style={{ fontSize: 12, color: '#cf1322' }}>⚠️</span></Tooltip>}
             {proxima && <Tooltip title="Próximo a vencer"><span style={{ fontSize: 12, color: '#d46b08' }}>⏰</span></Tooltip>}
           </Space>
         } />

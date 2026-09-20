@@ -78,6 +78,7 @@ def _procesar(msg):
         'liberacion_automatica':     _liberacion_automatica,
         'liberacion_manual':         _liberacion_manual,
         'cambio_estatus':            _cambio_estatus,
+        'alerta_reserva_vencida':    _alerta_reserva_vencida,
         'alerta_separacion_vencida': _alerta_separacion_vencida,
         'cliente_captado':           _cliente_captado,
         'exclusividad_vencida':      _exclusividad_vencida,
@@ -525,6 +526,24 @@ def _alerta_separacion_vencida(msg):
     titulo, cuerpo = _render_template('alerta_separacion_vencida', vars_dict, filas,
         '⚠️ Separación vencida sin pago',
         f'Han transcurrido {dias} días desde la separación sin registrar pago.')
+    _enviar([ADMIN_EMAIL], titulo, cuerpo)
+
+
+def _alerta_reserva_vencida(msg):
+    meta = msg.get('metadata', {})
+    cedula = meta.get('cedula') or msg.get('cedula', '')
+    proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
+    unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id') or msg.get('unidad_nombre') or msg.get('unidad_id', ''), msg.get('proyecto_id', ''))
+    inmo_id = msg.get('inmobiliaria_id', '')
+    inmo_nombre = _nombre_inmobiliaria(inmo_id)
+    dias = meta.get('dias_sin_pago') or msg.get('dias_sin_pago', 30)
+    cliente = _nombre_cliente(cedula, inmo_id, msg.get('proyecto_id', '')) if cedula else cedula
+
+    filas = [('Cliente', cliente), ('Unidad', unidad), ('Proyecto', proyecto), ('Inmobiliaria', inmo_nombre)]
+    vars_dict = {'cliente': cliente, 'unidad': unidad, 'proyecto': proyecto, 'inmobiliaria': inmo_nombre}
+    titulo, cuerpo = _render_template('alerta_reserva_vencida', vars_dict, filas,
+        'Reserva vencida sin separacion',
+        f'Han transcurrido {dias} dias desde la reserva sin registrar separacion.')
     _enviar([ADMIN_EMAIL], titulo, cuerpo)
 
 

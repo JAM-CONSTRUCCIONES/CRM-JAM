@@ -88,6 +88,10 @@ DEFAULTS = {
         'titulo': '⚠️ Separación vencida sin pago',
         'mensaje': 'Han transcurrido 30 días desde la separación sin registrar pago.',
     },
+    'alerta_reserva_vencida': {
+        'titulo': 'Reserva vencida sin separacion',
+        'mensaje': 'Han transcurrido 30 dias desde la reserva sin registrar separacion.',
+    },
     'cliente_captado': {
         'titulo': 'Nuevo cliente captado',
         'mensaje': 'Se ha registrado un nuevo cliente en el sistema.',
@@ -119,6 +123,7 @@ LABELS = {
     'cambio_estatus_vendida':       'Estatus: Vendida',
     'cambio_estatus_desvinculado':  'Estatus: Desvinculado',
     'alerta_separacion_vencida':    'Alerta separación vencida',
+    'alerta_reserva_vencida':       'Alerta reserva vencida',
     'cliente_captado':              'Cliente captado',
     'exclusividad_vencida':         'Exclusividad vencida',
     'intento_duplicado':            'Intento de captación duplicada',

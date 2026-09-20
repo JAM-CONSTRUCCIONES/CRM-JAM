@@ -118,6 +118,25 @@ def _query_all(**kwargs):
             return items
 
 
+def _fechas_en_rango(fecha_desde, fecha_hasta, max_dias=120):
+    inicio = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
+    fin = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
+    dias = (fin - inicio).days + 1
+    if dias > max_dias:
+        return None
+    return [(inicio + timedelta(days=i)).isoformat() for i in range(dias)]
+
+
+def _listar_tareas_por_estados(estados=ESTADOS_TAREA):
+    items = []
+    for estado in estados:
+        items.extend(_query_all(
+            IndexName='gsi-estado',
+            KeyConditionExpression=Key('estado').eq(estado),
+        ))
+    return items
+
+
 def _int_or_none(value):
     if value in (None, ''):
         return None
@@ -350,12 +369,28 @@ def listar_tareas(event):
                 return bad_request('fecha_hasta debe tener formato YYYY-MM-DD')
         if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
             return bad_request('fecha_desde no puede ser mayor a fecha_hasta')
-        filter_expression = Attr('tipo').eq('tarea')
-        if fecha_desde:
-            filter_expression = filter_expression & Attr('fecha').gte(fecha_desde)
-        if fecha_hasta:
-            filter_expression = filter_expression & Attr('fecha').lte(fecha_hasta)
-        items = _scan_all(FilterExpression=filter_expression)
+        desde = fecha_desde or fecha_hasta
+        hasta = fecha_hasta or fecha_desde
+        fechas = _fechas_en_rango(desde, hasta)
+        if fechas is not None:
+            items = []
+            for dia in fechas:
+                items.extend(_query_all(
+                    IndexName='gsi-fecha',
+                    KeyConditionExpression=Key('fecha').eq(dia),
+                ))
+        elif estado:
+            items = _query_all(
+                IndexName='gsi-estado',
+                KeyConditionExpression=Key('estado').eq(estado),
+            )
+        elif trabajador_id:
+            items = _query_all(
+                IndexName='gsi-trabajador',
+                KeyConditionExpression=Key('trabajador_id').eq(trabajador_id),
+            )
+        else:
+            items = _listar_tareas_por_estados()
     elif trabajador_id:
         items = _query_all(
             IndexName='gsi-trabajador',
@@ -367,7 +402,7 @@ def listar_tareas(event):
             KeyConditionExpression=Key('estado').eq(estado),
         )
     else:
-        items = _scan_all(FilterExpression=Attr('tipo').eq('tarea'))
+        items = _listar_tareas_por_estados()
 
     if trabajador_id:
         items = [item for item in items if item.get('trabajador_id') == trabajador_id]

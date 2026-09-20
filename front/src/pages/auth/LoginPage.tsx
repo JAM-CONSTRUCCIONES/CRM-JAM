@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { login, confirmMfaCode, forgotPassword, confirmForgotPassword } from '../../services/auth.service';
@@ -11,7 +11,7 @@ type Step = 'login' | 'mfa_code' | 'mfa_setup' | 'forgot' | 'forgot_confirm';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { refetch } = useAuth();
+  const { usuario, loading: authLoading, refetch } = useAuth();
 
   const [step, setStep] = useState<Step>('login');
   const [loading, setLoading] = useState(false);
@@ -30,6 +30,11 @@ export default function LoginPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
 
   const setErr = (msg: string) => { setError(msg); setLoading(false); };
+
+  useEffect(() => {
+    if (authLoading || !usuario) return;
+    navigate(usuario.mfa_required ? '/mfa-setup' : '/dashboard', { replace: true });
+  }, [authLoading, navigate, usuario]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +127,14 @@ export default function LoginPage() {
     forgot: 'Te enviaremos un código a tu correo registrado',
     forgot_confirm: 'Ingresa el código recibido y tu nueva contraseña',
   };
+
+  if (authLoading || usuario) {
+    return (
+      <div style={s.loadingScreen}>
+        <div style={s.spinnerDark} />
+      </div>
+    );
+  }
 
   return (
     <div style={s.wrap}>
@@ -384,5 +397,20 @@ const s: Record<string, React.CSSProperties> = {
   },
   footerBrand: {
     color: '#6b7280', fontWeight: 600, textDecoration: 'none',
+  },
+  loadingScreen: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#fff',
+  },
+  spinnerDark: {
+    width: 28,
+    height: 28,
+    border: '3px solid #e5e7eb',
+    borderTopColor: '#2d6a4f',
+    borderRadius: '50%',
+    animation: 'spin 0.7s linear infinite',
   },
 };

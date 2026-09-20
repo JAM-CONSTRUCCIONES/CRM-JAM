@@ -141,14 +141,11 @@ def _eliminar_legacy_disponibles(proyecto_id):
             try:
                 procesos_table = boto3.resource('dynamodb').Table(procesos_table_name)
                 
-                # Buscar procesos activos para este proyecto
-                procesos_result = procesos_table.query(
-                    IndexName='gsi-proyecto-procesos',
-                    KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
-                    FilterExpression=Attr('estado').is_in(['captacion', 'reserva', 'separacion', 'inicial'])
+                procesos_activos = _query_procesos_por_estados(
+                    procesos_table,
+                    proyecto_id,
+                    ('captacion', 'reserva', 'pagos_atrasados', 'separacion', 'inicial', 'contra_entrega'),
                 )
-                
-                procesos_activos = procesos_result.get('Items', [])
                 
                 if procesos_activos:
                     # Contar por estado
@@ -429,6 +426,17 @@ def _query_all(table, **kwargs):
         kwargs['ExclusiveStartKey'] = last_key
 
 
+def _query_procesos_por_estados(table, proyecto_id, estados):
+    items = []
+    for estado in estados:
+        items.extend(_query_all(
+            table,
+            IndexName='gsi-proyecto-procesos',
+            KeyConditionExpression=Key('proyecto_id').eq(proyecto_id) & Key('estado').eq(estado),
+        ))
+    return items
+
+
 def _obtener_procesos_proyecto(proyecto_id):
     table = _tabla_env('PROCESOS_TABLE')
     if not table:
@@ -492,7 +500,7 @@ def _desvincular_proceso(table, proceso, ts):
             'desvinculado_en = :ts, motivo_desvinculacion = :motivo, '
             'proyecto_eliminado = :true, '
             'historial = list_append(if_not_exists(historial, :empty), :entrada) '
-            'REMOVE alerta_separacion_vencida'
+            'REMOVE alerta_reserva_vencida, alerta_separacion_vencida'
         ),
         ExpressionAttributeNames={'#estado': 'estado'},
         ExpressionAttributeValues={
@@ -554,6 +562,7 @@ def _cancelar_schedule_separacion(cedula, unidad_id):
     safe_cedula = cedula.replace('/', '-').replace('#', '-').replace(' ', '-')
     safe_unidad = unidad_id.replace('/', '-').replace('#', '-')
     _delete_schedule(f'sep-{safe_cedula}-{safe_unidad}'[:64])
+    _delete_schedule(f'res-{safe_cedula}-{safe_unidad}'[:64])
 
 
 def _cancelar_schedule_exclusividad(cedula, inmobiliaria_id, proyecto_id):

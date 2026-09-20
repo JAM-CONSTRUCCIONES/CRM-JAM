@@ -573,6 +573,7 @@ export class JamStack extends cdk.Stack {
     // ─── LAMBDA jam-crm ──────────────────────────────────────────────────────
 
     const crmLambdaArn = `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-crm')}`;
+    proyectosLambda.addEnvironment('CRM_LAMBDA_ARN', crmLambdaArn);
 
     const crmLambda = new lambda.Function(this, 'JamCrmLambda', {
       functionName: resourceName('jam-crm'),

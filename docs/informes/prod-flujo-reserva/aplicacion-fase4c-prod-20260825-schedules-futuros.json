@@ -1,0 +1,240 @@
+﻿{
+    "created":  33,
+    "errors":  0,
+    "schedules":  [
+                      {
+                          "name":  "res-40224503967-C664DE18",
+                          "fecha_schedule":  "2026-08-30T19:49:44.4555510Z",
+                          "cedula":  "40224503967",
+                          "unidad_id":  "C664DE18",
+                          "unidad_nombre":  "B-F-301"
+                      },
+                      {
+                          "name":  "res-40239509504-ED7D221D",
+                          "fecha_schedule":  "2026-09-25T13:29:30.7724490Z",
+                          "cedula":  "40239509504",
+                          "unidad_id":  "ED7D221D",
+                          "unidad_nombre":  "A-I-102"
+                      },
+                      {
+                          "name":  "res-07700040319-B615BC12",
+                          "fecha_schedule":  "2026-09-13T16:43:53.8860030Z",
+                          "cedula":  "07700040319",
+                          "unidad_id":  "B615BC12",
+                          "unidad_nombre":  "E-X-201"
+                      },
+                      {
+                          "name":  "res-07600149129-BC6ACC85",
+                          "fecha_schedule":  "2026-08-29T17:11:10.6612860Z",
+                          "cedula":  "07600149129",
+                          "unidad_id":  "BC6ACC85",
+                          "unidad_nombre":  "E-W-203"
+                      },
+                      {
+                          "name":  "res-40229466087-BB876A37",
+                          "fecha_schedule":  "2026-09-12T20:34:19.3750510Z",
+                          "cedula":  "40229466087",
+                          "unidad_id":  "BB876A37",
+                          "unidad_nombre":  "E-W-103"
+                      },
+                      {
+                          "name":  "res-40213201391-6E061493",
+                          "fecha_schedule":  "2026-09-04T17:10:46.3667230Z",
+                          "cedula":  "40213201391",
+                          "unidad_id":  "6E061493",
+                          "unidad_nombre":  "C-M-203"
+                      },
+                      {
+                          "name":  "res-22500210152-DBBAE55D",
+                          "fecha_schedule":  "2026-09-02T12:01:58.0467050Z",
+                          "cedula":  "22500210152",
+                          "unidad_id":  "DBBAE55D",
+                          "unidad_nombre":  "E-X-403"
+                      },
+                      {
+                          "name":  "res-02301443269-41D83F35",
+                          "fecha_schedule":  "2026-09-21T19:13:01.4411180Z",
+                          "cedula":  "02301443269",
+                          "unidad_id":  "41D83F35",
+                          "unidad_nombre":  "A-I-201"
+                      },
+                      {
+                          "name":  "res-40209070339-9CB4A953",
+                          "fecha_schedule":  "2026-09-22T14:12:38.0837470Z",
+                          "cedula":  "40209070339",
+                          "unidad_id":  "9CB4A953",
+                          "unidad_nombre":  "A-K-202"
+                      },
+                      {
+                          "name":  "res-40225265814-818541D5",
+                          "fecha_schedule":  "2026-09-17T14:40:10.5069190Z",
+                          "cedula":  "40225265814",
+                          "unidad_id":  "818541D5",
+                          "unidad_nombre":  "E-X-402"
+                      },
+                      {
+                          "name":  "res-1234-6D4490E3",
+                          "fecha_schedule":  "2026-09-07T11:05:56.0713850Z",
+                          "cedula":  "1234",
+                          "unidad_id":  "6D4490E3",
+                          "unidad_nombre":  "D-Q-302"
+                      },
+                      {
+                          "name":  "res-03200346082-950A5D23",
+                          "fecha_schedule":  "2026-09-25T14:40:04.3056530Z",
+                          "cedula":  "03200346082",
+                          "unidad_id":  "950A5D23",
+                          "unidad_nombre":  "D-T-403"
+                      },
+                      {
+                          "name":  "res-40229299652-E3C29E9C",
+                          "fecha_schedule":  "2026-08-28T13:07:12.8113160Z",
+                          "cedula":  "40229299652",
+                          "unidad_id":  "E3C29E9C",
+                          "unidad_nombre":  "D-T-103"
+                      },
+                      {
+                          "name":  "res-22301501643-1DC5ABA8",
+                          "fecha_schedule":  "2026-09-23T14:51:07.7480270Z",
+                          "cedula":  "22301501643",
+                          "unidad_id":  "1DC5ABA8",
+                          "unidad_nombre":  "B-B-402"
+                      },
+                      {
+                          "name":  "res-40261264465-98FB9A0B",
+                          "fecha_schedule":  "2026-09-18T13:33:36.3728630Z",
+                          "cedula":  "40261264465",
+                          "unidad_id":  "98FB9A0B",
+                          "unidad_nombre":  "E-W-102"
+                      },
+                      {
+                          "name":  "res-E628364433000-5A4D43A8",
+                          "fecha_schedule":  "2026-08-30T12:25:57.0153140Z",
+                          "cedula":  "E628364433000",
+                          "unidad_id":  "5A4D43A8",
+                          "unidad_nombre":  "E-X-404"
+                      },
+                      {
+                          "name":  "res-40200728653-3538F937",
+                          "fecha_schedule":  "2026-09-18T14:16:19.7942730Z",
+                          "cedula":  "40200728653",
+                          "unidad_id":  "3538F937",
+                          "unidad_nombre":  "E-W-204"
+                      },
+                      {
+                          "name":  "res-00103994711-91E4ED6D",
+                          "fecha_schedule":  "2026-08-29T12:28:24.9861080Z",
+                          "cedula":  "00103994711",
+                          "unidad_id":  "91E4ED6D",
+                          "unidad_nombre":  "E-Y-401"
+                      },
+                      {
+                          "name":  "res-00107753048-59AC5948",
+                          "fecha_schedule":  "2026-08-28T17:26:32.9138260Z",
+                          "cedula":  "00107753048",
+                          "unidad_id":  "59AC5948",
+                          "unidad_nombre":  "D-T-202"
+                      },
+                      {
+                          "name":  "res-40223079738-3A844117",
+                          "fecha_schedule":  "2026-08-28T13:13:05.5237440Z",
+                          "cedula":  "40223079738",
+                          "unidad_id":  "3A844117",
+                          "unidad_nombre":  "D-S-102"
+                      },
+                      {
+                          "name":  "res-001161102230-E56F91E4",
+                          "fecha_schedule":  "2026-08-27T13:51:37.2364750Z",
+                          "cedula":  "001161102230",
+                          "unidad_id":  "E56F91E4",
+                          "unidad_nombre":  "E-W-302"
+                      },
+                      {
+                          "name":  "res-00115181455-00FBA513",
+                          "fecha_schedule":  "2026-09-18T13:56:20.7961190Z",
+                          "cedula":  "00115181455",
+                          "unidad_id":  "00FBA513",
+                          "unidad_nombre":  "E-W-201"
+                      },
+                      {
+                          "name":  "res-06800485705-728F110A",
+                          "fecha_schedule":  "2026-08-31T12:08:08.4220680Z",
+                          "cedula":  "06800485705",
+                          "unidad_id":  "728F110A",
+                          "unidad_nombre":  "E-X-103"
+                      },
+                      {
+                          "name":  "res-40243224652-2F1E845B",
+                          "fecha_schedule":  "2026-09-14T17:47:22.9805630Z",
+                          "cedula":  "40243224652",
+                          "unidad_id":  "2F1E845B",
+                          "unidad_nombre":  "E-W-403"
+                      },
+                      {
+                          "name":  "res-40221444967-70159ED7",
+                          "fecha_schedule":  "2026-08-27T14:56:32.0233740Z",
+                          "cedula":  "40221444967",
+                          "unidad_id":  "70159ED7",
+                          "unidad_nombre":  "E-Y-103"
+                      },
+                      {
+                          "name":  "res-00114030455-70EB472B",
+                          "fecha_schedule":  "2026-08-29T15:06:06.5654100Z",
+                          "cedula":  "00114030455",
+                          "unidad_id":  "70EB472B",
+                          "unidad_nombre":  "D-S-101"
+                      },
+                      {
+                          "name":  "res-00114098957-BE9A5E50",
+                          "fecha_schedule":  "2026-08-29T18:05:13.5818480Z",
+                          "cedula":  "00114098957",
+                          "unidad_id":  "BE9A5E50",
+                          "unidad_nombre":  "E-W-301"
+                      },
+                      {
+                          "name":  "res-03104716398-11B6993F",
+                          "fecha_schedule":  "2026-09-14T17:40:31.4215610Z",
+                          "cedula":  "03104716398",
+                          "unidad_id":  "11B6993F",
+                          "unidad_nombre":  "E-Y-303"
+                      },
+                      {
+                          "name":  "res-22500486489-C1FE7F40",
+                          "fecha_schedule":  "2026-09-01T14:03:59.7777510Z",
+                          "cedula":  "22500486489",
+                          "unidad_id":  "C1FE7F40",
+                          "unidad_nombre":  "E-X-401"
+                      },
+                      {
+                          "name":  "res-40214678647-93F65E50",
+                          "fecha_schedule":  "2026-08-28T19:11:12.3344170Z",
+                          "cedula":  "40214678647",
+                          "unidad_id":  "93F65E50",
+                          "unidad_nombre":  "D-T-104"
+                      },
+                      {
+                          "name":  "res-40222637783-215D46F2",
+                          "fecha_schedule":  "2026-09-23T14:50:42.4679860Z",
+                          "cedula":  "40222637783",
+                          "unidad_id":  "215D46F2",
+                          "unidad_nombre":  "E-X-301"
+                      },
+                      {
+                          "name":  "res-22300520529-49A386D4",
+                          "fecha_schedule":  "2026-08-28T13:16:19.7401900Z",
+                          "cedula":  "22300520529",
+                          "unidad_id":  "49A386D4",
+                          "unidad_nombre":  "E-W-303"
+                      },
+                      {
+                          "name":  "res-40214339885-0E577EEE",
+                          "fecha_schedule":  "2026-09-14T17:01:08.7130440Z",
+                          "cedula":  "40214339885",
+                          "unidad_id":  "0E577EEE",
+                          "unidad_nombre":  "E-Y-202"
+                      }
+                  ],
+    "schedule_errors":  [
+
+                        ]
+}

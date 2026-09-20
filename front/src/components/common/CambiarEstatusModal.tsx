@@ -11,10 +11,10 @@ export type ModoNotificacion = false | 'admin' | 'todos';
 
 const TRANSICIONES: Record<string, string[]> = {
   captacion:       ['reserva'],
-  reserva:         ['separacion', 'desvinculado', 'captacion'],
-  separacion:      ['inicial', 'pagos_atrasados', 'desvinculado', 'reserva', 'captacion'],
-  inicial:         ['pagos_atrasados', 'contra_entrega', 'desvinculado', 'separacion', 'reserva'],
-  pagos_atrasados: ['inicial', 'desvinculado', 'separacion'],
+  reserva:         ['separacion', 'pagos_atrasados', 'desvinculado', 'captacion'],
+  pagos_atrasados: ['separacion', 'desvinculado', 'reserva'],
+  separacion:      ['inicial', 'desvinculado', 'pagos_atrasados'],
+  inicial:         ['contra_entrega', 'desvinculado', 'separacion'],
   contra_entrega:  ['vendida', 'desvinculado', 'inicial'],
   vendida:         ['contra_entrega'],
 };
@@ -22,8 +22,8 @@ const TRANSICIONES: Record<string, string[]> = {
 const ORDEN_FLUJO: Record<string, number> = {
   captacion: 0,
   reserva: 1,
-  separacion: 2,
-  pagos_atrasados: 3,
+  pagos_atrasados: 2,
+  separacion: 3,
   inicial: 4,
   contra_entrega: 5,
   vendida: 6,
@@ -140,10 +140,10 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
         </div>
 
         {nuevoEstatus === 'reserva' && (
-          <Alert type="info" showIcon message="La unidad pasará a estado 'No disponible' y se iniciará el proceso de venta." />
+          <Alert type="info" showIcon message="La unidad pasara a estado 'No disponible' y se iniciara el contador de 30 dias para completar la separacion." />
         )}
         {nuevoEstatus === 'separacion' && (
-          <Alert type="info" showIcon message="El cliente tiene 30 días para completar el pago de separación." />
+          <Alert type="info" showIcon message="Separacion registrada. Se cancela el contador de vencimiento de reserva." />
         )}
         {nuevoEstatus === 'inicial' && (
           <Alert type="success" showIcon message="Separación completada. Cliente comienza a pagar inicial." />
@@ -155,7 +155,7 @@ const CambiarEstatusModal = ({ open, proceso, tieneContacto, onCancel, onConfirm
           <Alert type="warning" showIcon message="El proceso se cancelará y la unidad volverá a estar disponible." />
         )}
         {nuevoEstatus === 'pagos_atrasados' && (
-          <Alert type="error" showIcon message="El cliente tiene pagos pendientes que requieren seguimiento." />
+          <Alert type="error" showIcon message="La reserva tiene pagos pendientes o vencimiento que requiere seguimiento." />
         )}
         {esRetroceso && (
           <Alert

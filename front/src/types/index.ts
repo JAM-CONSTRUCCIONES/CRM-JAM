@@ -140,8 +140,10 @@ export interface Proceso {
   historial: HistorialProcesoEntry[];
   fecha_inicio: string;
   actualizado_en: string;
+  fecha_reserva?: string;
   fecha_separacion?: string;
   pago_confirmado?: boolean;
+  alerta_reserva_vencida?: boolean;
   alerta_separacion_vencida?: boolean;
 }
 

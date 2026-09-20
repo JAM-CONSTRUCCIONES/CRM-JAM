@@ -35,7 +35,7 @@ const GRUPOS: Record<string, string[]> = {
     'cambio_estatus_separacion', 'cambio_estatus_inicial', 'cambio_estatus_pagos_atrasados',
     'cambio_estatus_contra_entrega', 'cambio_estatus_vendida', 'cambio_estatus_desvinculado',
   ],
-  'Clientes': ['cliente_captado', 'exclusividad_vencida', 'intento_duplicado', 'alerta_separacion_vencida'],
+  'Clientes': ['cliente_captado', 'exclusividad_vencida', 'intento_duplicado', 'alerta_reserva_vencida', 'alerta_separacion_vencida'],
 };
 
 const ConfigPage = () => {

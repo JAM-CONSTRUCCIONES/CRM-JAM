@@ -14,6 +14,24 @@ inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 _procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
 
 
+def _existe_proceso_activo_unidad(procesos_table, proyecto_id, unidad_id):
+    for estado in ('captacion', 'reserva', 'pagos_atrasados', 'separacion', 'inicial', 'contra_entrega'):
+        kwargs = {
+            'IndexName': 'gsi-proyecto-procesos',
+            'KeyConditionExpression': Key('proyecto_id').eq(proyecto_id) & Key('estado').eq(estado),
+        }
+        while True:
+            result = procesos_table.query(**kwargs)
+            for proceso in result.get('Items', []):
+                if proceso.get('unidad_id') == unidad_id:
+                    return proceso
+            last_key = result.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            kwargs['ExclusiveStartKey'] = last_key
+    return None
+
+
 def _case_variants(value):
     text = str(value or '').strip()
     if not text:
@@ -315,19 +333,9 @@ def eliminar(proyecto_id, unidad_id):
     if _procesos_table_name:
         try:
             procesos = boto3.resource('dynamodb').Table(_procesos_table_name)
-            activos = procesos.query(
-                IndexName='gsi-proyecto-procesos',
-                KeyConditionExpression=Key('proyecto_id').eq(proyecto_id),
-                FilterExpression='unidad_id = :uid AND estado IN (:c, :r, :s, :i)',
-                ExpressionAttributeValues={
-                    ':uid': unidad_id,
-                    ':c': 'captacion', ':r': 'reserva',
-                    ':s': 'separacion', ':i': 'inicial',
-                },
-                Limit=1,
-            )
-            if activos.get('Items'):
-                estado = activos['Items'][0].get('estado', '')
+            activo = _existe_proceso_activo_unidad(procesos, proyecto_id, unidad_id)
+            if activo:
+                estado = activo.get('estado', '')
                 return conflict(
                     f'No se puede eliminar: la unidad tiene un proceso de venta activo en estado "{estado}"'
                 )

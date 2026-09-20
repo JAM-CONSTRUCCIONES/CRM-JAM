@@ -22,37 +22,37 @@ const FAQ_SLIDES = [
     title: 'CRM',
     kicker: 'Uso general',
     questions: [
-      { icon: 'CRM', text: 'Que puede hacer el CRM de JAM Construcciones?' },
-      { icon: 'MT', text: 'Quien creo el CRM de JAM Construcciones?' },
-      { icon: 'USR', text: 'Que usuarios pueden usar el CRM?' },
+      { icon: '🏢', text: 'Que puede hacer el CRM de JAM Construcciones?' },
+      { icon: '🛠️', text: 'Quien creo el CRM de JAM Construcciones?' },
+      { icon: '👥', text: 'Que usuarios pueden usar el CRM?' },
     ],
   },
   {
     title: 'Operaciones',
     kicker: 'Inventario y bloqueos',
     questions: [
-      { icon: 'BLQ', text: 'Como bloqueo una unidad disponible en el CRM?' },
-      { icon: 'INV', text: 'Que informacion tiene una unidad dentro del inventario?' },
-      { icon: '24H', text: 'Cuanto dura un bloqueo de unidad?' },
-      { icon: 'ALR', text: 'Que pasa cuando un bloqueo vence?' },
+      { icon: '🔒', text: 'Como bloqueo una unidad disponible en el CRM?' },
+      { icon: '🏗️', text: 'Que informacion tiene una unidad dentro del inventario?' },
+      { icon: '⏱️', text: 'Cuanto dura un bloqueo de unidad?' },
+      { icon: '⚠️', text: 'Que pasa cuando un bloqueo vence?' },
     ],
   },
   {
     title: 'Clientes',
     kicker: 'Captacion y proceso',
     questions: [
-      { icon: 'CLI', text: 'Como registro un cliente nuevo en el CRM?' },
-      { icon: 'EST', text: 'Cuales son los estados del proceso de venta?' },
-      { icon: 'EXC', text: 'Que es la exclusividad de cliente por proyecto?' },
+      { icon: '🧾', text: 'Como registro un cliente nuevo en el CRM?' },
+      { icon: '📍', text: 'Cuales son los estados del proceso de venta?' },
+      { icon: '⭐', text: 'Que es la exclusividad de cliente por proyecto?' },
     ],
   },
   {
     title: 'Administracion',
     kicker: 'Usuarios y metricas',
     questions: [
-      { icon: 'INM', text: 'Como creo una inmobiliaria en el CRM?' },
-      { icon: 'ADM', text: 'Como creo un usuario en el CRM?' },
-      { icon: 'KPI', text: 'Que metricas muestra el dashboard del CRM?' },
+      { icon: '🏘️', text: 'Como creo una inmobiliaria en el CRM?' },
+      { icon: '👤', text: 'Como creo un usuario en el CRM?' },
+      { icon: '📊', text: 'Que metricas muestra el dashboard del CRM?' },
     ],
   },
 ];
@@ -368,7 +368,7 @@ const CSS = `
 .jam-ai-question-list{display:grid;gap:9px;}
 .jam-ai-question{display:grid;grid-template-columns:44px 1fr 18px;align-items:center;gap:11px;width:100%;border:1px solid var(--border);border-radius:12px;background:var(--background);padding:10px 12px;text-align:left;color:var(--foreground);cursor:pointer;font:inherit;font-size:13px;font-weight:650;transition:background .16s,border-color .16s,transform .16s;}
 .jam-ai-question:hover{border-color:var(--primary);background:var(--accent);transform:translateY(-1px);}
-.jam-ai-question-code{display:grid;height:34px;width:40px;place-items:center;border-radius:9px;background:var(--card);color:var(--primary);font-size:10px;font-weight:900;}
+.jam-ai-question-code{display:grid;height:34px;width:40px;place-items:center;border-radius:9px;background:var(--card);color:var(--primary);font-size:18px;font-weight:900;line-height:1;}
 .jam-ai-slider-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;}
 .jam-ai-dots{display:flex;align-items:center;gap:5px;}
 .jam-ai-dots span{height:6px;width:6px;border-radius:999px;background:var(--border);transition:all .16s;}

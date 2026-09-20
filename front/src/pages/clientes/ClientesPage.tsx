@@ -1091,11 +1091,11 @@ const ClientesPage = () => {
                 <Text type="secondary" style={{ fontSize: 12 }}>Sin procesos</Text>
               ) : (
                 reg.procesos?.map(p => {
-                  const alertaVencida = p.alerta_separacion_vencida && p.estado === 'separacion' && !p.pago_confirmado;
-                  const diasEnSeparacion = p.fecha_separacion
-                    ? Math.floor((Date.now() - new Date(p.fecha_separacion).getTime()) / 86400000)
+                  const alertaVencida = p.alerta_reserva_vencida && p.estado === 'pagos_atrasados';
+                  const diasEnReserva = p.fecha_reserva
+                    ? Math.floor((Date.now() - new Date(p.fecha_reserva).getTime()) / 86400000)
                     : null;
-                  const proximoVencer = !alertaVencida && p.estado === 'separacion' && diasEnSeparacion !== null && diasEnSeparacion >= 25;
+                  const proximoVencer = !alertaVencida && p.estado === 'reserva' && diasEnReserva !== null && diasEnReserva >= 25;
                   
                   // Buscar el nombre de la inmobiliaria del proceso
                   const inmoDelProceso = inmobiliarias.find(i => i.pk === p.inmobiliaria_id);
@@ -1106,13 +1106,13 @@ const ClientesPage = () => {
                       {alertaVencida && (
                         <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--danger-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#EF4444', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 14 }}>⚠️</span>
-                          <span style={{ flex: 1 }}>Separación vencida (30 días)</span>
+                          <span style={{ flex: 1 }}>Reserva vencida (30 dias)</span>
                         </div>
                       )}
                       {proximoVencer && (
                         <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 14 }}>⏰</span>
-                          <span>Vence en {30 - diasEnSeparacion!} día{30 - diasEnSeparacion! !== 1 ? 's' : ''}</span>
+                          <span>Vence en {30 - diasEnReserva!} dia{30 - diasEnReserva! !== 1 ? 's' : ''}</span>
                         </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>

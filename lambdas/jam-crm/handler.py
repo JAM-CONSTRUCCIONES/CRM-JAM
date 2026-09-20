@@ -7,6 +7,10 @@ from routes import meta as meta_routes
 
 
 def handler(event, context):
+    if event.get('source') == 'scheduler' and event.get('tipo') == 'alerta_reserva_vencida':
+        estatus_routes.manejar_alerta_reserva(event)
+        return {'statusCode': 200}
+
     # Invocación desde EventBridge Scheduler (alerta separación vencida)
     if event.get('source') == 'scheduler' and event.get('tipo') == 'alerta_separacion_vencida':
         estatus_routes.manejar_alerta_separacion(event)

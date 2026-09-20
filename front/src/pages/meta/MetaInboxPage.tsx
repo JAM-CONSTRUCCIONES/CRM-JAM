@@ -500,12 +500,13 @@ export default function MetaInboxPage() {
         }
         return sinTemp.length !== prev.length ? sinTemp : prev;
       });
-      if (result.sent) {
-        message.success('Mensaje enviado');
-      } else if (result.status === 'pendiente_configuracion') {
-        message.warning('Mensaje registrado. Falta token o aprobacion de Meta para enviarlo real.');
-      } else {
-        message.warning('Mensaje registrado, pero Meta rechazo el envio real.');
+      // Sin toast en exito: el mensaje ya se ve en el chat. Solo avisamos si algo falla.
+      if (!result.sent) {
+        if (result.status === 'pendiente_configuracion') {
+          message.warning('Mensaje registrado. Falta token o aprobacion de Meta para enviarlo real.');
+        } else {
+          message.warning('Mensaje registrado, pero Meta rechazo el envio real.');
+        }
       }
       // Refresco en segundo plano, sin spinner ni recarga completa.
       refrescarConversacionSilencioso(lead);

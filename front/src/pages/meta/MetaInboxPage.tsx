@@ -89,6 +89,10 @@ const motivosCierre = [
   'Otro',
 ];
 
+const METHODICA_WHATSAPP_ONBOARDING_URL = 'https://methodicatechnology.com/admin/configuracion/mensajeria';
+const JAM_WHATSAPP_WEBHOOK_URL = 'https://agfdz17sk6.execute-api.us-east-1.amazonaws.com/api/webhooks/whatsapp';
+const JAM_META_INBOX_URL = 'https://d12nm0khvt8zd9.cloudfront.net/meta-inbox';
+
 const attachmentsOf = (mensaje: MetaMensaje) => {
   if (mensaje.attachments?.length) return mensaje.attachments;
   if (mensaje.media) {
@@ -170,6 +174,15 @@ export default function MetaInboxPage() {
     nuevos: leads.filter((lead) => (lead.estado || 'nuevo') === 'nuevo').length,
     sinResponder: leads.filter((lead) => toNumber(lead.mensajes_recibidos) > toNumber(lead.mensajes_enviados)).length,
   }), [leads]);
+  const whatsappOnboardingUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      tenant: 'jam',
+      clientName: 'JAM Construcciones',
+      targetWebhookUrl: JAM_WHATSAPP_WEBHOOK_URL,
+      returnUrl: JAM_META_INBOX_URL,
+    });
+    return `${METHODICA_WHATSAPP_ONBOARDING_URL}?${params.toString()}`;
+  }, []);
 
   useEffect(() => {
     cargarLeads();
@@ -349,6 +362,9 @@ export default function MetaInboxPage() {
         <Space wrap>
           <Tag color="blue">{stats.nuevos} nuevos</Tag>
           <Tag color="orange">{stats.sinResponder} por responder</Tag>
+          <Button icon={<LinkOutlined />} href={whatsappOnboardingUrl} target="_blank" rel="noreferrer">
+            Conectar WhatsApp
+          </Button>
           <Button icon={<ReloadOutlined />} onClick={cargarLeads} loading={loadingLeads}>
             Actualizar
           </Button>

@@ -63,6 +63,38 @@ const formatDate = (value?: string) => {
   });
 };
 
+// Solo la hora para mostrar dentro de cada burbuja (mas discreto).
+const formatHora = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+};
+
+// Texto del separador de fecha (Hoy / Ayer / fecha corta).
+const formatDiaSeparador = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const hoy = new Date();
+  const ayer = new Date();
+  ayer.setDate(hoy.getDate() - 1);
+  const mismaFecha = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (mismaFecha(date, hoy)) return 'Hoy';
+  if (mismaFecha(date, ayer)) return 'Ayer';
+  return date.toLocaleDateString('es-DO', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const diaKey = (value?: string) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+};
+
 const toNumber = (value: unknown) => Number(value || 0);
 
 const motivosCierre = [
@@ -137,6 +169,7 @@ export default function MetaInboxPage() {
   const [editNombreOpen, setEditNombreOpen] = useState(false);
   const [nombreEditando, setNombreEditando] = useState('');
   const [guardandoNombre, setGuardandoNombre] = useState(false);
+  const [leadPanelOpen, setLeadPanelOpen] = useState(false);
   const CONVERSATION_PAGE_SIZE = 50;
   const MAX_MEDIA_MB = 16;
   const [loadingUnidades, setLoadingUnidades] = useState(false);
@@ -671,7 +704,7 @@ export default function MetaInboxPage() {
         </Space>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1fr)_300px]">
+      <div className={`grid min-h-0 flex-1 gap-3 ${leadPanelOpen ? 'lg:grid-cols-[320px_minmax(0,1fr)_280px]' : 'lg:grid-cols-[320px_minmax(0,1fr)]'} grid-cols-1`}>
         <Card ref={mensajesPanelRef} className="min-h-0 overflow-hidden" bodyStyle={{ height: '100%', padding: 0 }}>
           <div className="border-b border-[var(--app-border)] p-3">
             <Space direction="vertical" className="w-full">
@@ -759,7 +792,16 @@ export default function MetaInboxPage() {
                     {selectedLead.estado || 'nuevo'}
                   </Tag>
                 </div>
-                <Button type="text" size="small" icon={<ReloadOutlined />} onClick={() => abrirConversacion(selectedLead)} loading={loadingConversation} title="Recargar" />
+                <Space size={4}>
+                  <Button type="text" size="small" icon={<ReloadOutlined />} onClick={() => abrirConversacion(selectedLead)} loading={loadingConversation} title="Recargar" />
+                  <Button
+                    type={leadPanelOpen ? 'primary' : 'default'}
+                    size="small"
+                    onClick={() => setLeadPanelOpen((v) => !v)}
+                  >
+                    {leadPanelOpen ? 'Cerrar' : 'Detalles'}
+                  </Button>
+                </Space>
               </div>
 
               <div
@@ -785,11 +827,25 @@ export default function MetaInboxPage() {
                         </Button>
                       </div>
                     )}
-                    {mensajes.map((mensaje) => {
+                    {mensajes.map((mensaje, idx) => {
                       const incoming = mensaje.direction === 'incoming';
                       const attachments = attachmentsOf(mensaje);
+                      // Separador de fecha cuando cambia el dia.
+                      const prevDia = idx > 0 ? diaKey(mensajes[idx - 1].event_timestamp) : null;
+                      const esteDia = diaKey(mensaje.event_timestamp);
+                      const mostrarSeparador = esteDia && esteDia !== prevDia;
                       return (
-                        <div key={`${mensaje.pk}-${mensaje.sk}`} className={`flex ${incoming ? 'justify-start' : 'justify-end'}`}>
+                        <div key={`${mensaje.pk}-${mensaje.sk}`}>
+                          {mostrarSeparador && (
+                            <div className="my-2 flex items-center gap-2">
+                              <div className="h-px flex-1 bg-[var(--app-border)]" />
+                              <Text type="secondary" className="text-[11px]">
+                                {formatDiaSeparador(mensaje.event_timestamp)}
+                              </Text>
+                              <div className="h-px flex-1 bg-[var(--app-border)]" />
+                            </div>
+                          )}
+                          <div className={`flex ${incoming ? 'justify-start' : 'justify-end'}`}>
                           <div className={`max-w-[82%] rounded-md border px-2.5 py-1.5 shadow-sm ${
                             incoming
                               ? 'border-[var(--app-border)] bg-[var(--panel-bg)]'
@@ -826,7 +882,7 @@ export default function MetaInboxPage() {
                               </div>
                             )}
                             <div className="mt-0.5 flex items-center gap-1.5">
-                              <Text type="secondary" className="text-[11px] leading-none">{formatDate(mensaje.event_timestamp)}</Text>
+                              <Text type="secondary" className="text-[11px] leading-none">{formatHora(mensaje.event_timestamp)}</Text>
                               {!incoming && mensaje.message_status && (
                                 <Text type="secondary" className="text-[11px] leading-none">{mensaje.message_status}</Text>
                               )}
@@ -837,6 +893,7 @@ export default function MetaInboxPage() {
                               </Text>
                             )}
                           </div>
+                        </div>
                         </div>
                       );
                     })}
@@ -902,6 +959,7 @@ export default function MetaInboxPage() {
           )}
         </Card>
 
+        {leadPanelOpen && (
         <Card
           className="flex min-h-0 flex-col overflow-hidden"
           title="Lead"
@@ -1043,6 +1101,7 @@ export default function MetaInboxPage() {
             <Empty description="Sin lead seleccionado" />
           )}
         </Card>
+        )}
       </div>
 
       <Modal

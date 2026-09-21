@@ -509,6 +509,7 @@ def _origin_metadata(message_item):
         'sticker': 'mensaje_media',
         'button': 'respuesta_boton',
         'interactive': 'respuesta_interactiva',
+        'call': 'llamada',
     }
     return {
         'plataforma': 'Meta',
@@ -937,6 +938,20 @@ def _whatsapp_text(event_payload, message_type):
         media = event_payload.get(message_type) or {}
         caption = media.get('caption')
         return str(caption or f'[{message_type}]')[:4000]
+    if message_type == 'call':
+        call = event_payload.get('call') or {}
+        status = str(call.get('call_status') or call.get('status') or '').lower()
+        duration = call.get('call_duration') or call.get('duration')
+        if status in ('missed', 'no_answer', 'no_answer_notified'):
+            return 'Llamada de voz — Sin respuesta'
+        if duration:
+            try:
+                mins, secs = divmod(int(duration), 60)
+                dur_label = f'{mins}m {secs}s' if mins else f'{secs}s'
+            except (ValueError, TypeError):
+                dur_label = str(duration)
+            return f'Llamada de voz — {dur_label}'
+        return 'Llamada de voz'
     return f'[{message_type}]'
 
 

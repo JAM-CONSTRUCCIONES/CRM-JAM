@@ -1044,8 +1044,13 @@ export default function MetaInboxPage() {
 
         {leadPanelOpen && (
         <Card
-          className="hidden min-h-0 flex-col overflow-hidden border-l lg:flex"
+          className="fixed inset-0 z-50 flex min-h-0 flex-col overflow-hidden border-l lg:static lg:z-auto"
           title="Lead"
+          extra={(
+            <Button size="small" onClick={() => setLeadPanelOpen(false)}>
+              Cerrar
+            </Button>
+          )}
           bodyStyle={{ flex: 1, minHeight: 0, overflowY: 'auto' }}
         >
           {selectedLead ? (

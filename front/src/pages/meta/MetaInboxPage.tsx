@@ -958,7 +958,11 @@ export default function MetaInboxPage() {
           )}
         </Card>
 
-        <Card className="min-h-0 overflow-y-auto" title="Lead">
+        <Card
+          className="flex min-h-0 flex-col overflow-hidden"
+          title="Lead"
+          bodyStyle={{ flex: 1, minHeight: 0, overflowY: 'auto' }}
+        >
           {selectedLead ? (
             <Space direction="vertical" size={16} className="w-full">
               <div>
@@ -1029,17 +1033,6 @@ export default function MetaInboxPage() {
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin oportunidades registradas" />
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-md border border-[var(--app-border)] p-2">
-                  <Text type="secondary" className="text-xs">Recibidos</Text>
-                  <div className="text-lg font-semibold">{toNumber(selectedLead.mensajes_recibidos)}</div>
-                </div>
-                <div className="rounded-md border border-[var(--app-border)] p-2">
-                  <Text type="secondary" className="text-xs">Enviados</Text>
-                  <div className="text-lg font-semibold">{toNumber(selectedLead.mensajes_enviados)}</div>
-                </div>
-              </div>
-
               <Form form={form} layout="vertical">
                 <Form.Item label="Estado" name="estado">
                   <Select

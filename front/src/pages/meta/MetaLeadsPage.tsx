@@ -679,24 +679,6 @@ export default function MetaLeadsPage() {
             label: 'Gestion',
             children: (
               <Space direction="vertical" size={16} className="w-full">
-                <div className="grid gap-3 md:grid-cols-5">
-                  <Card>
-                    <Statistic title="Leads Meta" value={leads.length} />
-                  </Card>
-                  <Card>
-                    <Statistic title="Nuevos" value={stats.pendientes} />
-                  </Card>
-                  <Card>
-                    <Statistic title="Mensajes registrados" value={stats.totalMensajes} />
-                  </Card>
-                  <Card>
-                    <Statistic title="Instagram" value={stats.instagram} />
-                  </Card>
-                  <Card>
-                    <Statistic title="Messenger / WhatsApp" value={stats.messenger + stats.whatsapp} />
-                  </Card>
-                </div>
-
                 <Card>
                   <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <Space wrap>
@@ -821,16 +803,37 @@ export default function MetaLeadsPage() {
             label: 'Dashboard',
             children: (
               <Space direction="vertical" size={16} className="w-full">
-                {/* KPIs principales */}
+                {/* Filtro de fecha — solo aplica al dashboard */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Text strong>Periodo:</Text>
+                  <RangePicker
+                    allowClear
+                    placeholder={['Desde', 'Hasta']}
+                    onChange={(dates) => {
+                      setFechaDesde(dates?.[0] ? dates[0].format('YYYY-MM-DD') : null);
+                      setFechaHasta(dates?.[1] ? dates[1].format('YYYY-MM-DD') : null);
+                    }}
+                    presets={[
+                      { label: 'Hoy', value: [dayjs(), dayjs()] },
+                      { label: 'Esta semana', value: [dayjs().startOf('week'), dayjs().endOf('week')] },
+                      { label: 'Este mes', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
+                      { label: 'Mes pasado', value: [dayjs().subtract(1, 'month').startOf('month'), dayjs().subtract(1, 'month').endOf('month')] },
+                      { label: 'Últimos 30 días', value: [dayjs().subtract(30, 'day'), dayjs()] },
+                      { label: 'Últimos 90 días', value: [dayjs().subtract(90, 'day'), dayjs()] },
+                    ]}
+                  />
+                </div>
+
+                {/* KPIs por canal */}
                 <div className="grid gap-3 md:grid-cols-3">
                   <Card>
-                    <Statistic title="Leads captados" value={reporteMeta.leadsCaptados} />
+                    <Statistic title="Instagram" value={leadsFiltrados.filter(l => l.channel === 'instagram').length} />
                   </Card>
                   <Card>
-                    <Statistic title="Tasa de conversion" value={formatPercent(reporteMeta.tasaConversion)} />
+                    <Statistic title="Messenger" value={leadsFiltrados.filter(l => l.channel === 'messenger').length} />
                   </Card>
                   <Card>
-                    <Statistic title="Ventas generadas" value={reporteMeta.ventasGeneradas} />
+                    <Statistic title="WhatsApp" value={leadsFiltrados.filter(l => l.channel === 'whatsapp').length} />
                   </Card>
                 </div>
 

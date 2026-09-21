@@ -31,7 +31,7 @@ import {
   YAxis,
 } from 'recharts';
 import dayjs from 'dayjs';
-import { ClockCircleOutlined, MessageOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, DownloadOutlined, MessageOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
   convertirMetaLead,
@@ -655,6 +655,58 @@ export default function MetaLeadsPage() {
     },
   ];
 
+  const exportarCSV = () => {
+    if (!leadsFiltrados.length) {
+      message.warning('No hay leads para exportar con los filtros actuales');
+      return;
+    }
+    const headers = [
+      'Canal', 'Nombre', 'Numero / ID', 'Cuenta',
+      'Estado', 'Motivo cierre',
+      'Responsable', 'Inmobiliaria',
+      'Fuente', 'Campana', 'Anuncio', 'Formulario',
+      'Mensajes', 'Primer mensaje', 'Ultimo mensaje',
+      'Cliente cedula', 'Proyecto', 'Fecha conversion',
+      'Registrado',
+    ];
+    const escape = (v: unknown) => {
+      const s = String(v ?? '');
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    const rows = leadsFiltrados.map((l) => [
+      canalLabel[l.channel] || l.channel,
+      nombreContacto(l),
+      l.external_contact_id,
+      l.account_alias,
+      l.estado || 'nuevo',
+      l.motivo_cierre || '',
+      l.responsable_nombre || '',
+      l.inmobiliaria_nombre || '',
+      l.fuente || (canalLabel[l.channel] || l.channel),
+      l.campaign_name || l.campaign_id || '',
+      l.ad_name || l.ad_id || '',
+      l.form_name || l.form_id || '',
+      String(toNumber(l.mensajes_totales)),
+      l.primer_mensaje_en ? new Date(l.primer_mensaje_en).toLocaleString('es-DO') : '',
+      l.ultimo_mensaje_en ? new Date(l.ultimo_mensaje_en).toLocaleString('es-DO') : '',
+      l.cliente_cedula || '',
+      l.proyecto_id || '',
+      l.convertido_en ? new Date(l.convertido_en).toLocaleString('es-DO') : '',
+      l.creado_en ? new Date(l.creado_en).toLocaleString('es-DO') : '',
+    ].map(escape));
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `leads-meta-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    message.success(`${leadsFiltrados.length} leads exportados`);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -662,9 +714,14 @@ export default function MetaLeadsPage() {
           <Title level={2} className="!mb-1">Leads Meta</Title>
           <Text type="secondary">Bandeja de conversaciones y oportunidades creadas desde canales Meta.</Text>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={cargarLeads} loading={loading}>
-          Actualizar
-        </Button>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={exportarCSV} disabled={!leadsFiltrados.length}>
+            Exportar
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={cargarLeads} loading={loading}>
+            Actualizar
+          </Button>
+        </Space>
       </div>
 
       <Alert

@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  DatePicker,
   Descriptions,
   Drawer,
   Empty,
@@ -19,6 +20,17 @@ import {
   Typography,
   message,
 } from 'antd';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip as RTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import dayjs from 'dayjs';
 import { ClockCircleOutlined, MessageOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -38,6 +50,7 @@ import type { Proyecto, Unidad } from '../../types';
 const { Paragraph, Text, Title } = Typography;
 const { Search, TextArea } = Input;
 const { useBreakpoint } = Grid;
+const { RangePicker } = DatePicker;
 
 const canalLabel: Record<string, string> = {
   instagram: 'Instagram',
@@ -185,6 +198,8 @@ export default function MetaLeadsPage() {
   const [responsableFiltro, setResponsableFiltro] = useState<string>();
   const [inmobiliariaFiltro, setInmobiliariaFiltro] = useState<string>();
   const [busqueda, setBusqueda] = useState('');
+  const [fechaDesde, setFechaDesde] = useState<string | null>(null);
+  const [fechaHasta, setFechaHasta] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<MetaLead | null>(null);
   const [timeline, setTimeline] = useState<MetaTimelineItem[]>([]);
   const [tareasLead, setTareasLead] = useState<TareaJam[]>([]);
@@ -223,9 +238,15 @@ export default function MetaLeadsPage() {
 
   const leadsFiltrados = useMemo(() => {
     const text = busqueda.trim().toLowerCase();
-    if (!text) return leads;
-    return leads.filter((lead) =>
-      [
+    return leads.filter((lead) => {
+      // Filtro de fecha por primer_mensaje_en o creado_en
+      if (fechaDesde || fechaHasta) {
+        const fecha = lead.primer_mensaje_en || lead.creado_en || '';
+        if (fechaDesde && fecha < fechaDesde) return false;
+        if (fechaHasta && fecha > fechaHasta + 'T23:59:59') return false;
+      }
+      if (!text) return true;
+      return [
         lead.external_contact_id,
         lead.nombre_manual,
         lead.contact_profile_name,
@@ -241,9 +262,9 @@ export default function MetaLeadsPage() {
         lead.ad_id,
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(text)),
-    );
-  }, [busqueda, leads]);
+        .some((value) => String(value).toLowerCase().includes(text));
+    });
+  }, [busqueda, leads, fechaDesde, fechaHasta]);
 
   const reporteMeta = useMemo(() => {
     const buildRows = (getName: (lead: MetaLead) => string) => {
@@ -737,13 +758,31 @@ export default function MetaLeadsPage() {
                         ]}
                       />
                     </Space>
-                    <Search
-                      allowClear
-                      placeholder="Buscar contacto, mensaje o responsable"
-                      className="w-full lg:w-80"
-                      value={busqueda}
-                      onChange={(event) => setBusqueda(event.target.value)}
-                    />
+                    <Space wrap>
+                      <Search
+                        allowClear
+                        placeholder="Buscar contacto, mensaje o responsable"
+                        className="w-full lg:w-72"
+                        value={busqueda}
+                        onChange={(event) => setBusqueda(event.target.value)}
+                      />
+                      <RangePicker
+                        allowClear
+                        placeholder={['Desde', 'Hasta']}
+                        onChange={(dates) => {
+                          setFechaDesde(dates?.[0] ? dates[0].format('YYYY-MM-DD') : null);
+                          setFechaHasta(dates?.[1] ? dates[1].format('YYYY-MM-DD') : null);
+                        }}
+                        presets={[
+                          { label: 'Hoy', value: [dayjs(), dayjs()] },
+                          { label: 'Esta semana', value: [dayjs().startOf('week'), dayjs().endOf('week')] },
+                          { label: 'Este mes', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
+                          { label: 'Mes pasado', value: [dayjs().subtract(1, 'month').startOf('month'), dayjs().subtract(1, 'month').endOf('month')] },
+                          { label: 'Últimos 30 días', value: [dayjs().subtract(30, 'day'), dayjs()] },
+                          { label: 'Últimos 90 días', value: [dayjs().subtract(90, 'day'), dayjs()] },
+                        ]}
+                      />
+                    </Space>
                   </div>
 
                   <div className="mb-4 flex flex-wrap gap-2">
@@ -782,6 +821,7 @@ export default function MetaLeadsPage() {
             label: 'Dashboard',
             children: (
               <Space direction="vertical" size={16} className="w-full">
+                {/* KPIs principales */}
                 <div className="grid gap-3 md:grid-cols-3">
                   <Card>
                     <Statistic title="Leads captados" value={reporteMeta.leadsCaptados} />
@@ -794,8 +834,76 @@ export default function MetaLeadsPage() {
                   </Card>
                 </div>
 
+                {/* Charts principales */}
                 <div className="grid gap-3 xl:grid-cols-2">
-                  <Card title="Rendimiento por fuente" size="small">
+                  <Card title="Leads por fuente" size="small">
+                    {reporteMeta.porFuente.length ? (
+                      <ResponsiveContainer width="100%" height={Math.max(120, reporteMeta.porFuente.length * 32)}>
+                        <BarChart data={reporteMeta.porFuente} layout="vertical" margin={{ left: 8, right: 32 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--app-border, #e5e7eb)" />
+                          <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                          <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={130} />
+                          <RTooltip />
+                          <Bar dataKey="leads" name="Leads" fill="#1677ff" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                          <Bar dataKey="ventas" name="Ventas" fill="#22c55e" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" />}
+                  </Card>
+
+                  <Card title="Leads por vendedor" size="small">
+                    {reporteMeta.porVendedor.length ? (
+                      <ResponsiveContainer width="100%" height={Math.max(120, reporteMeta.porVendedor.length * 32)}>
+                        <BarChart data={reporteMeta.porVendedor} layout="vertical" margin={{ left: 8, right: 32 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--app-border, #e5e7eb)" />
+                          <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                          <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={130} />
+                          <RTooltip />
+                          <Bar dataKey="leads" name="Leads" fill="#f59e0b" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                          <Bar dataKey="ventas" name="Ventas" fill="#22c55e" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" />}
+                  </Card>
+
+                  <Card title="Leads por inmobiliaria" size="small">
+                    {reporteMeta.porInmobiliaria.length ? (
+                      <ResponsiveContainer width="100%" height={Math.max(120, reporteMeta.porInmobiliaria.length * 32)}>
+                        <BarChart data={reporteMeta.porInmobiliaria} layout="vertical" margin={{ left: 8, right: 32 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--app-border, #e5e7eb)" />
+                          <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                          <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={130} />
+                          <RTooltip />
+                          <Bar dataKey="leads" name="Leads" fill="#8b5cf6" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                          <Bar dataKey="ventas" name="Ventas" fill="#22c55e" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" />}
+                  </Card>
+
+                  <Card title="Leads por estado" size="small">
+                    {reporteMeta.porEstado.length ? (
+                      <ResponsiveContainer width="100%" height={Math.max(120, reporteMeta.porEstado.length * 32)}>
+                        <BarChart data={reporteMeta.porEstado} layout="vertical" margin={{ left: 8, right: 32 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--app-border, #e5e7eb)" />
+                          <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                          <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={130} />
+                          <RTooltip />
+                          <Bar dataKey="leads" name="Leads" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                            {reporteMeta.porEstado.map((entry, index) => {
+                              const colors: Record<string, string> = { nuevo: '#1677ff', en_seguimiento: '#f59e0b', convertido: '#22c55e', cerrado: '#9ca3af' };
+                              return <Cell key={index} fill={colors[entry.nombre] || '#64748b'} />;
+                            })}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" />}
+                  </Card>
+                </div>
+
+                {/* Tablas de detalle */}
+                <div className="grid gap-3 xl:grid-cols-2">
+                  <Card title="Detalle por fuente" size="small">
                     <Table<MetaReportRow>
                       size="small"
                       rowKey="key"
@@ -805,7 +913,7 @@ export default function MetaLeadsPage() {
                       locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" /> }}
                     />
                   </Card>
-                  <Card title="Rendimiento por vendedor" size="small">
+                  <Card title="Detalle por vendedor" size="small">
                     <Table<MetaReportRow>
                       size="small"
                       rowKey="key"
@@ -815,7 +923,7 @@ export default function MetaLeadsPage() {
                       locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" /> }}
                     />
                   </Card>
-                  <Card title="Rendimiento por inmobiliaria" size="small">
+                  <Card title="Detalle por inmobiliaria" size="small">
                     <Table<MetaReportRow>
                       size="small"
                       rowKey="key"
@@ -836,17 +944,6 @@ export default function MetaLeadsPage() {
                     />
                   </Card>
                 </div>
-
-                <Card title="Estado general del proceso comercial" size="small">
-                  <Table<MetaReportRow>
-                    size="small"
-                    rowKey="key"
-                    dataSource={reporteMeta.porEstado}
-                    columns={reportColumns}
-                    pagination={false}
-                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin datos" /> }}
-                  />
-                </Card>
               </Space>
             ),
           },

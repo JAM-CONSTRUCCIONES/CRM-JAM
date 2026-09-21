@@ -577,6 +577,17 @@ def _normalize_whatsapp_events(body):
                     event_payload=message,
                     contacts=value.get('contacts') or [],
                 ))
+            # Coexistencia: mensajes enviados desde la app de WhatsApp Business
+            # (celular) llegan como "echoes" via smb_message_echoes / message_echoes.
+            echoes = value.get('message_echoes') or value.get('messages_echoes') or []
+            for echo in echoes:
+                items.append(_build_whatsapp_echo_item(
+                    account_id=account_id,
+                    account_alias=account_alias,
+                    phone_number_id=phone_number_id,
+                    display_phone_number=display_phone_number,
+                    event_payload=echo,
+                ))
             for status in value.get('statuses') or []:
                 items.append(_build_whatsapp_status_item(
                     account_id=account_id,
@@ -718,6 +729,60 @@ def _build_whatsapp_message_item(
         'referral_type': ads_metadata['referral_type'],
         'referral_url': ads_metadata['referral_url'],
         'ctwa_clid': ads_metadata['ctwa_clid'],
+        'payload_summary': _whatsapp_payload_summary(event_payload, message_type),
+        'created_at': created_at,
+    }
+
+
+def _build_whatsapp_echo_item(
+    account_id,
+    account_alias,
+    phone_number_id,
+    display_phone_number,
+    event_payload,
+):
+    """Mensaje SALIENTE enviado desde la app de WhatsApp Business (coexistencia).
+    El 'from' es nuestro numero; el destinatario es el cliente, y lo usamos como
+    contact_id para que caiga en la misma conversacion que los mensajes entrantes."""
+    message_id = str(event_payload.get('id') or '')
+    # El destinatario (cliente) puede venir como 'to' o 'recipient_id'.
+    contact_id = str(
+        event_payload.get('to')
+        or event_payload.get('recipient_id')
+        or ''
+    )
+    if not message_id or not contact_id:
+        return None
+
+    event_timestamp = _event_timestamp(event_payload)
+    created_at = _now_iso()
+    message_type = str(event_payload.get('type') or 'message')
+    text = _whatsapp_text(event_payload, message_type)
+    media = _whatsapp_media_summary(event_payload, message_type)
+    if media:
+        media = _archive_whatsapp_media(account_alias, media)
+
+    return {
+        'pk': f'CONVERSACION#whatsapp#{account_alias}#{contact_id}',
+        'sk': f'MENSAJE#{event_timestamp}#{message_id}',
+        'tipo': 'META_MENSAJE',
+        'channel': 'whatsapp',
+        'account_id': account_id,
+        'account_alias': account_alias,
+        'phone_number_id': phone_number_id,
+        'display_phone_number': display_phone_number,
+        'channel_account': f'whatsapp#{account_alias}',
+        'contact_key': f'whatsapp#{contact_id}',
+        'external_contact_id': contact_id,
+        'sender_id': phone_number_id,
+        'recipient_id': contact_id,
+        'direction': 'outgoing',
+        'event_type': message_type,
+        'external_event_id': message_id,
+        'event_timestamp': event_timestamp,
+        'text': text,
+        'media': media,
+        'message_status': 'enviado_desde_app',
         'payload_summary': _whatsapp_payload_summary(event_payload, message_type),
         'created_at': created_at,
     }

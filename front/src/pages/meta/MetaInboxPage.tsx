@@ -876,7 +876,11 @@ export default function MetaInboxPage() {
                               // (ej. "[audio]", "[image]") y ya hay attachment que lo muestra.
                               !(attachments.length > 0 && /^\[(audio|video|image|sticker|document|voice_note)\]$/i.test((mensaje.text || '').trim())) && (
                               <Paragraph className="!mb-0.5 whitespace-pre-wrap text-sm">
-                                {mensaje.text || 'Evento sin texto'}
+                                {(mensaje.text || 'Evento sin texto').split(/(https?:\/\/\S+)/g).map((part, i) =>
+                                  /^https?:\/\//.test(part)
+                                    ? <a key={i} href={part} target="_blank" rel="noreferrer" className="underline">{part}</a>
+                                    : part
+                                )}
                               </Paragraph>
                               )
                             )}

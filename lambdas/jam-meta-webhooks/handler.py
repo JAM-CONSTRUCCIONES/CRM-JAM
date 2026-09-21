@@ -952,6 +952,17 @@ def _whatsapp_text(event_payload, message_type):
                 dur_label = str(duration)
             return f'Llamada de voz — {dur_label}'
         return 'Llamada de voz'
+    if message_type == 'location':
+        loc = event_payload.get('location') or {}
+        lat = loc.get('latitude')
+        lng = loc.get('longitude')
+        name = str(loc.get('name') or '').strip()
+        address = str(loc.get('address') or '').strip()
+        if lat is not None and lng is not None:
+            maps_url = f'https://maps.google.com/?q={lat},{lng}'
+            label = name or address or f'{lat},{lng}'
+            return f'📍 {label} | {maps_url}'
+        return '📍 Ubicacion compartida'
     return f'[{message_type}]'
 
 

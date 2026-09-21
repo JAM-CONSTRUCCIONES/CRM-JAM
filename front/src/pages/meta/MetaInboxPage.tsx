@@ -731,17 +731,12 @@ export default function MetaInboxPage() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <Space size={8}>
-                        <span className="grid h-9 w-9 place-items-center rounded-md bg-[var(--panel-soft-bg)] text-xs font-semibold">
-                          {lead.channel === 'instagram' ? 'IG' : lead.channel === 'messenger' ? 'FB' : 'WA'}
-                        </span>
-                        <div>
-                          <Text strong className="block max-w-[180px] truncate">{nombreContacto(lead)}</Text>
-                          <Text type="secondary" className="block max-w-[180px] truncate text-xs">
-                            {lead.account_alias || canalLabel[lead.channel] || 'Meta'}
-                          </Text>
-                        </div>
-                      </Space>
+                      <div className="min-w-0">
+                        <Text strong className="block max-w-[200px] truncate">{nombreContacto(lead)}</Text>
+                        <Text type="secondary" className="block max-w-[200px] truncate text-xs">
+                          {lead.account_alias || canalLabel[lead.channel] || 'Meta'}
+                        </Text>
+                      </div>
                       {pending && <Tag color="orange">Nuevo</Tag>}
                     </div>
                     <Paragraph ellipsis={{ rows: 2 }} className="!mb-1 !mt-2 text-sm">

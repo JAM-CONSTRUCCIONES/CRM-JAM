@@ -75,12 +75,6 @@ const formatDate = (value?: string) => {
 
 const toNumber = (value: unknown) => Number(value || 0);
 
-const quickReplies = [
-  'Hola, gracias por escribirnos. En breve uno de nuestros asesores te asistira.',
-  'Con gusto. Para ayudarte mejor, puedes indicarnos tu nombre y el proyecto de interes?',
-  'Perfecto, vamos a revisar la informacion y te damos seguimiento por este medio.',
-];
-
 const motivosCierre = [
   'No interesado',
   'No responde',
@@ -928,13 +922,6 @@ export default function MetaInboxPage() {
                         Enviar mensaje
                       </Button>
                     </Space>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {quickReplies.map((reply) => (
-                      <Button key={reply} size="small" onClick={() => setRespuesta(reply)}>
-                        {reply.slice(0, 38)}...
-                      </Button>
-                    ))}
                   </div>
                 </Space>
               </div>

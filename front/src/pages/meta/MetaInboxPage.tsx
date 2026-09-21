@@ -4,7 +4,6 @@ import {
   Card,
   Empty,
   Form,
-  Grid,
   Input,
   Modal,
   Select,
@@ -34,7 +33,6 @@ import type { Proyecto, Unidad } from '../../types';
 
 const { Paragraph, Text, Title } = Typography;
 const { Search, TextArea } = Input;
-const { useBreakpoint } = Grid;
 
 const canalLabel: Record<string, string> = {
   instagram: 'Instagram',
@@ -53,14 +51,6 @@ const estadoColor: Record<string, string> = {
   en_seguimiento: 'gold',
   convertido: 'green',
   cerrado: 'default',
-};
-
-const mensajeEstadoColor: Record<string, string> = {
-  enviado: 'green',
-  delivered: 'cyan',
-  read: 'blue',
-  pendiente_configuracion: 'orange',
-  fallido: 'red',
 };
 
 const formatDate = (value?: string) => {
@@ -129,8 +119,6 @@ const getInmobiliariaLabel = (inmobiliarias: Inmobiliaria[], inmobiliariaId?: st
 );
 
 export default function MetaInboxPage() {
-  const screens = useBreakpoint();
-  const isMobile = !screens.lg;
   const [leads, setLeads] = useState<MetaLead[]>([]);
   const [selectedLead, setSelectedLead] = useState<MetaLead | null>(null);
   const [mensajes, setMensajes] = useState<MetaMensaje[]>([]);
@@ -754,48 +742,37 @@ export default function MetaInboxPage() {
         <Card className="min-h-0 overflow-hidden" bodyStyle={{ height: '100%', padding: 0 }}>
           {selectedLead ? (
             <div className="flex h-full flex-col">
-              <div className="border-b border-[var(--app-border)] px-4 py-3">
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <Space wrap align="center">
-                    <div>
-                      <Space align="center" size={6}>
-                        <Title level={4} className="!mb-0">{nombreContacto(selectedLead)}</Title>
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<EditOutlined />}
-                          onClick={abrirEditorNombre}
-                          title="Editar nombre del contacto"
-                        />
-                      </Space>
-                      {nombreContacto(selectedLead) !== selectedLead.external_contact_id && (
-                        <Text type="secondary" className="block text-xs">{selectedLead.external_contact_id}</Text>
-                      )}
-                    </div>
-                    <Tag color={canalColor[selectedLead.channel] || 'default'}>
-                      {canalLabel[selectedLead.channel] || selectedLead.channel}
-                    </Tag>
-                    <Tag color={estadoColor[selectedLead.estado || 'nuevo'] || 'default'}>
-                      {selectedLead.estado || 'nuevo'}
-                    </Tag>
-                  </Space>
-                  <Button size="small" icon={<ReloadOutlined />} onClick={() => abrirConversacion(selectedLead)} loading={loadingConversation}>
-                    Recargar
-                  </Button>
+              <div className="flex items-center justify-between gap-2 border-b border-[var(--app-border)] px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Text strong className="truncate text-sm">{nombreContacto(selectedLead)}</Text>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={abrirEditorNombre}
+                    title="Editar nombre del contacto"
+                  />
+                  <Tag color={canalColor[selectedLead.channel] || 'default'} className="!m-0">
+                    {canalLabel[selectedLead.channel] || selectedLead.channel}
+                  </Tag>
+                  <Tag color={estadoColor[selectedLead.estado || 'nuevo'] || 'default'} className="!m-0 hidden sm:inline-flex">
+                    {selectedLead.estado || 'nuevo'}
+                  </Tag>
                 </div>
+                <Button type="text" size="small" icon={<ReloadOutlined />} onClick={() => abrirConversacion(selectedLead)} loading={loadingConversation} title="Recargar" />
               </div>
 
               <div
                 ref={scrollContainerRef}
                 onScroll={onMensajesScroll}
-                className="min-h-0 flex-1 overflow-y-auto bg-[var(--panel-soft-bg)] p-4"
+                className="min-h-0 flex-1 overflow-y-auto bg-[var(--panel-soft-bg)] p-3"
               >
                 {loadingConversation ? (
                   <div className="grid h-full place-items-center">
                     <Spin />
                   </div>
                 ) : mensajes.length ? (
-                  <div className="space-y-3">
+                  <div className="space-y-1.5">
                     {hasMoreMensajes && (
                       <div className="flex justify-center">
                         <Button
@@ -813,13 +790,13 @@ export default function MetaInboxPage() {
                       const attachments = attachmentsOf(mensaje);
                       return (
                         <div key={`${mensaje.pk}-${mensaje.sk}`} className={`flex ${incoming ? 'justify-start' : 'justify-end'}`}>
-                          <div className={`max-w-[82%] rounded-md border px-3 py-2 shadow-sm ${
+                          <div className={`max-w-[82%] rounded-md border px-2.5 py-1.5 shadow-sm ${
                             incoming
                               ? 'border-[var(--app-border)] bg-[var(--panel-bg)]'
                               : 'border-[var(--action-border)] bg-[var(--action-soft-hover)]'
                           }`}>
                             {(mensaje.text || attachments.length === 0) && (
-                              <Paragraph className="!mb-1 whitespace-pre-wrap">
+                              <Paragraph className="!mb-0.5 whitespace-pre-wrap text-sm">
                                 {mensaje.text || 'Evento sin texto'}
                               </Paragraph>
                             )}
@@ -848,19 +825,16 @@ export default function MetaInboxPage() {
                                 })}
                               </div>
                             )}
-                            <Space size={6} wrap>
-                              <Text type="secondary" className="text-xs">{formatDate(mensaje.event_timestamp)}</Text>
-                              <Text type="secondary" className="text-xs">{incoming ? 'recibido' : 'enviado'}</Text>
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <Text type="secondary" className="text-[11px] leading-none">{formatDate(mensaje.event_timestamp)}</Text>
                               {!incoming && mensaje.message_status && (
-                                <Tag color={mensajeEstadoColor[mensaje.message_status] || 'orange'}>
-                                  {mensaje.message_status}
-                                </Tag>
+                                <Text type="secondary" className="text-[11px] leading-none">{mensaje.message_status}</Text>
                               )}
-                            </Space>
+                            </div>
                             {(mensaje.meta_error || mensaje.error_message) && (
-                              <Paragraph type="secondary" className="!mb-0 !mt-1 text-xs">
+                              <Text type="secondary" className="mt-0.5 block text-[11px]">
                                 {mensaje.meta_error || mensaje.error_message}
-                              </Paragraph>
+                              </Text>
                             )}
                           </div>
                         </div>
@@ -875,54 +849,50 @@ export default function MetaInboxPage() {
                 )}
               </div>
 
-              <div className="border-t border-[var(--app-border)] bg-[var(--panel-bg)] p-3">
-                <Space direction="vertical" className="w-full">
-                  <TextArea
-                    rows={isMobile ? 3 : 4}
-                    maxLength={4000}
-                    showCount
-                    value={respuesta}
-                    onChange={(event) => setRespuesta(event.target.value)}
-                    placeholder={`Responder por ${canalLabel[selectedLead.channel] || 'Meta'}`}
-                    onPressEnter={(event) => {
-                      if (!event.shiftKey) {
-                        event.preventDefault();
-                        enviarRespuesta();
-                      }
-                    }}
-                  />
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <Text type="secondary" className="text-xs">Enter envia. Shift + Enter agrega linea.</Text>
-                    <Space>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        className="hidden"
-                        accept="image/*,video/*,audio/*,application/pdf"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) adjuntarArchivo(file);
-                        }}
-                      />
-                      <Button
-                        icon={<PaperClipOutlined />}
-                        loading={subiendoArchivo}
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        Adjuntar
-                      </Button>
-                      <Button
-                        type="primary"
-                        icon={<SendOutlined />}
-                        loading={sending}
-                        disabled={!respuesta.trim()}
-                        onClick={enviarRespuesta}
-                      >
-                        Enviar mensaje
-                      </Button>
-                    </Space>
-                  </div>
-                </Space>
+              <div className="border-t border-[var(--app-border)] bg-[var(--panel-bg)] px-3 py-2">
+                <TextArea
+                  autoSize={{ minRows: 2, maxRows: 4 }}
+                  maxLength={4000}
+                  value={respuesta}
+                  onChange={(event) => setRespuesta(event.target.value)}
+                  placeholder={`Responder por ${canalLabel[selectedLead.channel] || 'Meta'}`}
+                  className="!mb-2 resize-none"
+                  onPressEnter={(event) => {
+                    if (!event.shiftKey) {
+                      event.preventDefault();
+                      enviarRespuesta();
+                    }
+                  }}
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <Text type="secondary" className="text-[11px]">Enter envia · Shift+Enter nueva linea</Text>
+                  <Space size={6}>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*,video/*,audio/*,application/pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) adjuntarArchivo(file);
+                      }}
+                    />
+                    <Button
+                      icon={<PaperClipOutlined />}
+                      loading={subiendoArchivo}
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Adjuntar archivo"
+                    />
+                    <Button
+                      type="primary"
+                      icon={<SendOutlined />}
+                      loading={sending}
+                      disabled={!respuesta.trim()}
+                      onClick={enviarRespuesta}
+                      title="Enviar"
+                    />
+                  </Space>
+                </div>
               </div>
             </div>
           ) : (

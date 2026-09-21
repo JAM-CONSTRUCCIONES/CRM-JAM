@@ -14,7 +14,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { ClockCircleOutlined, EditOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, PictureOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
+import { EditOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, PictureOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import {
   convertirMetaLead,
   enviarMetaMensaje,
@@ -26,7 +26,6 @@ import {
   listarMetaLeads,
   type MetaLead,
   type MetaMensaje,
-  type MetaTimelineItem,
 } from '../../services/meta.service';
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
 import { getProyectos, getUnidades } from '../../services/proyectos.service';
@@ -134,20 +133,12 @@ const getInmobiliariaLabel = (inmobiliarias: Inmobiliaria[], inmobiliariaId?: st
   || '-'
 );
 
-const timelineColor: Record<string, string> = {
-  mensaje: 'blue',
-  actividad: 'purple',
-  nota: 'gold',
-  oportunidad: 'green',
-};
-
 export default function MetaInboxPage() {
   const screens = useBreakpoint();
   const isMobile = !screens.lg;
   const [leads, setLeads] = useState<MetaLead[]>([]);
   const [selectedLead, setSelectedLead] = useState<MetaLead | null>(null);
   const [mensajes, setMensajes] = useState<MetaMensaje[]>([]);
-  const [timeline, setTimeline] = useState<MetaTimelineItem[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
@@ -410,7 +401,6 @@ export default function MetaInboxPage() {
       const currentLead = data.lead || lead;
       setSelectedLead(currentLead);
       setMensajes(data.mensajes || []);
-      setTimeline(data.timeline || []);
       setHasMoreMensajes(Boolean(data.has_more));
       form.setFieldsValue({
         estado: currentLead.estado || 'nuevo',
@@ -420,7 +410,6 @@ export default function MetaInboxPage() {
       });
     } catch (error: any) {
       setMensajes([]);
-      setTimeline([]);
       setHasMoreMensajes(false);
       message.error(error?.message || 'No se pudo abrir la conversacion');
     } finally {
@@ -1094,29 +1083,6 @@ export default function MetaInboxPage() {
                 </Button>
               </Form>
 
-              <div>
-                  <Text type="secondary">Actividad reciente</Text>
-                <div className="mt-2 space-y-2">
-                  {timeline.slice(-6).reverse().map((item) => (
-                    <div key={item.id} className="rounded-md border border-[var(--app-border)] p-2">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <Space size={6}>
-                          <ClockCircleOutlined />
-                          <Text strong className="text-sm">{item.titulo}</Text>
-                        </Space>
-                        <Tag color={timelineColor[item.categoria] || 'default'}>{item.categoria}</Tag>
-                      </div>
-                      <Paragraph ellipsis={{ rows: 2 }} className="!mb-1 text-sm">
-                        {item.detalle || '-'}
-                      </Paragraph>
-                      <Text type="secondary" className="text-xs">
-                        {formatDate(item.fecha)} - {item.usuario_nombre || 'Sistema'}
-                      </Text>
-                    </div>
-                  ))}
-                  {!timeline.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin actividad" />}
-                </div>
-              </div>
             </Space>
           ) : (
             <Empty description="Sin lead seleccionado" />

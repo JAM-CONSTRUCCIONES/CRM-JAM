@@ -162,7 +162,6 @@ export default function MetaInboxPage() {
   const [busqueda, setBusqueda] = useState('');
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
-  const [mensajesListos, setMensajesListos] = useState(false);
   const [hasMoreMensajes, setHasMoreMensajes] = useState(false);
   const [loadingMoreMensajes, setLoadingMoreMensajes] = useState(false);
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
@@ -266,25 +265,14 @@ export default function MetaInboxPage() {
     if (loadingPrevRef.current) return;
     const cambioDeChat = prevSelectedPkRef.current !== selectedLead?.pk;
     prevSelectedPkRef.current = selectedLead?.pk;
-    if (!mensajes.length) {
-      if (cambioDeChat) setMensajesListos(true);
-      return;
-    }
+    if (!mensajes.length) return;
     if (cambioDeChat || nearBottomRef.current) {
-      const scrollToBottom = (behavior: ScrollBehavior) => {
-        const el = scrollContainerRef.current;
-        if (!el) return;
-        el.scrollTo({ top: el.scrollHeight, behavior });
-      };
+      // Sin animacion al abrir el chat; suave al llegar mensajes nuevos.
       requestAnimationFrame(() => {
-        scrollToBottom(cambioDeChat ? 'instant' : 'smooth');
-        if (cambioDeChat) {
-          // Al abrir un chat: posicionar abajo y luego revelar el contenido.
-          // Un segundo rAF garantiza que el scroll ya se aplicó antes de mostrar.
-          requestAnimationFrame(() => {
-            setMensajesListos(true);
-          });
-        }
+        messagesEndRef.current?.scrollIntoView({
+          behavior: cambioDeChat ? 'auto' : 'smooth',
+          block: 'end',
+        });
       });
     }
   }, [mensajes, selectedLead?.pk]);
@@ -425,7 +413,6 @@ export default function MetaInboxPage() {
   const abrirConversacion = async (lead: MetaLead, clearText = true) => {
     setSelectedLead(lead);
     if (clearText) setRespuesta('');
-    setMensajesListos(false);
     setLoadingConversation(true);
     try {
       // Solo cargamos la ultima pagina (mensajes mas recientes). Los anteriores
@@ -444,7 +431,6 @@ export default function MetaInboxPage() {
     } catch (error: any) {
       setMensajes([]);
       setHasMoreMensajes(false);
-      setMensajesListos(true);
       message.error(error?.message || 'No se pudo abrir la conversacion');
     } finally {
       setLoadingConversation(false);
@@ -842,7 +828,7 @@ export default function MetaInboxPage() {
                     <Spin />
                   </div>
                 ) : mensajes.length ? (
-                  <div className={`space-y-1.5 transition-opacity duration-100 ${mensajesListos ? 'opacity-100' : 'opacity-0'}`}>
+                  <div className="space-y-1.5">
                     {hasMoreMensajes && (
                       <div className="flex justify-center">
                         <Button

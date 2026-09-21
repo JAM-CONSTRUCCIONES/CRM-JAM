@@ -267,12 +267,19 @@ export default function MetaInboxPage() {
     prevSelectedPkRef.current = selectedLead?.pk;
     if (!mensajes.length) return;
     if (cambioDeChat || nearBottomRef.current) {
-      // Sin animacion al abrir el chat; suave al llegar mensajes nuevos.
+      // Scroll directo al fondo del contenedor. Usar scrollTop = scrollHeight
+      // es mas robusto que scrollIntoView porque no depende del tamaño del
+      // elemento hijo (que puede no estar listo si hay imagenes cargando).
+      const scrollToBottom = (behavior: ScrollBehavior) => {
+        const el = scrollContainerRef.current;
+        if (!el) return;
+        el.scrollTo({ top: el.scrollHeight, behavior });
+      };
+      // Dos intentos: uno inmediato y otro tras el layout para cubrir el caso
+      // en que el DOM aun no tiene la altura final (imagenes, audio, etc.).
       requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({
-          behavior: cambioDeChat ? 'auto' : 'smooth',
-          block: 'end',
-        });
+        scrollToBottom(cambioDeChat ? 'instant' : 'smooth');
+        setTimeout(() => scrollToBottom(cambioDeChat ? 'instant' : 'smooth'), 80);
       });
     }
   }, [mensajes, selectedLead?.pk]);

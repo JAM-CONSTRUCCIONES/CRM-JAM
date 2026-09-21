@@ -186,6 +186,8 @@ export default function MetaInboxPage() {
   // Indica si el usuario esta cerca del fondo (para auto-scroll no intrusivo).
   const nearBottomRef = useRef(true);
   const prevSelectedPkRef = useRef<string | undefined>(undefined);
+  // Evita que el auto-scroll interfiera durante la carga de mensajes anteriores.
+  const loadingPrevRef = useRef(false);
   const estadoGestion = Form.useWatch('estado', form);
 
   // Refs para el polling: evitan closures obsoletos y permiten
@@ -259,6 +261,8 @@ export default function MetaInboxPage() {
   // mensajes nuevos solo si el usuario ya estaba cerca del fondo (no interrumpe
   // si esta leyendo mensajes anteriores mas arriba).
   useEffect(() => {
+    // No interrumpir cuando estamos cargando mensajes anteriores (prepend).
+    if (loadingPrevRef.current) return;
     const cambioDeChat = prevSelectedPkRef.current !== selectedLead?.pk;
     prevSelectedPkRef.current = selectedLead?.pk;
     if (!mensajes.length) return;
@@ -434,11 +438,17 @@ export default function MetaInboxPage() {
   };
 
   // Carga mensajes anteriores (historial hacia arriba) usando el sk mas antiguo.
+  // Preserva la posicion del scroll: guarda scrollHeight antes del prepend y la
+  // restaura despues para que el usuario siga viendo el mismo mensaje.
   const cargarMensajesAnteriores = async () => {
     const lead = selectedLeadRef.current;
     if (!lead || loadingMoreMensajes) return;
     const oldest = mensajes[0]?.sk;
     if (!oldest) return;
+    // Guardar scrollHeight antes del prepend para restaurar la posicion.
+    const container = scrollContainerRef.current;
+    const scrollHeightAntes = container?.scrollHeight ?? 0;
+    loadingPrevRef.current = true;
     setLoadingMoreMensajes(true);
     try {
       const data = await getMetaConversacion(lead.pk, {
@@ -447,15 +457,24 @@ export default function MetaInboxPage() {
       });
       const previos = data.mensajes || [];
       if (previos.length) {
-        // Prepend evitando duplicados por sk.
         setMensajes((prev) => {
           const existentes = new Set(prev.map((m) => m.sk));
           const nuevos = previos.filter((m) => !existentes.has(m.sk));
           return [...nuevos, ...prev];
         });
+        // Restaurar posicion: el scroll sube exactamente lo que creció el contenido.
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - scrollHeightAntes;
+          }
+          loadingPrevRef.current = false;
+        });
+      } else {
+        loadingPrevRef.current = false;
       }
       setHasMoreMensajes(Boolean(data.has_more));
     } catch (error: any) {
+      loadingPrevRef.current = false;
       message.error(error?.message || 'No se pudieron cargar mensajes anteriores');
     } finally {
       setLoadingMoreMensajes(false);

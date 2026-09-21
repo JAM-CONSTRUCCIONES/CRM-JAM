@@ -943,14 +943,14 @@ def _whatsapp_text(event_payload, message_type):
         status = str(call.get('call_status') or call.get('status') or '').lower()
         duration = call.get('call_duration') or call.get('duration')
         if status in ('missed', 'no_answer', 'no_answer_notified'):
-            return 'Llamada de voz — Sin respuesta'
+            return 'Llamada de voz - Sin respuesta'
         if duration:
             try:
                 mins, secs = divmod(int(duration), 60)
                 dur_label = f'{mins}m {secs}s' if mins else f'{secs}s'
             except (ValueError, TypeError):
                 dur_label = str(duration)
-            return f'Llamada de voz — {dur_label}'
+            return f'Llamada de voz - {dur_label}'
         return 'Llamada de voz'
     if message_type == 'location':
         loc = event_payload.get('location') or {}
@@ -961,8 +961,8 @@ def _whatsapp_text(event_payload, message_type):
         if lat is not None and lng is not None:
             maps_url = f'https://maps.google.com/?q={lat},{lng}'
             label = name or address or f'{lat},{lng}'
-            return f'📍 {label} | {maps_url}'
-        return '📍 Ubicacion compartida'
+            return f'Ubicacion: {label} | {maps_url}'
+        return 'Ubicacion compartida'
     return f'[{message_type}]'
 
 

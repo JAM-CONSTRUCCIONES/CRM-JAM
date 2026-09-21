@@ -217,10 +217,12 @@ export default function MetaInboxPage() {
     });
   }, [busqueda, canal, leads]);
 
-  const stats = useMemo(() => ({
-    nuevos: leads.filter((lead) => (lead.estado || 'nuevo') === 'nuevo').length,
-    sinResponder: leads.filter((lead) => toNumber(lead.mensajes_recibidos) > toNumber(lead.mensajes_enviados)).length,
-  }), [leads]);
+  // WhatsApp se considera conectado si ya existe al menos una conversacion
+  // de ese canal. Si es asi, ocultamos el boton "Conectar WhatsApp".
+  const whatsappConectado = useMemo(
+    () => leads.some((lead) => lead.channel === 'whatsapp'),
+    [leads],
+  );
   const whatsappOnboardingUrl = useMemo(() => {
     const params = new URLSearchParams({
       tenant: 'jam',
@@ -687,11 +689,11 @@ export default function MetaInboxPage() {
           <Text type="secondary">Responde conversaciones de Instagram, Messenger y WhatsApp desde una sola bandeja.</Text>
         </div>
         <Space wrap>
-          <Tag color="blue">{stats.nuevos} nuevos</Tag>
-          <Tag color="orange">{stats.sinResponder} por responder</Tag>
-          <Button icon={<LinkOutlined />} href={whatsappOnboardingUrl} target="_blank" rel="noreferrer">
-            Conectar WhatsApp
-          </Button>
+          {!whatsappConectado && (
+            <Button icon={<LinkOutlined />} href={whatsappOnboardingUrl} target="_blank" rel="noreferrer">
+              Conectar WhatsApp
+            </Button>
+          )}
           <Button icon={<ReloadOutlined />} onClick={cargarLeads} loading={loadingLeads}>
             Actualizar
           </Button>

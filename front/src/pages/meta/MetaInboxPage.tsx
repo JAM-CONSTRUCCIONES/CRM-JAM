@@ -669,8 +669,7 @@ export default function MetaInboxPage() {
     <div className="flex h-[calc(100vh-112px)] flex-col gap-3 overflow-hidden">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <Title level={2} className="!mb-1">Inbox Meta</Title>
-          <Text type="secondary">Responde conversaciones de Instagram, Messenger y WhatsApp desde una sola bandeja.</Text>
+          <Title level={4} style={{ margin: 0 }}>Inbox Meta</Title>
         </div>
         <Space wrap>
           {!whatsappConectado && (

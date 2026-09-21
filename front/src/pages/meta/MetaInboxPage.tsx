@@ -687,7 +687,7 @@ export default function MetaInboxPage() {
   };
 
   return (
-    <div className="-mx-3 -mt-3 flex h-screen flex-col overflow-hidden lg:-mx-7 lg:-mt-4" style={{ height: '100dvh' }}>
+    <div className="-mx-3 -mt-3 flex flex-col overflow-hidden lg:-mx-7 lg:-mt-4" style={{ height: 'calc(100vh - var(--topbar-height))' }}>
       <div className={`grid min-h-0 flex-1 gap-0 ${leadPanelOpen ? 'lg:grid-cols-[300px_minmax(0,1fr)_280px]' : 'lg:grid-cols-[300px_minmax(0,1fr)]'} grid-cols-1`}>
         <div ref={mensajesPanelRef} className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
           {/* Header del panel izquierdo — titulo + boton actualizar */}
@@ -847,9 +847,13 @@ export default function MetaInboxPage() {
                               : 'rounded-[16px_16px_0_16px] border border-[var(--action-border)] bg-[var(--action-soft-hover)]'
                           }`}>
                             {(mensaje.text || attachments.length === 0) && (
+                              // No mostrar el texto si es solo un placeholder del tipo multimedia
+                              // (ej. "[audio]", "[image]") y ya hay attachment que lo muestra.
+                              !(attachments.length > 0 && /^\[(audio|video|image|sticker|document|voice_note)\]$/i.test((mensaje.text || '').trim())) && (
                               <Paragraph className="!mb-0.5 whitespace-pre-wrap text-sm">
                                 {mensaje.text || 'Evento sin texto'}
                               </Paragraph>
+                              )
                             )}
                             {attachments.length > 0 && (
                               <div className="space-y-1.5">
@@ -895,7 +899,7 @@ export default function MetaInboxPage() {
                                   if ((type === 'audio' || type === 'voice_note' || mime.startsWith('audio/')) && href) {
                                     return (
                                       <div key={`${type}-${index}`} className="flex flex-col gap-0.5">
-                                        <audio src={href} controls className="h-8 w-full max-w-[260px]" preload="metadata" />
+                                        <audio src={href} controls className="w-full min-w-[220px]" preload="metadata" />
                                         {label && <Text type="secondary" className="text-[11px]">{label}</Text>}
                                       </div>
                                     );

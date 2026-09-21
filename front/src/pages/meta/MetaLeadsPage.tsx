@@ -844,15 +844,69 @@ export default function MetaLeadsPage() {
                     ))}
                   </div>
 
-                  <Table
-                    rowKey="pk"
-                    loading={loading}
-                    columns={columns}
-                    dataSource={leadsFiltrados}
-                    pagination={{ pageSize: 10 }}
-                    scroll={{ x: 1310 }}
-                    locale={{ emptyText: <Empty description="Sin leads Meta registrados" /> }}
-                  />
+                  {isMobile ? (
+                    <div className="space-y-2">
+                      {loading ? (
+                        <Card loading />
+                      ) : leadsFiltrados.length ? (
+                        leadsFiltrados.map((lead) => (
+                          <Card key={lead.pk} size="small" className="rounded-lg">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <Text strong className="block truncate">{nombreContacto(lead)}</Text>
+                                {nombreContacto(lead) !== lead.external_contact_id && (
+                                  <Text type="secondary" className="block truncate text-xs">{lead.external_contact_id}</Text>
+                                )}
+                                <Text type="secondary" className="block truncate text-xs">{lead.account_alias || 'Meta'}</Text>
+                              </div>
+                              <Tag color={estadoColor[lead.estado || 'nuevo'] || 'default'} bordered={false} style={{ background: 'transparent' }}>
+                                {lead.estado || 'nuevo'}
+                              </Tag>
+                            </div>
+                            <Paragraph ellipsis={{ rows: 2 }} className="!mb-2 !mt-2 text-sm">
+                              {lead.ultimo_mensaje_texto || 'Sin mensaje de texto'}
+                            </Paragraph>
+                            <div className="mb-2 flex flex-wrap gap-1.5">
+                              <Tag color={canalColor[lead.channel] || 'default'} bordered={false} style={{ background: 'transparent' }}>
+                                {canalLabel[lead.channel] || lead.channel || 'Meta'}
+                              </Tag>
+                              {hasAdsOrigin(lead) && (
+                                <Tag color="purple" bordered={false} style={{ background: 'transparent' }}>Meta Ads</Tag>
+                              )}
+                              <Tag bordered={false} style={{ background: 'transparent' }}>
+                                {toNumber(lead.mensajes_totales)} mensajes
+                              </Tag>
+                            </div>
+                            <div className="flex items-end justify-between gap-3">
+                              <Space direction="vertical" size={0} className="min-w-0">
+                                <Text type="secondary" className="truncate text-xs">
+                                  {lead.responsable_nombre || 'Sin responsable'}
+                                </Text>
+                                <Text type="secondary" className="truncate text-xs">
+                                  {formatDate(lead.ultimo_mensaje_en || lead.creado_en)}
+                                </Text>
+                              </Space>
+                              <Button size="small" type="primary" onClick={() => abrirConversacion(lead)}>
+                                Administrar
+                              </Button>
+                            </div>
+                          </Card>
+                        ))
+                      ) : (
+                        <Empty description="Sin leads Meta registrados" />
+                      )}
+                    </div>
+                  ) : (
+                    <Table
+                      rowKey="pk"
+                      loading={loading}
+                      columns={columns}
+                      dataSource={leadsFiltrados}
+                      pagination={{ pageSize: 10 }}
+                      scroll={{ x: 1310 }}
+                      locale={{ emptyText: <Empty description="Sin leads Meta registrados" /> }}
+                    />
+                  )}
                 </Card>
               </Space>
             ),

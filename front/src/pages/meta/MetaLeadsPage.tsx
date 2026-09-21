@@ -494,8 +494,12 @@ export default function MetaLeadsPage() {
     setConvertOpen(true);
   };
 
-  const irAMensajes = () => {
-    navigate('/meta-inbox');
+  const irAMensajes = (leadPk?: string) => {
+    if (leadPk) {
+      navigate(`/meta-inbox?lead=${encodeURIComponent(leadPk)}`);
+    } else {
+      navigate('/meta-inbox');
+    }
   };
 
   const cargarUnidadesProyecto = async (proyectoId?: string) => {
@@ -569,9 +573,9 @@ export default function MetaLeadsPage() {
     {
       title: 'Canal',
       dataIndex: 'channel',
-      width: 130,
+      width: 110,
       render: (value: string) => (
-        <Tag color={canalColor[value] || 'default'}>
+        <Tag color={canalColor[value] || 'default'} bordered={false} style={{ background: 'transparent' }}>
           {canalLabel[value] || value || 'Meta'}
         </Tag>
       ),
@@ -593,7 +597,11 @@ export default function MetaLeadsPage() {
       title: 'Estado',
       dataIndex: 'estado',
       width: 110,
-      render: (value: string) => <Tag>{value || 'nuevo'}</Tag>,
+      render: (value: string) => (
+        <Tag color={estadoColor[value || 'nuevo'] || 'default'} bordered={false} style={{ background: 'transparent' }}>
+          {value || 'nuevo'}
+        </Tag>
+      ),
     },
     {
       title: 'Responsable',
@@ -614,7 +622,7 @@ export default function MetaLeadsPage() {
       render: (_: unknown, lead: MetaLead) => (
         hasAdsOrigin(lead) ? (
           <Space direction="vertical" size={0}>
-            <Tag color="purple">Meta Ads</Tag>
+            <Tag color="purple" bordered={false} style={{ background: 'transparent' }}>Meta Ads</Tag>
             <Text className="text-xs" ellipsis>{adsOriginLabel(lead)}</Text>
           </Space>
         ) : (
@@ -623,31 +631,25 @@ export default function MetaLeadsPage() {
       ),
     },
     {
-      title: 'Ultimo mensaje',
-      dataIndex: 'ultimo_mensaje_texto',
-      ellipsis: true,
-      render: (value: string) => value || <Text type="secondary">Sin texto</Text>,
-    },
-    {
       title: 'Mensajes',
       dataIndex: 'mensajes_totales',
-      width: 100,
+      width: 90,
       align: 'right' as const,
       render: (value: unknown) => toNumber(value),
     },
     {
-      title: 'Actualizado',
-      dataIndex: 'ultimo_mensaje_en',
-      width: 180,
+      title: 'Registrado',
+      dataIndex: 'creado_en',
+      width: 160,
       render: formatDate,
     },
     {
       title: '',
       key: 'acciones',
-      width: 120,
+      width: 110,
       render: (_: unknown, lead: MetaLead) => (
         <Button type="link" onClick={() => abrirConversacion(lead)}>
-          Ver mensajes
+          Administrar
         </Button>
       ),
     },
@@ -961,7 +963,7 @@ export default function MetaLeadsPage() {
                 {canalInitial[selectedLead.channel] || 'MT'}
               </span>
               <span>Conversacion Meta</span>
-              <Tag color={canalColor[selectedLead.channel] || 'default'}>
+              <Tag color={canalColor[selectedLead.channel] || 'default'} bordered={false} style={{ background: 'transparent' }}>
                 {canalLabel[selectedLead.channel] || selectedLead.channel}
               </Tag>
             </Space>
@@ -988,7 +990,7 @@ export default function MetaLeadsPage() {
           <Space direction="vertical" size={16} className="w-full">
             <Descriptions column={1} size="small" bordered>
               <Descriptions.Item label="Canal">
-                <Tag color={canalColor[selectedLead.channel] || 'default'}>
+                <Tag color={canalColor[selectedLead.channel] || 'default'} bordered={false} style={{ background: 'transparent' }}>
                   {canalLabel[selectedLead.channel] || selectedLead.channel}
                 </Tag>
               </Descriptions.Item>
@@ -1001,7 +1003,7 @@ export default function MetaLeadsPage() {
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="Estado">
-                <Tag color={estadoColor[selectedLead.estado || 'nuevo'] || 'default'}>
+                <Tag color={estadoColor[selectedLead.estado || 'nuevo'] || 'default'} bordered={false} style={{ background: 'transparent' }}>
                   {selectedLead.estado || 'nuevo'}
                 </Tag>
               </Descriptions.Item>
@@ -1017,7 +1019,7 @@ export default function MetaLeadsPage() {
                   <Button size="small" icon={<ClockCircleOutlined />} onClick={() => setHistorialOpen(true)}>
                     Ver historial
                   </Button>
-                  <Button size="small" icon={<MessageOutlined />} onClick={irAMensajes}>
+                  <Button size="small" icon={<MessageOutlined />} onClick={() => irAMensajes(selectedLead?.pk)}>
                     Ver mensajes
                   </Button>
                 </Space>
@@ -1291,7 +1293,7 @@ export default function MetaLeadsPage() {
                   <Button icon={<ClockCircleOutlined />} onClick={() => setHistorialOpen(true)}>
                     Ver historial
                   </Button>
-                  <Button icon={<MessageOutlined />} onClick={irAMensajes}>
+                  <Button icon={<MessageOutlined />} onClick={() => irAMensajes(selectedLead?.pk)}>
                     Ver mensajes
                   </Button>
                 </Space>

@@ -386,7 +386,13 @@ export default function MetaInboxPage() {
       const data = await listarMetaLeads();
       setLeads(data.items || []);
       if (!selectedLead && data.items?.length) {
-        await abrirConversacion(data.items[0], false);
+        // Si hay un query param ?lead=pk, abre ese lead específico.
+        const params = new URLSearchParams(window.location.search);
+        const targetPk = params.get('lead');
+        const target = targetPk
+          ? data.items.find((l) => l.pk === targetPk)
+          : null;
+        await abrirConversacion(target || data.items[0], false);
       }
     } catch (error: any) {
       message.error(error?.message || 'No se pudieron cargar las conversaciones Meta');

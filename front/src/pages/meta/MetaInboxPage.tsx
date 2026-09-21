@@ -687,7 +687,7 @@ export default function MetaInboxPage() {
   };
 
   return (
-    <div className="-mx-3 -mt-3 flex flex-col overflow-hidden lg:-mx-7 lg:-mt-4" style={{ height: 'calc(100vh - var(--topbar-height))' }}>
+    <div className="-mx-3 -mt-3 flex h-[calc(100vh-64px)] flex-col overflow-hidden lg:-mx-7 lg:-mt-4">
       <div className={`grid min-h-0 flex-1 gap-0 ${leadPanelOpen ? 'lg:grid-cols-[300px_minmax(0,1fr)_280px]' : 'lg:grid-cols-[300px_minmax(0,1fr)]'} grid-cols-1`}>
         <div ref={mensajesPanelRef} className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
           {/* Header del panel izquierdo — titulo + boton actualizar */}

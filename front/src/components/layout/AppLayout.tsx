@@ -50,7 +50,7 @@ const AppLayout = () => {
         style={{ marginLeft: isDesktop ? sidebarWidth : 0 }}
       >
         <header className="app-shell-topbar sticky top-0 z-[99]">
-          <div className="flex h-full items-center justify-between px-4 lg:px-7">
+          <div className="flex items-center justify-between px-4 py-2.5 lg:px-7">
             <div className="flex min-w-0 items-center gap-3">
               <Button
                 type="button"
@@ -75,7 +75,7 @@ const AppLayout = () => {
           </div>
         </header>
 
-        <main className="h-[calc(100vh-var(--topbar-height))] overflow-hidden px-3 py-3 text-foreground lg:px-7 lg:py-4">
+        <main className="overflow-hidden px-3 py-3 text-foreground lg:px-7 lg:py-4">
           <div className="app-content-frame">
             <Outlet />
           </div>

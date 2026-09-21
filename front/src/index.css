@@ -144,8 +144,6 @@ a {
 }
 
 .app-shell-topbar {
-  --topbar-height: 48px;
-  height: var(--topbar-height);
   background: var(--topbar-bg);
   border-bottom: 1px solid var(--app-border);
   backdrop-filter: blur(14px);

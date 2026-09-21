@@ -746,13 +746,13 @@ export default function MetaInboxPage() {
                           {lead.account_alias || canalLabel[lead.channel] || 'Meta'}
                         </Text>
                       </div>
-                      {pending && <Tag color="orange">Nuevo</Tag>}
+                      {pending && <Tag color="orange" bordered={false} style={{ background: 'transparent' }}>Nuevo</Tag>}
                     </div>
                     <Paragraph ellipsis={{ rows: 2 }} className="!mb-1 !mt-2 text-sm">
                       {lead.ultimo_mensaje_texto || 'Sin mensaje de texto'}
                     </Paragraph>
                     <div className="flex items-center justify-between gap-2">
-                      <Tag color={canalColor[lead.channel] || 'default'}>{canalLabel[lead.channel] || lead.channel}</Tag>
+                      <Tag color={canalColor[lead.channel] || 'default'} bordered={false} style={{ background: 'transparent' }}>{canalLabel[lead.channel] || lead.channel}</Tag>
                       <Text type="secondary" className="text-xs">{formatDate(lead.ultimo_mensaje_en)}</Text>
                     </div>
                   </button>
@@ -779,10 +779,10 @@ export default function MetaInboxPage() {
                     onClick={abrirEditorNombre}
                     title="Editar nombre del contacto"
                   />
-                  <Tag color={canalColor[selectedLead.channel] || 'default'} className="!m-0">
+                  <Tag color={canalColor[selectedLead.channel] || 'default'} bordered={false} style={{ background: 'transparent' }} className="!m-0">
                     {canalLabel[selectedLead.channel] || selectedLead.channel}
                   </Tag>
-                  <Tag color={estadoColor[selectedLead.estado || 'nuevo'] || 'default'} className="!m-0 hidden sm:inline-flex">
+                  <Tag color={estadoColor[selectedLead.estado || 'nuevo'] || 'default'} bordered={false} style={{ background: 'transparent' }} className="!m-0 hidden sm:inline-flex">
                     {selectedLead.estado || 'nuevo'}
                   </Tag>
                 </div>

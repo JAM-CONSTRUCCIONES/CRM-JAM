@@ -227,7 +227,13 @@ export const gestionarMetaLead = (
 
 export const enviarMetaMensaje = (
   leadPk: string,
-  data: { texto: string },
+  data: {
+    texto: string;
+    media_type?: string;
+    media_url?: string;
+    content_type?: string;
+    filename?: string;
+  },
 ): Promise<{
   message: string;
   sent: boolean;
@@ -239,6 +245,38 @@ export const enviarMetaMensaje = (
     lead_pk: leadPk,
   });
   return apiPost(`/admin/procesos?${query.toString()}`, data);
+};
+
+export interface MetaMediaUpload {
+  upload_url: string;
+  public_url: string;
+  key: string;
+  media_type: string;
+  content_type: string;
+  filename: string;
+}
+
+// Pide una URL prefirmada para subir un archivo del inbox al bucket de assets.
+export const getMetaMediaUploadUrl = (
+  contentType: string,
+  filename: string,
+): Promise<MetaMediaUpload> => {
+  const query = new URLSearchParams({
+    tipo: 'meta-media-upload',
+    content_type: contentType,
+    filename,
+  });
+  return apiGet<MetaMediaUpload>(`/admin/procesos?${query.toString()}`);
+};
+
+// Sube el archivo directamente a S3 usando la URL prefirmada (PUT).
+export const subirArchivoAS3 = async (uploadUrl: string, file: File): Promise<void> => {
+  const res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  if (!res.ok) throw new Error('No se pudo subir el archivo.');
 };
 
 export const convertirMetaLead = (

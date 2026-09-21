@@ -1,8 +1,10 @@
 import os
 import re
 import json
+import uuid
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from datetime import datetime, timezone
 
 import boto3
@@ -16,6 +18,9 @@ from routes.estatus import _activar_bloqueo_desde_proceso
 
 dynamodb = boto3.resource('dynamodb')
 ssm = boto3.client('ssm')
+s3 = boto3.client('s3')
+ASSETS_BUCKET = os.environ.get('ASSETS_BUCKET', '')
+CLOUDFRONT_URL = os.environ.get('CLOUDFRONT_URL', '').rstrip('/')
 META_CONVERSACIONES_TABLE = os.environ.get('META_CONVERSACIONES_TABLE', '')
 meta_table = dynamodb.Table(META_CONVERSACIONES_TABLE) if META_CONVERSACIONES_TABLE else None
 CLIENTES_TABLE = os.environ.get('CLIENTES_TABLE', '')
@@ -347,6 +352,67 @@ def gestionar_lead(event):
     })
 
 
+MEDIA_EXT_BY_TYPE = {
+    'image': {'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp'},
+    'video': {'video/mp4': 'mp4', 'video/3gpp': '3gp'},
+    'audio': {'audio/aac': 'aac', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/amr': 'amr'},
+    'document': {'application/pdf': 'pdf'},
+}
+
+
+def _media_type_from_content_type(content_type):
+    ct = (content_type or '').lower().split(';')[0].strip()
+    if ct.startswith('image/'):
+        return 'image', ct
+    if ct.startswith('video/'):
+        return 'video', ct
+    if ct.startswith('audio/'):
+        return 'audio', ct
+    return 'document', ct or 'application/octet-stream'
+
+
+def get_media_upload_url(event):
+    """Genera una presigned URL para subir un archivo del inbox al bucket de
+    assets. Devuelve tambien la public_url (via CloudFront) que Meta usara para
+    descargar el archivo al enviarlo por WhatsApp."""
+    if not ASSETS_BUCKET or not CLOUDFRONT_URL:
+        return bad_request('Carga de archivos no configurada')
+    params = event.get('queryStringParameters') or {}
+    content_type = str(params.get('content_type') or '').strip().lower()
+    filename = str(params.get('filename') or '').strip()
+    if not content_type:
+        return bad_request('content_type es requerido')
+
+    media_type, ct = _media_type_from_content_type(content_type)
+    ext = MEDIA_EXT_BY_TYPE.get(media_type, {}).get(ct)
+    if not ext:
+        # Fallback: usar extension del filename o generica.
+        ext = (filename.rsplit('.', 1)[-1] if '.' in filename else 'bin')[:8]
+    media_id = str(uuid.uuid4())
+    key = f'assets/meta-media/outgoing/whatsapp/{media_id}.{ext}'
+    try:
+        upload_url = s3.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': ASSETS_BUCKET,
+                'Key': key,
+                'ContentType': content_type,
+            },
+            ExpiresIn=300,
+        )
+    except ClientError as exc:
+        return bad_request(f'No se pudo generar la URL de carga: {exc}')
+
+    return ok({
+        'upload_url': upload_url,
+        'public_url': f'{CLOUDFRONT_URL}/{quote(key)}',
+        'key': key,
+        'media_type': media_type,
+        'content_type': content_type,
+        'filename': filename,
+    })
+
+
 def enviar_mensaje(event):
     if not meta_table:
         return bad_request('Tabla Meta no configurada')
@@ -358,10 +424,18 @@ def enviar_mensaje(event):
 
     body = _json_body(event)
     texto = str(body.get('texto') or body.get('text') or '').strip()
-    if not texto:
-        return bad_request('texto es requerido')
+    # Multimedia opcional: media_type + media_url (public_url del upload previo).
+    media_type = str(body.get('media_type') or '').strip().lower()
+    media_url = str(body.get('media_url') or '').strip()
+    media_filename = str(body.get('filename') or '').strip()
     if len(texto) > 4000:
         return bad_request('texto no debe exceder 4000 caracteres')
+    if media_type and media_type not in {'image', 'video', 'audio', 'document'}:
+        return bad_request('media_type no soportado')
+    if media_type and not media_url:
+        return bad_request('media_url es requerido para envio multimedia')
+    if not texto and not media_type:
+        return bad_request('texto o archivo es requerido')
 
     lead = meta_table.get_item(
         Key={'pk': lead_pk, 'sk': 'METADATA'}
@@ -405,8 +479,23 @@ def enviar_mensaje(event):
         'enviado_por_sub': usuario['sub'],
         'enviado_por_nombre': usuario['nombre'],
     }
+    if media_type and media_url:
+        mensaje['event_type'] = media_type
+        mensaje['media'] = {
+            'type': media_type,
+            'mime_type': str(body.get('content_type') or ''),
+            'filename': media_filename,
+            'caption': texto,
+            'public_url': media_url,
+            'storage_status': 'stored',
+        }
 
-    send_result = _send_meta_message(lead, texto)
+    send_result = _send_meta_message(
+        lead, texto,
+        media_type=media_type,
+        media_url=media_url,
+        media_filename=media_filename,
+    )
     if send_result.get('ok'):
         mensaje['message_status'] = 'enviado'
         mensaje['external_event_id'] = send_result.get('message_id') or local_event_id
@@ -896,7 +985,7 @@ def _actualizar_lead_por_mensaje_saliente(lead_pk, mensaje):
     )
 
 
-def _send_meta_message(lead, texto):
+def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=''):
     canal = str(lead.get('channel') or '').lower()
     account_alias = str(lead.get('account_alias') or '')
     contact_id = str(lead.get('external_contact_id') or '')
@@ -907,17 +996,23 @@ def _send_meta_message(lead, texto):
                 str(lead.get('phone_number_id') or '')
                 or WHATSAPP_PHONE_NUMBER_IDS.get(account_alias, '')
             )
-            return _post_methodica_channel_message(
-                {
-                    'tenant': METHODICA_TENANT_ID,
-                    'provider': 'whatsapp',
-                    'phoneNumberId': phone_number_id,
-                    'to': contact_id,
-                    'text': texto,
-                    'leadPk': lead.get('pk', ''),
-                    'accountAlias': account_alias,
-                }
-            )
+            payload = {
+                'tenant': METHODICA_TENANT_ID,
+                'provider': 'whatsapp',
+                'phoneNumberId': phone_number_id,
+                'to': contact_id,
+                'text': texto,
+                'leadPk': lead.get('pk', ''),
+                'accountAlias': account_alias,
+            }
+            if media_type and media_url:
+                payload['mediaType'] = media_type
+                payload['mediaUrl'] = media_url
+                if texto:
+                    payload['caption'] = texto
+                if media_filename:
+                    payload['filename'] = media_filename
+            return _post_methodica_channel_message(payload)
 
         if canal == 'messenger':
             token = _get_token(MESSENGER_TOKEN_PARAMS.get(account_alias))

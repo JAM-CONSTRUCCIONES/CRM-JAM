@@ -39,6 +39,8 @@ def handler(event, context):
             return meta_routes.listar_leads(event)
         if query.get('tipo') == 'meta-conversacion':
             return meta_routes.ver_conversacion(event)
+        if query.get('tipo') == 'meta-media-upload':
+            return meta_routes.get_media_upload_url(event)
         return estatus_routes.listar_todos_procesos(event)
 
     if method == 'PUT' and path == '/admin/procesos':

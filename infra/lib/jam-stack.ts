@@ -1539,6 +1539,11 @@ def handler(event, context):
     metaWebhooksLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
     metaWebhooksLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
 
+    // crmLambda sube multimedia saliente del inbox (presigned URL) al bucket de assets.
+    assetsBucket.grantReadWrite(crmLambda);
+    crmLambda.addEnvironment('ASSETS_BUCKET', assetsBucket.bucketName);
+    crmLambda.addEnvironment('CLOUDFRONT_URL', `https://${distribution.distributionDomainName}`);
+
     // Permisos: proyectosLambda puede leer/escribir en archivos (Excel migrations)
     archivosBucket.grantReadWrite(proyectosLambda);
     proyectosLambda.addEnvironment('ARCHIVOS_BUCKET', archivosBucket.bucketName);

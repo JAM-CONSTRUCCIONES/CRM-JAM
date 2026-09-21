@@ -14,10 +14,12 @@ import {
   Typography,
   message,
 } from 'antd';
-import { ClockCircleOutlined, FileOutlined, LinkOutlined, PictureOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, PictureOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import {
   convertirMetaLead,
   enviarMetaMensaje,
+  getMetaMediaUploadUrl,
+  subirArchivoAS3,
   gestionarMetaLead,
   getMetaConversacion,
   listarMetaLeads,
@@ -148,7 +150,10 @@ export default function MetaInboxPage() {
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [hasMoreMensajes, setHasMoreMensajes] = useState(false);
   const [loadingMoreMensajes, setLoadingMoreMensajes] = useState(false);
+  const [subiendoArchivo, setSubiendoArchivo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const CONVERSATION_PAGE_SIZE = 50;
+  const MAX_MEDIA_MB = 16;
   const [loadingUnidades, setLoadingUnidades] = useState(false);
   const [savingLead, setSavingLead] = useState(false);
   const [savingConversion, setSavingConversion] = useState(false);
@@ -520,6 +525,70 @@ export default function MetaInboxPage() {
     }
   };
 
+  // Envia un archivo (imagen/video/documento/audio) por WhatsApp: lo sube a S3
+  // y luego manda el mensaje con la URL publica para que Meta lo descargue.
+  const adjuntarArchivo = async (file: File) => {
+    if (!selectedLead) return;
+    if (file.size > MAX_MEDIA_MB * 1024 * 1024) {
+      message.error(`El archivo supera el limite de ${MAX_MEDIA_MB} MB.`);
+      return;
+    }
+    const lead = selectedLead;
+    const caption = respuesta.trim();
+    setSubiendoArchivo(true);
+    try {
+      const upload = await getMetaMediaUploadUrl(file.type || 'application/octet-stream', file.name);
+      await subirArchivoAS3(upload.upload_url, file);
+      // Burbuja optimista con el archivo.
+      const tempSk = `MENSAJE#pending#${Date.now()}`;
+      const optimista = {
+        pk: lead.pk,
+        sk: tempSk,
+        tipo: 'META_MENSAJE',
+        channel: lead.channel,
+        text: caption,
+        direction: 'outgoing',
+        message_status: 'enviando',
+        event_type: upload.media_type,
+        media: {
+          type: upload.media_type,
+          mime_type: upload.content_type,
+          filename: file.name,
+          caption,
+          public_url: upload.public_url,
+          storage_status: 'stored',
+        },
+        creado_en: new Date().toISOString(),
+      } as unknown as MetaMensaje;
+      setMensajes((prev) => [...prev, optimista]);
+      setRespuesta('');
+      const result = await enviarMetaMensaje(lead.pk, {
+        texto: caption,
+        media_type: upload.media_type,
+        media_url: upload.public_url,
+        content_type: upload.content_type,
+        filename: file.name,
+      });
+      setMensajes((prev) => {
+        const sinTemp = prev.filter((m) => m.sk !== tempSk);
+        if (result.item && !sinTemp.some((m) => m.sk === result.item!.sk)) {
+          return [...sinTemp, result.item as MetaMensaje];
+        }
+        return sinTemp;
+      });
+      if (!result.sent) {
+        message.warning('Archivo registrado, pero Meta rechazo el envio real.');
+      }
+      refrescarConversacionSilencioso(lead);
+      cargarLeads();
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo enviar el archivo');
+    } finally {
+      setSubiendoArchivo(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const abrirConversion = () => {
     if (!selectedLead) return;
     convertForm.setFieldsValue({
@@ -789,15 +858,34 @@ export default function MetaInboxPage() {
                   />
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <Text type="secondary" className="text-xs">Enter envia. Shift + Enter agrega linea.</Text>
-                    <Button
-                      type="primary"
-                      icon={<SendOutlined />}
-                      loading={sending}
-                      disabled={!respuesta.trim()}
-                      onClick={enviarRespuesta}
-                    >
-                      Enviar mensaje
-                    </Button>
+                    <Space>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept="image/*,video/*,audio/*,application/pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) adjuntarArchivo(file);
+                        }}
+                      />
+                      <Button
+                        icon={<PaperClipOutlined />}
+                        loading={subiendoArchivo}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        Adjuntar
+                      </Button>
+                      <Button
+                        type="primary"
+                        icon={<SendOutlined />}
+                        loading={sending}
+                        disabled={!respuesta.trim()}
+                        onClick={enviarRespuesta}
+                      >
+                        Enviar mensaje
+                      </Button>
+                    </Space>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {quickReplies.map((reply) => (

@@ -31,7 +31,7 @@ import { getProyectos, getUnidades } from '../../services/proyectos.service';
 import { getUsuariosSistema, type UsuarioSistema } from '../../services/sistema.service';
 import type { Proyecto, Unidad } from '../../types';
 
-const { Paragraph, Text, Title } = Typography;
+const { Paragraph, Text } = Typography;
 const { Search, TextArea } = Input;
 
 const canalLabel: Record<string, string> = {
@@ -687,23 +687,21 @@ export default function MetaInboxPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col gap-2 overflow-hidden">
-      <div className="flex items-center justify-between">
-        <Title level={5} className="!mb-0">Inbox Meta</Title>
-        <Space size={6}>
-          {!whatsappConectado && (
-            <Button size="small" icon={<LinkOutlined />} href={whatsappOnboardingUrl} target="_blank" rel="noreferrer">
-              Conectar WhatsApp
-            </Button>
-          )}
-          <Button size="small" icon={<ReloadOutlined />} onClick={cargarLeads} loading={loadingLeads} />
-        </Space>
-      </div>
-
-      <div className={`grid min-h-0 flex-1 gap-3 ${leadPanelOpen ? 'lg:grid-cols-[320px_minmax(0,1fr)_280px]' : 'lg:grid-cols-[320px_minmax(0,1fr)]'} grid-cols-1`}>
-        <Card ref={mensajesPanelRef} className="min-h-0 overflow-hidden" bodyStyle={{ height: '100%', padding: 0 }}>
-          <div className="border-b border-[var(--app-border)] p-3">
-            <Space direction="vertical" className="w-full">
+    <div className="-mx-3 -mt-3 flex h-screen flex-col overflow-hidden lg:-mx-7 lg:-mt-4" style={{ height: '100dvh' }}>
+      <div className={`grid min-h-0 flex-1 gap-0 ${leadPanelOpen ? 'lg:grid-cols-[300px_minmax(0,1fr)_280px]' : 'lg:grid-cols-[300px_minmax(0,1fr)]'} grid-cols-1`}>
+        <div ref={mensajesPanelRef} className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
+          {/* Header del panel izquierdo — titulo + boton actualizar */}
+          <div className="flex items-center justify-between border-b border-[var(--app-border)] px-3 py-2.5">
+            <Text strong>Inbox Meta</Text>
+            <Space size={4}>
+              {!whatsappConectado && (
+                <Button size="small" icon={<LinkOutlined />} href={whatsappOnboardingUrl} target="_blank" rel="noreferrer" />
+              )}
+              <Button size="small" icon={<ReloadOutlined />} onClick={cargarLeads} loading={loadingLeads} />
+            </Space>
+          </div>
+          <div className="border-b border-[var(--app-border)] px-3 py-2">
+            <Space direction="vertical" size={6} className="w-full">
               <Search
                 allowClear
                 placeholder="Buscar conversacion"
@@ -723,7 +721,7 @@ export default function MetaInboxPage() {
               />
             </Space>
           </div>
-          <div className="h-[calc(100%-112px)] overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {loadingLeads && !conversaciones.length ? (
               <div className="grid h-full place-items-center">
                 <Spin />
@@ -766,9 +764,9 @@ export default function MetaInboxPage() {
               </div>
             )}
           </div>
-        </Card>
+        </div>
 
-        <Card className="min-h-0 overflow-hidden" bodyStyle={{ height: '100%', padding: 0 }}>
+        <div className="flex min-h-0 flex-col">
           {selectedLead ? (
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-between gap-2 border-b border-[var(--app-border)] px-3 py-2">
@@ -846,7 +844,7 @@ export default function MetaInboxPage() {
                           <div className={`max-w-[78%] px-3 py-1.5 shadow-sm ${
                             incoming
                               ? 'rounded-[0_16px_16px_16px] bg-[var(--panel-bg)]'
-                              : 'rounded-[16px_16px_0_16px] bg-[#dcf8c6] dark:bg-[#056162]'
+                              : 'rounded-[16px_16px_0_16px] border border-[var(--action-border)] bg-[var(--action-soft-hover)]'
                           }`}>
                             {(mensaje.text || attachments.length === 0) && (
                               <Paragraph className="!mb-0.5 whitespace-pre-wrap text-sm">
@@ -954,11 +952,11 @@ export default function MetaInboxPage() {
               <Empty description="Selecciona una conversacion" />
             </div>
           )}
-        </Card>
+        </div>
 
         {leadPanelOpen && (
         <Card
-          className="flex min-h-0 flex-col overflow-hidden"
+          className="flex min-h-0 flex-col overflow-hidden border-l"
           title="Lead"
           bodyStyle={{ flex: 1, minHeight: 0, overflowY: 'auto' }}
         >

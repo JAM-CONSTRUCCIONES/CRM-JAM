@@ -75,7 +75,7 @@ const AppLayout = () => {
           </div>
         </header>
 
-        <main className="min-h-screen px-3 py-3 text-foreground lg:px-7 lg:py-4">
+        <main className="overflow-hidden px-3 py-3 text-foreground lg:px-7 lg:py-4">
           <div className="app-content-frame">
             <Outlet />
           </div>

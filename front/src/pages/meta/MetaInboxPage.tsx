@@ -13,7 +13,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { EditOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, PictureOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
+import { EditOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import {
   convertirMetaLead,
   enviarMetaMensaje,
@@ -852,25 +852,66 @@ export default function MetaInboxPage() {
                               </Paragraph>
                             )}
                             {attachments.length > 0 && (
-                              <div className="mb-2 space-y-1">
+                              <div className="space-y-1.5">
                                 {attachments.map((attachment, index) => {
                                   const type = attachment.type || 'archivo';
-                                  const icon = type === 'image' || type === 'sticker' ? <PictureOutlined /> : <FileOutlined />;
-                                  const label = attachment.filename || attachment.title || attachment.caption || type;
                                   const href = attachment.public_url || attachment.url;
+                                  const mime = attachment.mime_type || '';
+                                  const label = attachment.filename || attachment.caption || '';
+
+                                  // Imagen / sticker: mostrar inline con lightbox nativo
+                                  if ((type === 'image' || type === 'sticker') && href) {
+                                    return (
+                                      <div key={`${type}-${index}`}>
+                                        <a href={href} target="_blank" rel="noreferrer" title="Ver imagen completa">
+                                          <img
+                                            src={href}
+                                            alt={label || 'imagen'}
+                                            className="max-h-64 max-w-full rounded-md object-cover"
+                                            loading="lazy"
+                                          />
+                                        </a>
+                                        {label && <Text type="secondary" className="mt-0.5 block text-[11px]">{label}</Text>}
+                                      </div>
+                                    );
+                                  }
+
+                                  // Video: player inline
+                                  if (type === 'video' && href) {
+                                    return (
+                                      <div key={`${type}-${index}`}>
+                                        <video
+                                          src={href}
+                                          controls
+                                          className="max-h-64 max-w-full rounded-md"
+                                          preload="metadata"
+                                        />
+                                        {label && <Text type="secondary" className="mt-0.5 block text-[11px]">{label}</Text>}
+                                      </div>
+                                    );
+                                  }
+
+                                  // Audio / nota de voz: player inline compacto
+                                  if ((type === 'audio' || type === 'voice_note' || mime.startsWith('audio/')) && href) {
+                                    return (
+                                      <div key={`${type}-${index}`} className="flex flex-col gap-0.5">
+                                        <audio src={href} controls className="h-8 w-full max-w-[260px]" preload="metadata" />
+                                        {label && <Text type="secondary" className="text-[11px]">{label}</Text>}
+                                      </div>
+                                    );
+                                  }
+
+                                  // Documento / otros: link de descarga
                                   return (
-                                    <div key={`${type}-${index}`} className="rounded-md border border-[var(--app-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm">
-                                      <Space size={6} wrap>
-                                        {icon}
-                                        <Text>{label}</Text>
-                                        {href && (
-                                          <a href={href} target="_blank" rel="noreferrer">
-                                            <LinkOutlined /> Abrir
-                                          </a>
-                                        )}
-                                        {attachment.mime_type && <Text type="secondary" className="text-xs">{attachment.mime_type}</Text>}
-                                        {attachment.storage_status && <Tag>{attachment.storage_status}</Tag>}
-                                      </Space>
+                                    <div key={`${type}-${index}`} className="flex items-center gap-1.5 rounded-md border border-[var(--app-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm">
+                                      <FileOutlined />
+                                      {href
+                                        ? <a href={href} target="_blank" rel="noreferrer" className="truncate max-w-[200px]">{label || 'Archivo'}</a>
+                                        : <Text className="truncate max-w-[200px]">{label || type}</Text>
+                                      }
+                                      {attachment.storage_status && attachment.storage_status !== 'stored' && (
+                                        <Tag className="!m-0 text-[10px]">{attachment.storage_status}</Tag>
+                                      )}
                                     </div>
                                   );
                                 })}

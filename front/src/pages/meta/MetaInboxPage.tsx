@@ -13,7 +13,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { EditOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, EditOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import {
   convertirMetaLead,
   enviarMetaMensaje,
@@ -712,9 +712,9 @@ export default function MetaInboxPage() {
   };
 
   return (
-    <div className="-mx-3 -mt-3 flex h-[calc(100vh-64px)] flex-col overflow-hidden lg:-mx-7 lg:-mt-4">
+    <div className="-mx-3 -mt-3 flex h-[calc(100dvh-64px)] min-h-[520px] flex-col overflow-hidden lg:-mx-7 lg:-mt-4">
       <div className={`grid min-h-0 flex-1 gap-0 ${leadPanelOpen ? 'lg:grid-cols-[300px_minmax(0,1fr)_280px]' : 'lg:grid-cols-[300px_minmax(0,1fr)]'} grid-cols-1`}>
-        <div ref={mensajesPanelRef} className="flex min-h-0 flex-col border-r border-[var(--app-border)]">
+        <div ref={mensajesPanelRef} className={`${selectedLead ? 'hidden md:flex' : 'flex'} min-h-0 flex-col border-r border-[var(--app-border)] bg-[var(--panel-bg)]`}>
           {/* Header del panel izquierdo — titulo + boton actualizar */}
           <div className="flex items-center justify-between border-b border-[var(--app-border)] px-3 py-2.5">
             <Text strong>Inbox Meta</Text>
@@ -760,20 +760,20 @@ export default function MetaInboxPage() {
                     key={lead.pk}
                     type="button"
                     onClick={() => abrirConversacion(lead)}
-                    className={`block w-full border-b border-[var(--app-border)] px-3 py-3 text-left transition hover:bg-[var(--panel-soft-bg)] ${
+                    className={`block w-full border-b border-[var(--app-border)] px-3 py-2.5 text-left transition hover:bg-[var(--panel-soft-bg)] ${
                       active ? 'bg-[var(--action-soft-hover)]' : 'bg-transparent'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <Text strong className="block max-w-[200px] truncate">{nombreContacto(lead)}</Text>
-                        <Text type="secondary" className="block max-w-[200px] truncate text-xs">
+                        <Text strong className="block max-w-[240px] truncate md:max-w-[200px]">{nombreContacto(lead)}</Text>
+                        <Text type="secondary" className="block max-w-[240px] truncate text-xs md:max-w-[200px]">
                           {lead.account_alias || canalLabel[lead.channel] || 'Meta'}
                         </Text>
                       </div>
                       {pending && <Tag color="orange" bordered={false} style={{ background: 'transparent' }}>Nuevo</Tag>}
                     </div>
-                    <Paragraph ellipsis={{ rows: 2 }} className="!mb-1 !mt-2 text-sm">
+                    <Paragraph ellipsis={{ rows: 1 }} className="!mb-1 !mt-1.5 text-sm">
                       {lead.ultimo_mensaje_texto || 'Sin mensaje de texto'}
                     </Paragraph>
                     <div className="flex items-center justify-between gap-2">
@@ -791,11 +791,19 @@ export default function MetaInboxPage() {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col">
+        <div className={`${selectedLead ? 'flex' : 'hidden md:flex'} min-h-0 flex-col bg-[var(--panel-bg)]`}>
           {selectedLead ? (
             <div className="flex h-full flex-col">
-              <div className="flex items-center justify-between gap-2 border-b border-[var(--app-border)] px-3 py-2">
+              <div className="flex min-h-[48px] items-center justify-between gap-2 border-b border-[var(--app-border)] px-2 py-2 sm:px-3">
                 <div className="flex min-w-0 items-center gap-2">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<ArrowLeftOutlined />}
+                    onClick={() => setSelectedLead(null)}
+                    className="md:!hidden"
+                    title="Volver a conversaciones"
+                  />
                   <Text strong className="truncate text-sm">{nombreContacto(selectedLead)}</Text>
                   <Button
                     type="text"
@@ -826,7 +834,7 @@ export default function MetaInboxPage() {
               <div
                 ref={scrollContainerRef}
                 onScroll={onMensajesScroll}
-                className="min-h-0 flex-1 overflow-y-auto p-3"
+                className="min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-3"
                 style={{ background: 'var(--panel-soft-bg)', backgroundImage: 'radial-gradient(var(--app-border) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
               >
                 {loadingConversation ? (
@@ -866,7 +874,7 @@ export default function MetaInboxPage() {
                             </div>
                           )}
                           <div className={`flex ${incoming ? 'justify-start' : 'justify-end'}`}>
-                          <div className={`max-w-[78%] px-3 py-1.5 shadow-sm ${
+                          <div className={`max-w-[88%] px-3 py-1.5 shadow-sm sm:max-w-[78%] ${
                             incoming
                               ? 'rounded-[0_16px_16px_16px] bg-[var(--panel-bg)]'
                               : 'rounded-[16px_16px_0_16px] border border-[var(--action-border)] bg-[var(--action-soft-hover)]'
@@ -975,14 +983,14 @@ export default function MetaInboxPage() {
                 )}
               </div>
 
-              <div className="border-t border-[var(--app-border)] bg-[var(--panel-bg)] px-3 py-2">
+              <div className="border-t border-[var(--app-border)] bg-[var(--panel-bg)] px-2 py-2 sm:px-3">
                 <TextArea
-                  autoSize={{ minRows: 2, maxRows: 4 }}
+                  autoSize={{ minRows: 1, maxRows: 4 }}
                   maxLength={4000}
                   value={respuesta}
                   onChange={(event) => setRespuesta(event.target.value)}
                   placeholder={`Responder por ${canalLabel[selectedLead.channel] || 'Meta'}`}
-                  className="!mb-2 resize-none"
+                  className="!mb-2 resize-none rounded-2xl sm:!mb-1"
                   onPressEnter={(event) => {
                     if (!event.shiftKey) {
                       event.preventDefault();
@@ -1030,7 +1038,7 @@ export default function MetaInboxPage() {
 
         {leadPanelOpen && (
         <Card
-          className="flex min-h-0 flex-col overflow-hidden border-l"
+          className="hidden min-h-0 flex-col overflow-hidden border-l lg:flex"
           title="Lead"
           bodyStyle={{ flex: 1, minHeight: 0, overflowY: 'auto' }}
         >

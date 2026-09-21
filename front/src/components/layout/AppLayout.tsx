@@ -75,21 +75,10 @@ const AppLayout = () => {
           </div>
         </header>
 
-        <main className="min-h-screen px-3 py-4 text-foreground lg:px-7 lg:py-7">
+        <main className="min-h-screen px-3 py-3 text-foreground lg:px-7 lg:py-4">
           <div className="app-content-frame">
             <Outlet />
           </div>
-          <footer className="px-1 pb-2 pt-6 text-center text-xs text-muted-foreground lg:text-right">
-            Hecho por{' '}
-            <a
-              href="https://methodicatechnology.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-muted-foreground no-underline hover:text-primary"
-            >
-              Methodica Technology &amp; Co
-            </a>
-          </footer>
         </main>
       </div>
     </div>

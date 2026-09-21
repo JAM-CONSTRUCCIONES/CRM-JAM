@@ -687,20 +687,16 @@ export default function MetaInboxPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-112px)] flex-col gap-3 overflow-hidden">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Title level={4} style={{ margin: 0 }}>Inbox Meta</Title>
-        </div>
-        <Space wrap>
+    <div className="flex h-[calc(100vh-64px)] flex-col gap-2 overflow-hidden">
+      <div className="flex items-center justify-between">
+        <Title level={5} className="!mb-0">Inbox Meta</Title>
+        <Space size={6}>
           {!whatsappConectado && (
-            <Button icon={<LinkOutlined />} href={whatsappOnboardingUrl} target="_blank" rel="noreferrer">
+            <Button size="small" icon={<LinkOutlined />} href={whatsappOnboardingUrl} target="_blank" rel="noreferrer">
               Conectar WhatsApp
             </Button>
           )}
-          <Button icon={<ReloadOutlined />} onClick={cargarLeads} loading={loadingLeads}>
-            Actualizar
-          </Button>
+          <Button size="small" icon={<ReloadOutlined />} onClick={cargarLeads} loading={loadingLeads} />
         </Space>
       </div>
 
@@ -807,7 +803,8 @@ export default function MetaInboxPage() {
               <div
                 ref={scrollContainerRef}
                 onScroll={onMensajesScroll}
-                className="min-h-0 flex-1 overflow-y-auto bg-[var(--panel-soft-bg)] p-3"
+                className="min-h-0 flex-1 overflow-y-auto p-3"
+                style={{ background: 'var(--panel-soft-bg)', backgroundImage: 'radial-gradient(var(--app-border) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
               >
                 {loadingConversation ? (
                   <div className="grid h-full place-items-center">
@@ -846,10 +843,10 @@ export default function MetaInboxPage() {
                             </div>
                           )}
                           <div className={`flex ${incoming ? 'justify-start' : 'justify-end'}`}>
-                          <div className={`max-w-[82%] rounded-md border px-2.5 py-1.5 shadow-sm ${
+                          <div className={`max-w-[78%] px-3 py-1.5 shadow-sm ${
                             incoming
-                              ? 'border-[var(--app-border)] bg-[var(--panel-bg)]'
-                              : 'border-[var(--action-border)] bg-[var(--action-soft-hover)]'
+                              ? 'rounded-[0_16px_16px_16px] bg-[var(--panel-bg)]'
+                              : 'rounded-[16px_16px_0_16px] bg-[#dcf8c6] dark:bg-[#056162]'
                           }`}>
                             {(mensaje.text || attachments.length === 0) && (
                               <Paragraph className="!mb-0.5 whitespace-pre-wrap text-sm">

@@ -206,6 +206,8 @@ def _upsert_meta_lead(message_item):
     legacy_lead_key = _legacy_lead_key(message_item)
     origen_detalle = _origin_metadata(message_item)
     ads_metadata = _ads_origin_metadata(message_item)
+    contact_profile_name = message_item.get('contact_profile_name', '')
+    contact_username = message_item.get('contact_username', '')
     if legacy_lead_key != lead_key:
         existing_legacy = conversaciones_table.get_item(
             Key={'pk': legacy_lead_key, 'sk': 'METADATA'}
@@ -220,7 +222,6 @@ def _upsert_meta_lead(message_item):
         'channel_account = :channel_account',
         'contact_key = :contact_key',
         'external_contact_id = :external_contact_id',
-        'contact_profile_name = if_not_exists(contact_profile_name, :contact_profile_name)',
         'fuente = :fuente',
         'origen = :origen',
         'origen_plataforma = :origen_plataforma',
@@ -254,55 +255,65 @@ def _upsert_meta_lead(message_item):
         'mensajes_enviados = if_not_exists(mensajes_enviados, :zero) + :outgoing_inc',
         'mensajes_totales = if_not_exists(mensajes_totales, :zero) + :one',
     ]
+    if contact_profile_name:
+        update_expression.append('contact_profile_name = :contact_profile_name')
+    else:
+        update_expression.append('contact_profile_name = if_not_exists(contact_profile_name, :contact_profile_name)')
+    if contact_username:
+        update_expression.append('contact_username = :contact_username')
+    expression_values = {
+        ':tipo': 'META_LEAD',
+        ':channel': message_item.get('channel', ''),
+        ':account_id': message_item.get('account_id', ''),
+        ':account_alias': message_item.get('account_alias', ''),
+        ':channel_account': message_item.get('channel_account', ''),
+        ':contact_key': message_item.get('contact_key', ''),
+        ':external_contact_id': message_item.get('external_contact_id', ''),
+        ':contact_profile_name': contact_profile_name,
+        ':fuente': _source_label(message_item.get('channel', '')),
+        ':origen': 'meta',
+        ':origen_plataforma': origen_detalle['plataforma'],
+        ':origen_canal': origen_detalle['canal'],
+        ':origen_tipo_interaccion': origen_detalle['tipo_interaccion'],
+        ':origen_cuenta_id': origen_detalle['cuenta_id'],
+        ':origen_cuenta_alias': origen_detalle['cuenta_alias'],
+        ':origen_contacto_id': origen_detalle['contacto_id'],
+        ':origen_detalle': origen_detalle,
+        ':campaign_id': ads_metadata['campaign_id'],
+        ':campaign_name': ads_metadata['campaign_name'],
+        ':adset_id': ads_metadata['adset_id'],
+        ':adset_name': ads_metadata['adset_name'],
+        ':ad_id': ads_metadata['ad_id'],
+        ':ad_name': ads_metadata['ad_name'],
+        ':form_id': ads_metadata['form_id'],
+        ':form_name': ads_metadata['form_name'],
+        ':referral_source': ads_metadata['referral_source'],
+        ':referral_type': ads_metadata['referral_type'],
+        ':referral_url': ads_metadata['referral_url'],
+        ':ctwa_clid': ads_metadata['ctwa_clid'],
+        ':ads_origin': ads_metadata,
+        ':estado': 'nuevo',
+        ':primer_mensaje_en': message_item.get('event_timestamp', now),
+        ':ultimo_mensaje_en': message_item.get('event_timestamp', now),
+        ':ultimo_mensaje_texto': message_item.get('text', ''),
+        ':ultimo_evento_id': message_item.get('external_event_id', ''),
+        ':actualizado_en': now,
+        ':creado_en': now,
+        ':zero': 0,
+        ':one': 1,
+        ':incoming_inc': 1 if message_item.get('direction') == 'incoming' else 0,
+        ':outgoing_inc': 1 if message_item.get('direction') == 'outgoing' else 0,
+    }
+    if contact_username:
+        expression_values[':contact_username'] = contact_username
+
     conversaciones_table.update_item(
         Key={
             'pk': lead_key,
             'sk': 'METADATA',
         },
         UpdateExpression=', '.join(update_expression),
-        ExpressionAttributeValues={
-            ':tipo': 'META_LEAD',
-            ':channel': message_item.get('channel', ''),
-            ':account_id': message_item.get('account_id', ''),
-            ':account_alias': message_item.get('account_alias', ''),
-            ':channel_account': message_item.get('channel_account', ''),
-            ':contact_key': message_item.get('contact_key', ''),
-            ':external_contact_id': message_item.get('external_contact_id', ''),
-            ':contact_profile_name': message_item.get('contact_profile_name', ''),
-            ':fuente': _source_label(message_item.get('channel', '')),
-            ':origen': 'meta',
-            ':origen_plataforma': origen_detalle['plataforma'],
-            ':origen_canal': origen_detalle['canal'],
-            ':origen_tipo_interaccion': origen_detalle['tipo_interaccion'],
-            ':origen_cuenta_id': origen_detalle['cuenta_id'],
-            ':origen_cuenta_alias': origen_detalle['cuenta_alias'],
-            ':origen_contacto_id': origen_detalle['contacto_id'],
-            ':origen_detalle': origen_detalle,
-            ':campaign_id': ads_metadata['campaign_id'],
-            ':campaign_name': ads_metadata['campaign_name'],
-            ':adset_id': ads_metadata['adset_id'],
-            ':adset_name': ads_metadata['adset_name'],
-            ':ad_id': ads_metadata['ad_id'],
-            ':ad_name': ads_metadata['ad_name'],
-            ':form_id': ads_metadata['form_id'],
-            ':form_name': ads_metadata['form_name'],
-            ':referral_source': ads_metadata['referral_source'],
-            ':referral_type': ads_metadata['referral_type'],
-            ':referral_url': ads_metadata['referral_url'],
-            ':ctwa_clid': ads_metadata['ctwa_clid'],
-            ':ads_origin': ads_metadata,
-            ':estado': 'nuevo',
-            ':primer_mensaje_en': message_item.get('event_timestamp', now),
-            ':ultimo_mensaje_en': message_item.get('event_timestamp', now),
-            ':ultimo_mensaje_texto': message_item.get('text', ''),
-            ':ultimo_evento_id': message_item.get('external_event_id', ''),
-            ':actualizado_en': now,
-            ':creado_en': now,
-            ':zero': 0,
-            ':one': 1,
-            ':incoming_inc': 1 if message_item.get('direction') == 'incoming' else 0,
-            ':outgoing_inc': 1 if message_item.get('direction') == 'outgoing' else 0,
-        },
+        ExpressionAttributeValues=expression_values,
     )
 
 
@@ -668,6 +679,13 @@ def _build_conversation_item(channel, account_id, account_alias, owned_account_i
     attachments = _message_attachments(message)
     text = _meta_event_text(event_payload, attachments)
     ads_metadata = _extract_meta_ads_metadata(event_payload)
+    contact_profile = _resolve_meta_contact_profile(
+        channel,
+        account_id,
+        account_alias,
+        contact_id,
+        event_payload,
+    )
 
     return {
         'pk': f'CONVERSACION#{channel}#{account_alias}#{contact_id}',
@@ -679,6 +697,9 @@ def _build_conversation_item(channel, account_id, account_alias, owned_account_i
         'channel_account': f'{channel}#{account_alias}',
         'contact_key': f'{channel}#{contact_id}',
         'external_contact_id': contact_id,
+        'contact_profile_name': contact_profile.get('display_name', ''),
+        'contact_username': contact_profile.get('username', ''),
+        'contact_profile_picture_url': contact_profile.get('profile_pic', ''),
         'sender_id': sender_id,
         'recipient_id': recipient_id,
         'direction': direction,
@@ -1079,6 +1100,76 @@ def _direction(owned_account_id, sender_id, recipient_id):
     if sender_id and sender_id == owned_account_id:
         return 'outgoing'
     return 'unknown'
+
+
+def _resolve_meta_contact_profile(channel, account_id, account_alias, contact_id, event_payload):
+    profile = _contact_profile_from_payload(event_payload)
+    if profile.get('display_name'):
+        return profile
+    if channel != 'instagram' or not contact_id or contact_id == 'unknown':
+        return profile
+
+    token = _get_instagram_token(account_id)
+    if not token:
+        return profile
+
+    graph_hosts = (
+        ('https://graph.instagram.com/v22.0', 'username,name,profile_pic'),
+        ('https://graph.instagram.com/v22.0', 'username,name'),
+    ) if token.startswith('IGAA') else (
+        ('https://graph.facebook.com/v26.0', 'username,name,profile_pic'),
+        ('https://graph.facebook.com/v26.0', 'username,name'),
+    )
+    for base_url, fields in graph_hosts:
+        try:
+            data = _graph_get_json(f'{base_url}/{contact_id}?fields={fields}', token)
+            username = _first_str(data.get('username'))
+            name = _first_str(data.get('name'))
+            profile_pic = _first_str(data.get('profile_pic'), data.get('profile_picture_url'))
+            display_name = f'@{username}' if username else name
+            return {
+                'display_name': display_name,
+                'username': username,
+                'name': name,
+                'profile_pic': profile_pic,
+            }
+        except Exception as exc:
+            print(json.dumps({
+                'event': 'instagram_contact_profile_lookup_failed',
+                'account_alias': account_alias,
+                'contact_id': contact_id,
+                'fields': fields,
+                'error': str(exc)[:500],
+            }))
+            continue
+    return profile
+
+
+def _contact_profile_from_payload(event_payload):
+    sender = event_payload.get('sender') or {}
+    user = event_payload.get('user') or {}
+    profile = event_payload.get('profile') or {}
+    username = _first_str(
+        sender.get('username'),
+        user.get('username'),
+        profile.get('username'),
+    )
+    name = _first_str(
+        sender.get('name'),
+        user.get('name'),
+        profile.get('name'),
+    )
+    profile_pic = _first_str(
+        sender.get('profile_pic'),
+        user.get('profile_pic'),
+        profile.get('profile_pic'),
+    )
+    return {
+        'display_name': f'@{username}' if username else name,
+        'username': username,
+        'name': name,
+        'profile_pic': profile_pic,
+    }
 
 
 def _payload_summary(event_payload):

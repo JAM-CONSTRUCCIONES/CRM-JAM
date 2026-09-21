@@ -10,6 +10,7 @@ export interface MetaLead {
   account_id: string;
   external_contact_id: string;
   contact_profile_name?: string;
+  contact_username?: string;
   nombre_manual?: string;
   fuente: string;
   origen: string;

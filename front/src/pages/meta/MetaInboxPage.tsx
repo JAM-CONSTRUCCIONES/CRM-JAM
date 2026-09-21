@@ -121,6 +121,7 @@ const mensajesSignature = (mensajes: MetaMensaje[]) =>
 const nombreContacto = (lead: MetaLead) =>
   (lead.nombre_manual || '').trim()
   || (lead.contact_profile_name || '').trim()
+  || (lead.contact_username ? `@${lead.contact_username}` : '')
   || lead.external_contact_id;
 
 const getProyectoLabel = (proyectos: Proyecto[], proyectoId?: string) => (

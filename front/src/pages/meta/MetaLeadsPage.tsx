@@ -143,6 +143,12 @@ const idWithName = (name?: string, id?: string) => {
   return name || id || '';
 };
 
+const nombreContacto = (lead: MetaLead) =>
+  (lead.nombre_manual || '').trim()
+  || (lead.contact_profile_name || '').trim()
+  || (lead.contact_username ? `@${lead.contact_username}` : '')
+  || lead.external_contact_id;
+
 const getProyectoLabel = (proyectos: Proyecto[], proyectoId?: string) => (
   proyectos.find((proyecto) => proyecto.proyecto_id === proyectoId)?.nombre || proyectoId || '-'
 );
@@ -221,6 +227,9 @@ export default function MetaLeadsPage() {
     return leads.filter((lead) =>
       [
         lead.external_contact_id,
+        lead.nombre_manual,
+        lead.contact_profile_name,
+        lead.contact_username,
         lead.account_alias,
         lead.ultimo_mensaje_texto,
         lead.responsable_nombre,
@@ -551,7 +560,10 @@ export default function MetaLeadsPage() {
       dataIndex: 'external_contact_id',
       render: (_: string, lead: MetaLead) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{lead.external_contact_id}</Text>
+          <Text strong>{nombreContacto(lead)}</Text>
+          {nombreContacto(lead) !== lead.external_contact_id && (
+            <Text type="secondary" className="text-xs">{lead.external_contact_id}</Text>
+          )}
           <Text type="secondary" className="text-xs">{lead.account_alias}</Text>
         </Space>
       ),
@@ -853,7 +865,7 @@ export default function MetaLeadsPage() {
                 {canalLabel[selectedLead.channel] || selectedLead.channel}
               </Tag>
             </Space>
-            <Text type="secondary" className="text-xs">{selectedLead.external_contact_id}</Text>
+            <Text type="secondary" className="text-xs">{nombreContacto(selectedLead)}</Text>
           </Space>
         ) : 'Conversacion Meta'}
         open={!!selectedLead}
@@ -880,7 +892,14 @@ export default function MetaLeadsPage() {
                   {canalLabel[selectedLead.channel] || selectedLead.channel}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="Contacto">{selectedLead.external_contact_id}</Descriptions.Item>
+              <Descriptions.Item label="Contacto">
+                <Space direction="vertical" size={0}>
+                  <Text>{nombreContacto(selectedLead)}</Text>
+                  {nombreContacto(selectedLead) !== selectedLead.external_contact_id && (
+                    <Text type="secondary" className="text-xs">{selectedLead.external_contact_id}</Text>
+                  )}
+                </Space>
+              </Descriptions.Item>
               <Descriptions.Item label="Estado">
                 <Tag color={estadoColor[selectedLead.estado || 'nuevo'] || 'default'}>
                   {selectedLead.estado || 'nuevo'}

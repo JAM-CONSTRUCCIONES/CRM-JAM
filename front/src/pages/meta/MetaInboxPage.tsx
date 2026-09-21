@@ -14,12 +14,13 @@ import {
   Typography,
   message,
 } from 'antd';
-import { ClockCircleOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, PictureOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, EditOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, PictureOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
 import {
   convertirMetaLead,
   enviarMetaMensaje,
   getMetaMediaUploadUrl,
   subirArchivoAS3,
+  renombrarMetaContacto,
   gestionarMetaLead,
   getMetaConversacion,
   listarMetaLeads,
@@ -116,6 +117,13 @@ const attachmentsOf = (mensaje: MetaMensaje) => {
 const mensajesSignature = (mensajes: MetaMensaje[]) =>
   mensajes.map((m) => `${m.sk}:${m.message_status || ''}`).join('|');
 
+// Nombre a mostrar del contacto: nombre editado por el agente > alias de perfil
+// (WhatsApp/Meta) > numero/id. Asi los numeros de WhatsApp muestran algo util.
+const nombreContacto = (lead: MetaLead) =>
+  (lead.nombre_manual || '').trim()
+  || (lead.contact_profile_name || '').trim()
+  || lead.external_contact_id;
+
 const getProyectoLabel = (proyectos: Proyecto[], proyectoId?: string) => (
   proyectos.find((proyecto) => proyecto.proyecto_id === proyectoId)?.nombre || proyectoId || '-'
 );
@@ -152,6 +160,9 @@ export default function MetaInboxPage() {
   const [loadingMoreMensajes, setLoadingMoreMensajes] = useState(false);
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [editNombreOpen, setEditNombreOpen] = useState(false);
+  const [nombreEditando, setNombreEditando] = useState('');
+  const [guardandoNombre, setGuardandoNombre] = useState(false);
   const CONVERSATION_PAGE_SIZE = 50;
   const MAX_MEDIA_MB = 16;
   const [loadingUnidades, setLoadingUnidades] = useState(false);
@@ -194,6 +205,8 @@ export default function MetaInboxPage() {
       if (!text) return true;
       return [
         lead.external_contact_id,
+        lead.nombre_manual,
+        lead.contact_profile_name,
         lead.ultimo_mensaje_texto,
         lead.responsable_nombre,
         lead.inmobiliaria_nombre,
@@ -589,6 +602,31 @@ export default function MetaInboxPage() {
     }
   };
 
+  const abrirEditorNombre = () => {
+    if (!selectedLead) return;
+    // Precargamos el nombre actual (manual o alias de perfil), no el numero.
+    const actual = (selectedLead.nombre_manual || selectedLead.contact_profile_name || '').trim();
+    setNombreEditando(actual);
+    setEditNombreOpen(true);
+  };
+
+  const guardarNombre = async () => {
+    if (!selectedLead) return;
+    const nombre = nombreEditando.trim();
+    setGuardandoNombre(true);
+    try {
+      await renombrarMetaContacto(selectedLead.pk, nombre);
+      // Actualizamos en memoria el lead seleccionado y la lista.
+      setSelectedLead((prev) => (prev ? { ...prev, nombre_manual: nombre } : prev));
+      setLeads((prev) => prev.map((l) => (l.pk === selectedLead.pk ? { ...l, nombre_manual: nombre } : l)));
+      setEditNombreOpen(false);
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo guardar el nombre');
+    } finally {
+      setGuardandoNombre(false);
+    }
+  };
+
   const abrirConversion = () => {
     if (!selectedLead) return;
     convertForm.setFieldsValue({
@@ -707,7 +745,7 @@ export default function MetaInboxPage() {
                           {lead.channel === 'instagram' ? 'IG' : lead.channel === 'messenger' ? 'FB' : 'WA'}
                         </span>
                         <div>
-                          <Text strong className="block max-w-[180px] truncate">{lead.external_contact_id}</Text>
+                          <Text strong className="block max-w-[180px] truncate">{nombreContacto(lead)}</Text>
                           <Text type="secondary" className="block max-w-[180px] truncate text-xs">
                             {lead.account_alias || canalLabel[lead.channel] || 'Meta'}
                           </Text>
@@ -738,8 +776,22 @@ export default function MetaInboxPage() {
             <div className="flex h-full flex-col">
               <div className="border-b border-[var(--app-border)] px-4 py-3">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <Space wrap>
-                    <Title level={4} className="!mb-0">{selectedLead.external_contact_id}</Title>
+                  <Space wrap align="center">
+                    <div>
+                      <Space align="center" size={6}>
+                        <Title level={4} className="!mb-0">{nombreContacto(selectedLead)}</Title>
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<EditOutlined />}
+                          onClick={abrirEditorNombre}
+                          title="Editar nombre del contacto"
+                        />
+                      </Space>
+                      {nombreContacto(selectedLead) !== selectedLead.external_contact_id && (
+                        <Text type="secondary" className="block text-xs">{selectedLead.external_contact_id}</Text>
+                      )}
+                    </div>
                     <Tag color={canalColor[selectedLead.channel] || 'default'}>
                       {canalLabel[selectedLead.channel] || selectedLead.channel}
                     </Tag>
@@ -1076,6 +1128,33 @@ export default function MetaInboxPage() {
           )}
         </Card>
       </div>
+
+      <Modal
+        title="Nombre del contacto"
+        open={editNombreOpen}
+        onCancel={() => setEditNombreOpen(false)}
+        onOk={guardarNombre}
+        okText="Guardar"
+        confirmLoading={guardandoNombre}
+        destroyOnClose
+      >
+        <Space direction="vertical" className="w-full" size={8}>
+          <Text type="secondary">
+            Numero: {selectedLead?.external_contact_id}
+          </Text>
+          <Input
+            value={nombreEditando}
+            maxLength={120}
+            placeholder="Escribe un nombre para este contacto"
+            onChange={(e) => setNombreEditando(e.target.value)}
+            onPressEnter={guardarNombre}
+            allowClear
+          />
+          <Text type="secondary" className="text-xs">
+            Dejalo vacio para volver a mostrar el nombre de perfil o el numero.
+          </Text>
+        </Space>
+      </Modal>
 
       <Modal
         title="Registrar cliente o bloqueo desde Meta"

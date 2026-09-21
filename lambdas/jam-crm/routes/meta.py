@@ -371,6 +371,31 @@ def _media_type_from_content_type(content_type):
     return 'document', ct or 'application/octet-stream'
 
 
+def renombrar_contacto(event):
+    """Guarda un nombre manual (editable por el agente) para la conversacion.
+    Prioridad de visualizacion en el front: nombre_manual > contact_profile_name > numero."""
+    if not meta_table:
+        return bad_request('Tabla Meta no configurada')
+    params = event.get('queryStringParameters') or {}
+    lead_pk = str(params.get('lead_pk') or '').strip()
+    if not lead_pk:
+        return bad_request('lead_pk es requerido')
+    body = _json_body(event)
+    nombre = str(body.get('nombre_manual') or body.get('nombre') or '').strip()[:120]
+
+    lead = meta_table.get_item(Key={'pk': lead_pk, 'sk': 'METADATA'}).get('Item')
+    if not lead:
+        return bad_request('Lead Meta no encontrado')
+
+    meta_table.update_item(
+        Key={'pk': lead_pk, 'sk': 'METADATA'},
+        UpdateExpression='SET nombre_manual = :n, actualizado_en = :a',
+        ExpressionAttributeValues={':n': nombre, ':a': _now()},
+    )
+    lead['nombre_manual'] = nombre
+    return ok({'lead': lead})
+
+
 def get_media_upload_url(event):
     """Genera una presigned URL para subir un archivo del inbox al bucket de
     assets. Devuelve tambien la public_url (via CloudFront) que Meta usara para

@@ -49,6 +49,8 @@ def handler(event, context):
         query = event.get('queryStringParameters') or {}
         if query.get('tipo') == 'meta-lead' and query.get('accion') == 'convertir':
             return meta_routes.convertir_lead(event)
+        if query.get('tipo') == 'meta-contacto-nombre':
+            return meta_routes.renombrar_contacto(event)
         if query.get('tipo') == 'meta-lead':
             return meta_routes.gestionar_lead(event)
 

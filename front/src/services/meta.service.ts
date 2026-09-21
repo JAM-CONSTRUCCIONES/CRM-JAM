@@ -9,6 +9,8 @@ export interface MetaLead {
   account_alias: string;
   account_id: string;
   external_contact_id: string;
+  contact_profile_name?: string;
+  nombre_manual?: string;
   fuente: string;
   origen: string;
   origen_detalle?: Record<string, unknown>;
@@ -245,6 +247,20 @@ export const enviarMetaMensaje = (
     lead_pk: leadPk,
   });
   return apiPost(`/admin/procesos?${query.toString()}`, data);
+};
+
+// Guarda el nombre manual (editable) de la conversacion.
+export const renombrarMetaContacto = (
+  leadPk: string,
+  nombreManual: string,
+): Promise<{ lead: MetaLead }> => {
+  const query = new URLSearchParams({
+    tipo: 'meta-contacto-nombre',
+    lead_pk: leadPk,
+  });
+  return apiPut<{ lead: MetaLead }>(`/admin/procesos?${query.toString()}`, {
+    nombre_manual: nombreManual,
+  });
 };
 
 export interface MetaMediaUpload {

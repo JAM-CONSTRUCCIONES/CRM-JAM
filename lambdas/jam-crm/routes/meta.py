@@ -142,7 +142,10 @@ def ver_conversacion(event):
             ),
             ScanIndexForward=True,
         )
-        nuevos = [m for m in nuevos if str(m.get('sk', '')).startswith('MENSAJE#')]
+        nuevos = [
+            m for m in nuevos
+            if str(m.get('sk', '')).startswith('MENSAJE#') and _is_displayable_message(m)
+        ]
         return ok({
             'lead': lead,
             'mensajes': nuevos,
@@ -165,7 +168,10 @@ def ver_conversacion(event):
             ScanIndexForward=False,
             Limit=limit + 1,
         )
-        page = [m for m in result.get('Items', []) if str(m.get('sk', '')).startswith('MENSAJE#')]
+        page = [
+            m for m in result.get('Items', [])
+            if str(m.get('sk', '')).startswith('MENSAJE#') and _is_displayable_message(m)
+        ]
         has_more = len(page) > limit
         page = page[:limit]
         # Devolvemos en orden cronologico ascendente (viejo -> nuevo)
@@ -866,6 +872,8 @@ def _build_timeline(lead, mensajes, actividades):
         fecha = actividad.get('creado_en') or ''
         if actividad.get('tipo_actividad') == 'conversion_cliente':
             actividad_conversion_dates.add(fecha)
+        if actividad.get('tipo_actividad') == 'mensaje_saliente':
+            continue
         eventos.append(_timeline_from_actividad(actividad))
 
     for conversion in lead.get('historial_conversiones') or []:
@@ -964,6 +972,14 @@ def _attachment_label(mensaje):
     if media:
         return f'Adjunto: {media.get("type") or "archivo"}'
     return ''
+
+
+def _is_displayable_message(mensaje):
+    return bool(
+        mensaje.get('text')
+        or mensaje.get('attachments')
+        or mensaje.get('media')
+    )
 
 
 def _scan_all(**kwargs):

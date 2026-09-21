@@ -127,6 +127,9 @@ def _store_meta_events(body):
     stored_count = 0
     duplicate_count = 0
     for item in items:
+        if item.get('tipo') == 'META_MENSAJE' and _message_already_stored(item):
+            duplicate_count += 1
+            continue
         try:
             conversaciones_table.put_item(
                 Item=item,
@@ -144,6 +147,26 @@ def _store_meta_events(body):
             raise
 
     return stored_count, duplicate_count
+
+
+def _message_already_stored(item):
+    external_event_id = item.get('external_event_id')
+    if not external_event_id:
+        return False
+
+    result = conversaciones_table.query(
+        IndexName='gsi-external-event',
+        KeyConditionExpression=Key('external_event_id').eq(external_event_id),
+        Limit=10,
+    )
+    for existing in result.get('Items', []):
+        if (
+            existing.get('tipo') == 'META_MENSAJE'
+            and existing.get('channel') == item.get('channel')
+            and existing.get('account_alias') == item.get('account_alias')
+        ):
+            return True
+    return False
 
 
 def _apply_message_status(status_item):
@@ -621,6 +644,8 @@ def _build_conversation_item(channel, account_id, account_alias, owned_account_i
     sender_id = str((event_payload.get('sender') or {}).get('id') or '')
     recipient_id = str((event_payload.get('recipient') or {}).get('id') or '')
     event_type = _event_type(event_payload)
+    if not _is_conversation_message_event(event_payload, event_type):
+        return None
     external_event_id = _external_event_id(
         channel,
         account_id,
@@ -641,7 +666,7 @@ def _build_conversation_item(channel, account_id, account_alias, owned_account_i
     created_at = _now_iso()
     message = event_payload.get('message') or {}
     attachments = _message_attachments(message)
-    text = (message.get('text') or _attachment_text(attachments))[:4000]
+    text = _meta_event_text(event_payload, attachments)
     ads_metadata = _extract_meta_ads_metadata(event_payload)
 
     return {
@@ -678,6 +703,27 @@ def _build_conversation_item(channel, account_id, account_alias, owned_account_i
         'payload_summary': _payload_summary(event_payload),
         'created_at': created_at,
     }
+
+
+def _is_conversation_message_event(event_payload, event_type):
+    if event_type == 'message':
+        message = event_payload.get('message') or {}
+        return bool(message.get('text') or _message_attachments(message))
+    if event_type == 'postback':
+        postback = event_payload.get('postback') or {}
+        return bool(postback.get('title') or postback.get('payload'))
+    return False
+
+
+def _meta_event_text(event_payload, attachments):
+    message = event_payload.get('message') or {}
+    postback = event_payload.get('postback') or {}
+    return _first_str(
+        message.get('text'),
+        postback.get('title'),
+        postback.get('payload'),
+        _attachment_text(attachments),
+    )[:4000]
 
 
 def _build_whatsapp_message_item(

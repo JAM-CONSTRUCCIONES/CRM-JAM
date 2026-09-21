@@ -817,6 +817,7 @@ export default function MetaInboxPage() {
                     )}
                     {mensajes.map((mensaje) => {
                       const incoming = mensaje.direction === 'incoming';
+                      const attachments = attachmentsOf(mensaje);
                       return (
                         <div key={`${mensaje.pk}-${mensaje.sk}`} className={`flex ${incoming ? 'justify-start' : 'justify-end'}`}>
                           <div className={`max-w-[82%] rounded-md border px-3 py-2 shadow-sm ${
@@ -824,12 +825,14 @@ export default function MetaInboxPage() {
                               ? 'border-[var(--app-border)] bg-[var(--panel-bg)]'
                               : 'border-[var(--action-border)] bg-[var(--action-soft-hover)]'
                           }`}>
-                            <Paragraph className="!mb-1 whitespace-pre-wrap">
-                              {mensaje.text || 'Evento sin texto'}
-                            </Paragraph>
-                            {attachmentsOf(mensaje).length > 0 && (
+                            {(mensaje.text || attachments.length === 0) && (
+                              <Paragraph className="!mb-1 whitespace-pre-wrap">
+                                {mensaje.text || 'Evento sin texto'}
+                              </Paragraph>
+                            )}
+                            {attachments.length > 0 && (
                               <div className="mb-2 space-y-1">
-                                {attachmentsOf(mensaje).map((attachment, index) => {
+                                {attachments.map((attachment, index) => {
                                   const type = attachment.type || 'archivo';
                                   const icon = type === 'image' || type === 'sticker' ? <PictureOutlined /> : <FileOutlined />;
                                   const label = attachment.filename || attachment.title || attachment.caption || type;

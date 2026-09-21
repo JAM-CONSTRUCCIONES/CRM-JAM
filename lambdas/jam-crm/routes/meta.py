@@ -1059,13 +1059,14 @@ def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=
             token = _get_token(MESSENGER_TOKEN_PARAMS.get(account_alias))
             if not token:
                 return _pending_config('Messenger no tiene page access token configurado')
+            message_payload = _meta_send_message_payload(texto, media_type, media_url)
             return _post_graph(
                 'https://graph.facebook.com/v26.0/me/messages',
                 token,
                 {
                     'messaging_type': 'RESPONSE',
                     'recipient': {'id': contact_id},
-                    'message': {'text': texto},
+                    'message': message_payload,
                 },
             )
 
@@ -1087,7 +1088,7 @@ def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=
                 token,
                 {
                     'recipient': {'id': contact_id},
-                    'message': {'text': texto},
+                    'message': _meta_send_message_payload(texto, media_type, media_url),
                 },
             )
 
@@ -1099,6 +1100,26 @@ def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=
             'message': str(exc),
             'response': {},
         }
+
+
+def _meta_send_message_payload(texto, media_type='', media_url=''):
+    if media_type and media_url:
+        attachment_type = {
+            'image': 'image',
+            'video': 'video',
+            'audio': 'audio',
+            'document': 'file',
+        }.get(media_type, media_type)
+        return {
+            'attachment': {
+                'type': attachment_type,
+                'payload': {
+                    'url': media_url,
+                    'is_reusable': True,
+                },
+            },
+        }
+    return {'text': texto}
 
 
 def _pending_config(message):

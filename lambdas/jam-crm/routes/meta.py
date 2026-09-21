@@ -1056,10 +1056,18 @@ def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=
         if canal == 'instagram':
             token = _get_token(INSTAGRAM_TOKEN_PARAMS.get(account_alias))
             account_id = str(lead.get('account_id') or '')
-            if not token or not account_id:
-                return _pending_config('Instagram no tiene token o account_id configurado')
+            if not token:
+                return _pending_config('Instagram no tiene token configurado')
+            # Tokens de Instagram Login API (prefijo IGAA) usan graph.instagram.com
+            # con /me/messages. Los tokens de Pagina usan graph.facebook.com.
+            if token.startswith('IGAA'):
+                url = 'https://graph.instagram.com/v22.0/me/messages'
+            else:
+                if not account_id:
+                    return _pending_config('Instagram no tiene account_id configurado')
+                url = f'https://graph.facebook.com/v22.0/{account_id}/messages'
             return _post_graph(
-                f'https://graph.facebook.com/v26.0/{account_id}/messages',
+                url,
                 token,
                 {
                     'recipient': {'id': contact_id},

@@ -27,7 +27,15 @@ INSTAGRAM_ACCOUNTS = {
         'alias': 'jamconstruccionessrl',
         'token_param': os.environ.get('INSTAGRAM_TOKEN_PARAM_JAM', ''),
     },
+    os.environ.get('INSTAGRAM_USER_ID_JAM', ''): {
+        'alias': 'jamconstruccionessrl',
+        'token_param': os.environ.get('INSTAGRAM_TOKEN_PARAM_JAM', ''),
+    },
     os.environ.get('INSTAGRAM_ACCOUNT_ID_CANEY', ''): {
+        'alias': 'caneyoriental',
+        'token_param': os.environ.get('INSTAGRAM_TOKEN_PARAM_CANEY', ''),
+    },
+    os.environ.get('INSTAGRAM_USER_ID_CANEY', ''): {
         'alias': 'caneyoriental',
         'token_param': os.environ.get('INSTAGRAM_TOKEN_PARAM_CANEY', ''),
     },

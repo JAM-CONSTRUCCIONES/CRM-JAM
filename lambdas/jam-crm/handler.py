@@ -37,6 +37,8 @@ def handler(event, context):
         query = event.get('queryStringParameters') or {}
         if query.get('tipo') == 'meta-leads':
             return meta_routes.listar_leads(event)
+        if query.get('tipo') == 'meta-formularios':
+            return meta_routes.listar_formularios(event)
         if query.get('tipo') == 'meta-conversacion':
             return meta_routes.ver_conversacion(event)
         if query.get('tipo') == 'meta-media-upload':

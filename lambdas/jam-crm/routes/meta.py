@@ -217,6 +217,43 @@ def listar_leads(event):
     })
 
 
+def listar_formularios(event):
+    if not meta_table:
+        return ok({'items': [], 'count': 0})
+
+    params = event.get('queryStringParameters') or {}
+    search_text = str(params.get('q') or params.get('busqueda') or '').strip().lower()
+    estado = str(params.get('estado') or '').strip().lower()
+    cursor = str(params.get('cursor') or '').strip()
+    try:
+        limit = int(params.get('limit') or 50)
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 100))
+
+    def matches_filters(item):
+        if estado and item.get('estado') != estado:
+            return False
+        if search_text and not _form_submission_matches_search(item, search_text):
+            return False
+        return True
+
+    result = _listar_feed(
+        feed_pk='META_FORM_SUBMISSION',
+        tipo='META_FORM_SUBMISSION',
+        limit=limit,
+        cursor=cursor,
+        matches_filters=matches_filters,
+        fallback_sort_key='event_timestamp',
+    )
+    return ok({
+        'items': result['items'],
+        'count': len(result['items']),
+        'has_more': bool(result.get('next_cursor')),
+        'next_cursor': result.get('next_cursor', ''),
+    })
+
+
 def ver_conversacion(event):
     if not meta_table:
         return ok({'lead': None, 'mensajes': []})
@@ -1139,6 +1176,7 @@ def _timeline_from_actividad(actividad):
         'nota': 'Nota interna',
         'conversion_cliente': 'Oportunidad registrada',
         'mensaje_saliente': 'Respuesta registrada',
+        'leadgen_recibido': 'Formulario Meta recibido',
     }.get(tipo, 'Actividad registrada')
     categoria = 'nota' if tipo == 'nota' else 'oportunidad' if tipo == 'conversion_cliente' else 'actividad'
 
@@ -1165,6 +1203,8 @@ def _timeline_from_actividad(actividad):
         detalle = _conversion_detalle(actividad)
     elif tipo == 'mensaje_saliente':
         detalle = actividad.get('texto') or actividad.get('error_message') or ''
+    elif tipo == 'leadgen_recibido':
+        detalle = actividad.get('detalle') or actividad.get('form_name') or actividad.get('leadgen_id') or ''
     else:
         detalle = tipo.replace('_', ' ')
 
@@ -1259,6 +1299,36 @@ def _lead_matches_search(item, search_text):
     return any(search_text in str(value or '').lower() for value in fields)
 
 
+def _form_submission_matches_search(item, search_text):
+    fields = (
+        item.get('leadgen_id'),
+        item.get('nombre'),
+        item.get('telefono'),
+        item.get('telefono_normalizado'),
+        item.get('correo'),
+        item.get('form_name'),
+        item.get('form_id'),
+        item.get('campaign_name'),
+        item.get('campaign_id'),
+        item.get('ad_name'),
+        item.get('ad_id'),
+        item.get('adset_name'),
+        item.get('adset_id'),
+        item.get('platform'),
+        item.get('lead_pk'),
+    )
+    if any(search_text in str(value or '').lower() for value in fields):
+        return True
+    field_map = item.get('field_map') or {}
+    if isinstance(field_map, dict):
+        for key, values in field_map.items():
+            if search_text in str(key or '').lower():
+                return True
+            if isinstance(values, list) and any(search_text in str(value or '').lower() for value in values):
+                return True
+    return False
+
+
 def _buscar_registros_cliente_por_cedula(cedula):
     try:
         result = clientes_table.query(
@@ -1338,13 +1408,24 @@ def _listar_oportunidades_cliente_asociado(lead):
 
 
 def _listar_leads_feed(limit=None, cursor='', matches_filters=None):
+    return _listar_feed(
+        feed_pk='META_LEAD',
+        tipo='META_LEAD',
+        limit=limit,
+        cursor=cursor,
+        matches_filters=matches_filters,
+        fallback_sort_key='ultimo_mensaje_en',
+    )
+
+
+def _listar_feed(feed_pk, tipo, limit=None, cursor='', matches_filters=None, fallback_sort_key='actualizado_en'):
     matches_filters = matches_filters or (lambda item: True)
     start_key = _decode_cursor(cursor)
     try:
         items = []
         kwargs = {
             'IndexName': 'gsi-meta-leads-feed',
-            'KeyConditionExpression': Key('feed_pk').eq('META_LEAD'),
+            'KeyConditionExpression': Key('feed_pk').eq(feed_pk),
             'ScanIndexForward': False,
         }
         if limit:
@@ -1377,20 +1458,20 @@ def _listar_leads_feed(limit=None, cursor='', matches_filters=None):
     last_key = None
     while limit is None or len(items) < limit:
         result = meta_table.scan(**scan_kwargs)
-        leads_page = [
+        page = [
             item for item in result.get('Items', [])
-            if item.get('tipo') == 'META_LEAD' and matches_filters(item)
+            if item.get('tipo') == tipo and matches_filters(item)
         ]
-        items.extend(leads_page)
+        items.extend(page)
         last_key = result.get('LastEvaluatedKey')
         if not last_key:
             break
         scan_kwargs['ExclusiveStartKey'] = last_key
 
-    leads = items[:limit] if limit else items
-    leads.sort(key=lambda item: item.get('ultimo_mensaje_en', ''), reverse=True)
+    records = items[:limit] if limit else items
+    records.sort(key=lambda item: item.get(fallback_sort_key, ''), reverse=True)
     return {
-        'items': leads,
+        'items': records,
         'next_cursor': _encode_cursor(last_key),
     }
 

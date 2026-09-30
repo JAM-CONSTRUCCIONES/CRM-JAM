@@ -1,6 +1,7 @@
 import json
 import os
 import urllib.error
+from urllib.parse import urlencode
 import urllib.request
 from datetime import datetime, timezone
 
@@ -128,6 +129,14 @@ def _store_meta_events(body):
     stored_count = 0
     duplicate_count = 0
     for item in items:
+        if item.get('tipo') == 'META_FORM_SUBMISSION':
+            was_new = _put_or_update_form_submission(item)
+            _upsert_meta_lead_from_form(item)
+            if was_new:
+                stored_count += 1
+            else:
+                duplicate_count += 1
+            continue
         if item.get('tipo') == 'META_MENSAJE' and _merge_duplicate_message(item):
             duplicate_count += 1
             continue
@@ -150,6 +159,55 @@ def _store_meta_events(body):
             raise
 
     return stored_count, duplicate_count
+
+
+def _put_or_update_form_submission(item):
+    try:
+        conversaciones_table.put_item(
+            Item=item,
+            ConditionExpression='attribute_not_exists(pk) AND attribute_not_exists(sk)',
+        )
+        return True
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+
+    conversaciones_table.update_item(
+        Key={'pk': item['pk'], 'sk': item['sk']},
+        UpdateExpression=(
+            'SET actualizado_en = :actualizado_en, lead_pk = :lead_pk, '
+            'leadgen_graph = :leadgen_graph, raw_webhook_value = :raw_webhook_value, '
+            'field_data = :field_data, field_map = :field_map, '
+            'nombre = :nombre, telefono = :telefono, telefono_normalizado = :telefono_normalizado, correo = :correo, '
+            'campaign_id = :campaign_id, campaign_name = :campaign_name, '
+            'adset_id = :adset_id, adset_name = :adset_name, '
+            'ad_id = :ad_id, ad_name = :ad_name, form_id = :form_id, form_name = :form_name, '
+            'fetch_status = :fetch_status, fetch_error = :fetch_error'
+        ),
+        ExpressionAttributeValues={
+            ':actualizado_en': _now_iso(),
+            ':lead_pk': item.get('lead_pk', ''),
+            ':leadgen_graph': item.get('leadgen_graph') or {},
+            ':raw_webhook_value': item.get('raw_webhook_value') or {},
+            ':field_data': item.get('field_data') or [],
+            ':field_map': item.get('field_map') or {},
+            ':nombre': item.get('nombre', ''),
+            ':telefono': item.get('telefono', ''),
+            ':telefono_normalizado': item.get('telefono_normalizado', ''),
+            ':correo': item.get('correo', ''),
+            ':campaign_id': item.get('campaign_id', ''),
+            ':campaign_name': item.get('campaign_name', ''),
+            ':adset_id': item.get('adset_id', ''),
+            ':adset_name': item.get('adset_name', ''),
+            ':ad_id': item.get('ad_id', ''),
+            ':ad_name': item.get('ad_name', ''),
+            ':form_id': item.get('form_id', ''),
+            ':form_name': item.get('form_name', ''),
+            ':fetch_status': item.get('fetch_status', ''),
+            ':fetch_error': item.get('fetch_error', ''),
+        },
+    )
+    return False
 
 
 def _merge_duplicate_message(item):
@@ -512,6 +570,170 @@ def _upsert_meta_lead(message_item):
     )
 
 
+def _upsert_meta_lead_from_form(form_item):
+    now = _now_iso()
+    lead_pk = form_item.get('lead_pk') or f"META_LEAD#leadgen#{form_item.get('page_id', 'unknown')}#{form_item.get('leadgen_id', 'unknown')}"
+    linked_channel = form_item.get('linked_channel') or 'leadgen'
+    account_alias = form_item.get('linked_account_alias') or form_item.get('account_alias') or ''
+    external_contact_id = (
+        form_item.get('telefono_normalizado')
+        if linked_channel == 'whatsapp'
+        else form_item.get('leadgen_id')
+    ) or ''
+    contact_name = form_item.get('nombre') or ''
+    form_summary = _leadgen_summary_text(form_item)
+    origen_detalle = {
+        'plataforma': 'Meta',
+        'canal': linked_channel,
+        'canal_label': _source_label(linked_channel),
+        'tipo_interaccion': 'formulario',
+        'event_type': 'leadgen',
+        'cuenta_id': form_item.get('page_id', ''),
+        'cuenta_alias': form_item.get('account_alias', ''),
+        'contacto_id': external_contact_id,
+        'leadgen_id': form_item.get('leadgen_id', ''),
+        'form_id': form_item.get('form_id', ''),
+        'form_name': form_item.get('form_name', ''),
+        'campaign_id': form_item.get('campaign_id', ''),
+        'campaign_name': form_item.get('campaign_name', ''),
+        'adset_id': form_item.get('adset_id', ''),
+        'adset_name': form_item.get('adset_name', ''),
+        'ad_id': form_item.get('ad_id', ''),
+        'ad_name': form_item.get('ad_name', ''),
+        'platform': form_item.get('platform', ''),
+    }
+    ads_origin = {
+        'campaign_id': form_item.get('campaign_id', ''),
+        'campaign_name': form_item.get('campaign_name', ''),
+        'adset_id': form_item.get('adset_id', ''),
+        'adset_name': form_item.get('adset_name', ''),
+        'ad_id': form_item.get('ad_id', ''),
+        'ad_name': form_item.get('ad_name', ''),
+        'form_id': form_item.get('form_id', ''),
+        'form_name': form_item.get('form_name', ''),
+        'raw': form_item.get('leadgen_graph') or form_item.get('raw_webhook_value') or {},
+    }
+    update_expression = (
+        'SET tipo = :tipo, channel = if_not_exists(channel, :channel), '
+        'account_id = if_not_exists(account_id, :account_id), '
+        'account_alias = if_not_exists(account_alias, :account_alias), '
+        'channel_account = if_not_exists(channel_account, :channel_account), '
+        'contact_key = if_not_exists(contact_key, :contact_key), '
+        'external_contact_id = if_not_exists(external_contact_id, :external_contact_id), '
+        'contact_profile_name = if_not_exists(contact_profile_name, :contact_profile_name), '
+        'nombre_formulario_meta = :nombre_formulario_meta, '
+        'telefono = :telefono, telefono_normalizado = :telefono_normalizado, correo = :correo, '
+        'fuente = if_not_exists(fuente, :fuente), origen = :origen, '
+        'origen_plataforma = :origen_plataforma, origen_canal = if_not_exists(origen_canal, :origen_canal), '
+        'origen_tipo_interaccion = if_not_exists(origen_tipo_interaccion, :origen_tipo_interaccion), '
+        'origen_cuenta_id = if_not_exists(origen_cuenta_id, :origen_cuenta_id), '
+        'origen_cuenta_alias = if_not_exists(origen_cuenta_alias, :origen_cuenta_alias), '
+        'origen_contacto_id = if_not_exists(origen_contacto_id, :origen_contacto_id), '
+        'origen_detalle = if_not_exists(origen_detalle, :origen_detalle), '
+        'campaign_id = if_not_exists(campaign_id, :campaign_id), '
+        'campaign_name = if_not_exists(campaign_name, :campaign_name), '
+        'adset_id = if_not_exists(adset_id, :adset_id), '
+        'adset_name = if_not_exists(adset_name, :adset_name), '
+        'ad_id = if_not_exists(ad_id, :ad_id), ad_name = if_not_exists(ad_name, :ad_name), '
+        'form_id = if_not_exists(form_id, :form_id), form_name = if_not_exists(form_name, :form_name), '
+        'ads_origin = if_not_exists(ads_origin, :ads_origin), '
+        '#estado = if_not_exists(#estado, :estado), '
+        'primer_formulario_en = if_not_exists(primer_formulario_en, :event_timestamp), '
+        'ultimo_formulario_en = :event_timestamp, ultimo_formulario_id = :leadgen_id, '
+        'ultimo_formulario_resumen = :form_summary, '
+        'ultimo_mensaje_en = if_not_exists(ultimo_mensaje_en, :event_timestamp), '
+        'feed_pk = :feed_pk, feed_sk = if_not_exists(feed_sk, :event_timestamp), '
+        'ultimo_mensaje_texto = if_not_exists(ultimo_mensaje_texto, :form_summary), '
+        'actualizado_en = :actualizado_en, creado_en = if_not_exists(creado_en, :creado_en), '
+        'mensajes_recibidos = if_not_exists(mensajes_recibidos, :zero), '
+        'mensajes_enviados = if_not_exists(mensajes_enviados, :zero), '
+        'mensajes_totales = if_not_exists(mensajes_totales, :zero)'
+    )
+    values = {
+        ':tipo': 'META_LEAD',
+        ':channel': linked_channel,
+        ':account_id': _primary_whatsapp_account().get('account_id', '') if linked_channel == 'whatsapp' else form_item.get('page_id', ''),
+        ':account_alias': account_alias,
+        ':channel_account': f'{linked_channel}#{account_alias}',
+        ':contact_key': f'{linked_channel}#{external_contact_id}',
+        ':external_contact_id': external_contact_id,
+        ':contact_profile_name': contact_name,
+        ':nombre_formulario_meta': contact_name,
+        ':telefono': form_item.get('telefono', ''),
+        ':telefono_normalizado': form_item.get('telefono_normalizado', ''),
+        ':correo': form_item.get('correo', ''),
+        ':fuente': 'Meta Lead Ads',
+        ':origen': 'meta',
+        ':origen_plataforma': 'Meta',
+        ':origen_canal': linked_channel,
+        ':origen_tipo_interaccion': 'formulario',
+        ':origen_cuenta_id': form_item.get('page_id', ''),
+        ':origen_cuenta_alias': form_item.get('account_alias', ''),
+        ':origen_contacto_id': external_contact_id,
+        ':origen_detalle': origen_detalle,
+        ':campaign_id': form_item.get('campaign_id', ''),
+        ':campaign_name': form_item.get('campaign_name', ''),
+        ':adset_id': form_item.get('adset_id', ''),
+        ':adset_name': form_item.get('adset_name', ''),
+        ':ad_id': form_item.get('ad_id', ''),
+        ':ad_name': form_item.get('ad_name', ''),
+        ':form_id': form_item.get('form_id', ''),
+        ':form_name': form_item.get('form_name', ''),
+        ':ads_origin': ads_origin,
+        ':estado': 'nuevo',
+        ':event_timestamp': form_item.get('event_timestamp') or now,
+        ':leadgen_id': form_item.get('leadgen_id', ''),
+        ':form_summary': form_summary,
+        ':feed_pk': 'META_LEAD',
+        ':actualizado_en': now,
+        ':creado_en': now,
+        ':zero': 0,
+    }
+    conversaciones_table.update_item(
+        Key={'pk': lead_pk, 'sk': 'METADATA'},
+        UpdateExpression=update_expression,
+        ExpressionAttributeNames={'#estado': 'estado'},
+        ExpressionAttributeValues=values,
+    )
+    _put_form_activity(lead_pk, form_item, form_summary)
+
+
+def _put_form_activity(lead_pk, form_item, form_summary):
+    try:
+        conversaciones_table.put_item(
+            Item={
+                'pk': lead_pk,
+                'sk': f"ACTIVIDAD#{form_item.get('event_timestamp') or _now_iso()}#leadgen#{form_item.get('leadgen_id', '')}",
+                'tipo': 'META_ACTIVIDAD',
+                'tipo_actividad': 'leadgen_recibido',
+                'creado_en': form_item.get('event_timestamp') or _now_iso(),
+                'usuario_nombre': 'Meta',
+                'leadgen_id': form_item.get('leadgen_id', ''),
+                'form_submission_pk': form_item.get('pk', ''),
+                'form_id': form_item.get('form_id', ''),
+                'form_name': form_item.get('form_name', ''),
+                'campaign_id': form_item.get('campaign_id', ''),
+                'campaign_name': form_item.get('campaign_name', ''),
+                'ad_id': form_item.get('ad_id', ''),
+                'ad_name': form_item.get('ad_name', ''),
+                'detalle': form_summary,
+            },
+            ConditionExpression='attribute_not_exists(pk) AND attribute_not_exists(sk)',
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+
+
+def _leadgen_summary_text(form_item):
+    label = _first_str(form_item.get('form_name'), form_item.get('form_id'), 'Formulario Meta')
+    name = form_item.get('nombre') or ''
+    phone = form_item.get('telefono_normalizado') or form_item.get('telefono') or ''
+    email = form_item.get('correo') or ''
+    parts = [part for part in (name, phone, email) if part]
+    return f'{label}: ' + (' - '.join(parts) if parts else 'respuestas recibidas')
+
+
 def _lead_key(message_item):
     account_identity = (
         message_item.get('account_id')
@@ -736,10 +958,32 @@ def _normalize_events(body):
     if object_type == 'instagram':
         return _normalize_instagram_events(body)
     if object_type == 'page':
-        return _normalize_messenger_events(body)
+        return _normalize_messenger_events(body) + _normalize_leadgen_events(body)
     if object_type == 'whatsapp_business_account':
         return _normalize_whatsapp_events(body)
     return []
+
+
+def _normalize_leadgen_events(body):
+    items = []
+    for entry in body.get('entry') or []:
+        page_id = str(entry.get('id') or '')
+        page = _get_messenger_page(page_id)
+        page_alias = page.get('alias') or page_id or 'unknown'
+        for change in entry.get('changes') or []:
+            if change.get('field') != 'leadgen':
+                continue
+            value = change.get('value') or {}
+            if not isinstance(value, dict):
+                continue
+            item = _build_leadgen_submission_item(
+                page_id=page_id,
+                page_alias=page_alias,
+                event_payload=value,
+            )
+            if item:
+                items.append(item)
+    return items
 
 
 def _normalize_instagram_events(body):
@@ -816,6 +1060,226 @@ def _get_messenger_page(page_id):
             'page_id': page_id,
             'error': str(exc)[:500],
         }))
+    return {}
+
+
+def _build_leadgen_submission_item(page_id, page_alias, event_payload):
+    leadgen_id = _first_str(event_payload.get('leadgen_id'), event_payload.get('id'))
+    if not leadgen_id:
+        return None
+
+    graph_data, fetch_status, fetch_error = _fetch_leadgen_details(page_id, leadgen_id)
+    lead_data = graph_data if graph_data else {}
+    field_data = lead_data.get('field_data') if isinstance(lead_data.get('field_data'), list) else []
+    field_map = _leadgen_field_map(field_data)
+    contact = _leadgen_contact_fields(field_map)
+    event_timestamp = _leadgen_timestamp(
+        lead_data.get('created_time') or event_payload.get('created_time')
+    )
+
+    campaign_id = _first_str(
+        lead_data.get('campaign_id'),
+        (lead_data.get('campaign') or {}).get('id') if isinstance(lead_data.get('campaign'), dict) else '',
+    )
+    campaign_name = _first_str(
+        lead_data.get('campaign_name'),
+        (lead_data.get('campaign') or {}).get('name') if isinstance(lead_data.get('campaign'), dict) else '',
+    )
+    adset_id = _first_str(
+        lead_data.get('adset_id'),
+        lead_data.get('adgroup_id'),
+        event_payload.get('adgroup_id'),
+        (lead_data.get('adset') or {}).get('id') if isinstance(lead_data.get('adset'), dict) else '',
+    )
+    adset_name = _first_str(
+        lead_data.get('adset_name'),
+        lead_data.get('adgroup_name'),
+        (lead_data.get('adset') or {}).get('name') if isinstance(lead_data.get('adset'), dict) else '',
+    )
+    ad_id = _first_str(
+        lead_data.get('ad_id'),
+        event_payload.get('ad_id'),
+        (lead_data.get('ad') or {}).get('id') if isinstance(lead_data.get('ad'), dict) else '',
+    )
+    ad_name = _first_str(
+        lead_data.get('ad_name'),
+        (lead_data.get('ad') or {}).get('name') if isinstance(lead_data.get('ad'), dict) else '',
+    )
+    form_id = _first_str(
+        lead_data.get('form_id'),
+        event_payload.get('form_id'),
+        (lead_data.get('form') or {}).get('id') if isinstance(lead_data.get('form'), dict) else '',
+    )
+    form_name = _first_str(
+        lead_data.get('form_name'),
+        (lead_data.get('form') or {}).get('name') if isinstance(lead_data.get('form'), dict) else '',
+    )
+    platform = _first_str(lead_data.get('platform'), event_payload.get('platform'))
+
+    telefono_normalizado = _normalize_phone(contact['telefono'])
+    whatsapp_account = _primary_whatsapp_account()
+    if telefono_normalizado and whatsapp_account.get('account_id'):
+        lead_pk = (
+            f"META_LEAD#whatsapp#{whatsapp_account['account_id']}#"
+            f"{telefono_normalizado}"
+        )
+        linked_channel = 'whatsapp'
+        linked_account_alias = whatsapp_account.get('alias', '')
+    else:
+        lead_pk = f"META_LEAD#leadgen#{page_id or 'unknown'}#{leadgen_id}"
+        linked_channel = 'leadgen'
+        linked_account_alias = page_alias
+
+    return {
+        'pk': f'META_FORM_SUBMISSION#{leadgen_id}',
+        'sk': 'METADATA',
+        'tipo': 'META_FORM_SUBMISSION',
+        'leadgen_id': leadgen_id,
+        'external_event_id': f'leadgen#{leadgen_id}',
+        'page_id': page_id,
+        'account_id': page_id,
+        'account_alias': page_alias,
+        'channel': 'leadgen',
+        'linked_channel': linked_channel,
+        'linked_account_alias': linked_account_alias,
+        'lead_pk': lead_pk,
+        'event_timestamp': event_timestamp,
+        'created_at': _now_iso(),
+        'actualizado_en': _now_iso(),
+        'feed_pk': 'META_FORM_SUBMISSION',
+        'feed_sk': event_timestamp,
+        'estado': 'nuevo',
+        'nombre': contact['nombre'],
+        'telefono': contact['telefono'],
+        'telefono_normalizado': telefono_normalizado,
+        'correo': contact['correo'],
+        'field_data': field_data,
+        'field_map': field_map,
+        'campaign_id': campaign_id,
+        'campaign_name': campaign_name,
+        'adset_id': adset_id,
+        'adset_name': adset_name,
+        'ad_id': ad_id,
+        'ad_name': ad_name,
+        'form_id': form_id,
+        'form_name': form_name,
+        'platform': platform,
+        'raw_webhook_value': event_payload,
+        'leadgen_graph': lead_data,
+        'fetch_status': fetch_status,
+        'fetch_error': fetch_error,
+    }
+
+
+def _fetch_leadgen_details(page_id, leadgen_id):
+    try:
+        token = _get_messenger_token(page_id)
+    except Exception as exc:
+        return {}, 'fallo_token', str(exc)[:1000]
+    if not token:
+        return {}, 'sin_token', 'No hay page token configurado para consultar el lead'
+
+    fields = ','.join([
+        'id',
+        'created_time',
+        'field_data',
+        'ad_id',
+        'ad_name',
+        'adset_id',
+        'adset_name',
+        'campaign_id',
+        'campaign_name',
+        'form_id',
+        'form_name',
+        'platform',
+        'is_organic',
+        'custom_disclaimer_responses',
+    ])
+    url = f'https://graph.facebook.com/v26.0/{leadgen_id}?{urlencode({"fields": fields, "access_token": token})}'
+    try:
+        request = urllib.request.Request(url, method='GET')
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode('utf-8') or '{}'), 'ok', ''
+    except Exception as exc:
+        return {}, 'fallo_graph', str(exc)[:1000]
+
+
+def _leadgen_field_map(field_data):
+    result = {}
+    for field in field_data or []:
+        if not isinstance(field, dict):
+            continue
+        name = str(field.get('name') or '').strip()
+        if not name:
+            continue
+        values = field.get('values')
+        if not isinstance(values, list):
+            values = [] if values in (None, '') else [values]
+        result[name] = [str(value).strip() for value in values if str(value).strip()]
+    return result
+
+
+def _leadgen_first_field(field_map, *names):
+    normalized = {
+        str(key).lower().replace(' ', '_').replace('-', '_'): value
+        for key, value in (field_map or {}).items()
+    }
+    for name in names:
+        values = normalized.get(name)
+        if isinstance(values, list) and values:
+            return str(values[0]).strip()
+    return ''
+
+
+def _leadgen_contact_fields(field_map):
+    first_name = _leadgen_first_field(field_map, 'first_name', 'nombre')
+    last_name = _leadgen_first_field(field_map, 'last_name', 'apellido', 'apellidos')
+    full_name = _leadgen_first_field(field_map, 'full_name', 'nombre_completo', 'name')
+    nombre = full_name or ' '.join(part for part in (first_name, last_name) if part).strip()
+    return {
+        'nombre': nombre[:160],
+        'telefono': _leadgen_first_field(
+            field_map,
+            'phone_number',
+            'phone',
+            'telefono',
+            'numero_de_telefono',
+            'whatsapp',
+        )[:60],
+        'correo': _leadgen_first_field(field_map, 'email', 'correo', 'correo_electronico')[:160],
+    }
+
+
+def _normalize_phone(value):
+    digits = ''.join(ch for ch in str(value or '') if ch.isdigit())
+    if not digits:
+        return ''
+    if len(digits) == 8:
+        return f'591{digits}'
+    if digits.startswith('00'):
+        return digits[2:]
+    return digits
+
+
+def _leadgen_timestamp(value):
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(int(value), timezone.utc).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return _now_iso()
+    text_value = str(value or '').strip()
+    if text_value:
+        return text_value
+    return _now_iso()
+
+
+def _primary_whatsapp_account():
+    for account_id, account in WHATSAPP_ACCOUNTS.items():
+        if account_id and account.get('alias') == 'jam_construcciones':
+            return {'account_id': account_id, **account}
+    for account_id, account in WHATSAPP_ACCOUNTS.items():
+        if account_id:
+            return {'account_id': account_id, **account}
     return {}
 
 

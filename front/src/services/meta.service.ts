@@ -216,8 +216,50 @@ export interface MetaTimelineItem {
   inmobiliaria_id?: string;
 }
 
+export interface MetaFormSubmission {
+  pk: string;
+  sk: string;
+  tipo: 'META_FORM_SUBMISSION';
+  leadgen_id: string;
+  lead_pk?: string;
+  page_id?: string;
+  account_alias?: string;
+  linked_channel?: string;
+  linked_account_alias?: string;
+  event_timestamp?: string;
+  created_at?: string;
+  actualizado_en?: string;
+  estado?: string;
+  nombre?: string;
+  telefono?: string;
+  telefono_normalizado?: string;
+  correo?: string;
+  campaign_id?: string;
+  campaign_name?: string;
+  adset_id?: string;
+  adset_name?: string;
+  ad_id?: string;
+  ad_name?: string;
+  form_id?: string;
+  form_name?: string;
+  platform?: string;
+  field_data?: Array<{ name?: string; values?: string[] }>;
+  field_map?: Record<string, string[]>;
+  raw_webhook_value?: Record<string, unknown>;
+  leadgen_graph?: Record<string, unknown>;
+  fetch_status?: string;
+  fetch_error?: string;
+}
+
 export interface MetaLeadsResponse {
   items: MetaLead[];
+  count: number;
+  has_more?: boolean;
+  next_cursor?: string;
+}
+
+export interface MetaFormSubmissionsResponse {
+  items: MetaFormSubmission[];
   count: number;
   has_more?: boolean;
   next_cursor?: string;
@@ -252,6 +294,20 @@ export const listarMetaLeads = (params?: {
   if (params?.limit) query.set('limit', String(params.limit));
   if (params?.cursor) query.set('cursor', params.cursor);
   return apiGet<MetaLeadsResponse>(`/admin/procesos?${query.toString()}`);
+};
+
+export const listarMetaFormularios = (params?: {
+  estado?: string;
+  q?: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<MetaFormSubmissionsResponse> => {
+  const query = new URLSearchParams({ tipo: 'meta-formularios' });
+  if (params?.estado) query.set('estado', params.estado);
+  if (params?.q) query.set('q', params.q);
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.cursor) query.set('cursor', params.cursor);
+  return apiGet<MetaFormSubmissionsResponse>(`/admin/procesos?${query.toString()}`);
 };
 
 export const getMetaConversacion = (

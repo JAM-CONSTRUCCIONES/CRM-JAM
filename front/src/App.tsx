@@ -23,6 +23,7 @@ import MetaCompliancePages from './pages/meta/MetaCompliancePages';
 import MetaFacebookCallbackPage from './pages/meta/MetaFacebookCallbackPage';
 import MetaInboxPage from './pages/meta/MetaInboxPage';
 import MetaLeadsPage from './pages/meta/MetaLeadsPage';
+import MetaFormsPage from './pages/meta/MetaFormsPage';
 
 const App = () => (
   <BrowserRouter>
@@ -128,6 +129,14 @@ const App = () => (
             element={
               <ProtectedRoute roles={['admin', 'coordinador', 'supervisor']}>
                 <MetaLeadsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="meta-formularios"
+            element={
+              <ProtectedRoute roles={['admin', 'coordinador', 'supervisor']}>
+                <MetaFormsPage />
               </ProtectedRoute>
             }
           />

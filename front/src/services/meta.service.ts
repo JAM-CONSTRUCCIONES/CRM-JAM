@@ -46,6 +46,16 @@ export interface MetaLead {
   asignado_por_nombre?: string;
   cliente_cedula?: string;
   cliente_pk?: string;
+  cliente_sk?: string;
+  cliente_asociado?: boolean;
+  cliente_asociacion_tipo?: 'cedula' | string;
+  cliente_inmobiliaria_id?: string;
+  cliente_proyecto_id?: string;
+  cliente_nombre?: string;
+  cliente_registros_count?: number;
+  cliente_nombre_variantes?: string[];
+  asociado_en?: string;
+  asociado_por_nombre?: string;
   proyecto_id?: string;
   unidad_id?: string;
   convertido_en?: string;
@@ -65,6 +75,19 @@ export interface MetaLead {
     unidad_nombre?: string;
     con_unidad?: boolean;
   }>;
+  oportunidades_asociadas?: Array<{
+    origen?: string;
+    cedula?: string;
+    inmobiliaria_id?: string;
+    proyecto_id?: string;
+    unidad_id?: string;
+    unidad_nombre?: string;
+    estado?: string;
+    fecha_inicio?: string;
+    actualizado_en?: string;
+    proceso_pk?: string;
+    proceso_sk?: string;
+  }>;
 }
 
 export interface MetaMensaje {
@@ -80,7 +103,29 @@ export interface MetaMensaje {
   event_type: string;
   external_event_id: string;
   event_timestamp: string;
+  created_at?: string;
   text?: string;
+  quoted_message_id?: string;
+  quoted_text?: string;
+  quoted_sender?: string;
+  edited?: boolean;
+  edited_at?: string;
+  original_text?: string;
+  revoked?: boolean;
+  revoked_at?: string;
+  revoked_message_id?: string;
+  edit_event_id?: string;
+  revoke_event_id?: string;
+  edited_message_id?: string;
+  edited_text?: string;
+  reaction_message_id?: string;
+  reaction_emoji?: string;
+  reactions?: Array<{
+    sender_id?: string;
+    emoji?: string;
+    event_id?: string;
+    event_timestamp?: string;
+  }>;
   campaign_id?: string;
   campaign_name?: string;
   adset_id?: string;
@@ -105,6 +150,7 @@ export interface MetaMensaje {
     caption?: string;
     public_url?: string;
     storage_status?: string;
+    voice?: boolean;
   }>;
   media?: {
     type?: string;
@@ -115,10 +161,18 @@ export interface MetaMensaje {
     caption?: string;
     public_url?: string;
     storage_status?: string;
+    voice?: boolean;
   } | null;
   message_status?: string;
   meta_error?: string;
   error_message?: string;
+  meta_response?: {
+    messages?: Array<{
+      id?: string;
+      message_status?: string;
+    }>;
+    [key: string]: unknown;
+  };
 }
 
 export interface MetaActividad {
@@ -165,6 +219,8 @@ export interface MetaTimelineItem {
 export interface MetaLeadsResponse {
   items: MetaLead[];
   count: number;
+  has_more?: boolean;
+  next_cursor?: string;
 }
 
 export interface MetaConversacionResponse {
@@ -183,12 +239,18 @@ export const listarMetaLeads = (params?: {
   estado?: string;
   responsable_id?: string;
   inmobiliaria_id?: string;
+  q?: string;
+  limit?: number;
+  cursor?: string;
 }): Promise<MetaLeadsResponse> => {
   const query = new URLSearchParams({ tipo: 'meta-leads' });
   if (params?.canal) query.set('canal', params.canal);
   if (params?.estado) query.set('estado', params.estado);
   if (params?.responsable_id) query.set('responsable_id', params.responsable_id);
   if (params?.inmobiliaria_id) query.set('inmobiliaria_id', params.inmobiliaria_id);
+  if (params?.q) query.set('q', params.q);
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.cursor) query.set('cursor', params.cursor);
   return apiGet<MetaLeadsResponse>(`/admin/procesos?${query.toString()}`);
 };
 
@@ -236,6 +298,10 @@ export const enviarMetaMensaje = (
     media_url?: string;
     content_type?: string;
     filename?: string;
+    voice?: boolean;
+    quoted_message_id?: string;
+    quoted_text?: string;
+    quoted_sender?: string;
   },
 ): Promise<{
   message: string;
@@ -324,4 +390,49 @@ export const convertirMetaLead = (
     lead_pk: leadPk,
   });
   return apiPut(`/admin/procesos?${query.toString()}`, data);
+};
+
+export const asociarMetaLeadCliente = (
+  leadPk: string,
+  data: {
+    cedula: string;
+    proyecto_id?: string;
+    inmobiliaria_id?: string;
+  },
+): Promise<{
+  message: string;
+  lead: MetaLead;
+  cliente: Cliente;
+  clientes?: Cliente[];
+  oportunidades_asociadas: NonNullable<MetaLead['oportunidades_asociadas']>;
+}> => {
+  const query = new URLSearchParams({
+    tipo: 'meta-lead',
+    accion: 'asociar-cliente',
+    lead_pk: leadPk,
+  });
+  return apiPut(`/admin/procesos?${query.toString()}`, data);
+};
+
+export const getFacebookMessengerOAuthUrl = (): Promise<{ auth_url: string; redirect_uri: string }> => {
+  const query = new URLSearchParams({ tipo: 'meta-facebook-oauth-url' });
+  return apiGet(`/admin/procesos?${query.toString()}`);
+};
+
+export const completarFacebookMessengerOAuth = (
+  code: string,
+  pageId?: string,
+): Promise<{
+  connected: boolean;
+  channel: 'messenger';
+  account_alias: string;
+  page_id: string;
+  page_name: string;
+  subscription?: Record<string, unknown>;
+}> => {
+  const query = new URLSearchParams({ tipo: 'meta-facebook-callback' });
+  return apiPost(`/admin/procesos?${query.toString()}`, {
+    code,
+    ...(pageId ? { page_id: pageId } : {}),
+  });
 };

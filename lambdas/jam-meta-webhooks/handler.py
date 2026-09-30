@@ -44,6 +44,7 @@ INSTAGRAM_ACCOUNTS = {
 MESSENGER_PAGES = {
     os.environ.get('MESSENGER_PAGE_ID_JAM', ''): {
         'alias': 'jam_construcciones',
+        'token_param': os.environ.get('MESSENGER_PAGE_TOKEN_PARAM_JAM', ''),
     },
 }
 
@@ -127,7 +128,7 @@ def _store_meta_events(body):
     stored_count = 0
     duplicate_count = 0
     for item in items:
-        if item.get('tipo') == 'META_MENSAJE' and _message_already_stored(item):
+        if item.get('tipo') == 'META_MENSAJE' and _merge_duplicate_message(item):
             duplicate_count += 1
             continue
         try:
@@ -136,7 +137,9 @@ def _store_meta_events(body):
                 ConditionExpression='attribute_not_exists(pk) AND attribute_not_exists(sk)',
             )
             if item.get('tipo') == 'META_MENSAJE':
-                _upsert_meta_lead(item)
+                _apply_whatsapp_message_event(item)
+                if not _is_whatsapp_auxiliary_event(item):
+                    _upsert_meta_lead(item)
             if item.get('tipo') == 'META_ESTADO_MENSAJE':
                 _apply_message_status(item)
             stored_count += 1
@@ -149,7 +152,7 @@ def _store_meta_events(body):
     return stored_count, duplicate_count
 
 
-def _message_already_stored(item):
+def _merge_duplicate_message(item):
     external_event_id = item.get('external_event_id')
     if not external_event_id:
         return False
@@ -165,8 +168,43 @@ def _message_already_stored(item):
             and existing.get('channel') == item.get('channel')
             and existing.get('account_alias') == item.get('account_alias')
         ):
+            _update_existing_message_from_duplicate(existing, item)
             return True
     return False
+
+
+def _update_existing_message_from_duplicate(existing, incoming):
+    set_parts = [
+        'message_status = :message_status',
+        'message_status_updated_at = :updated_at',
+    ]
+    names = {}
+    values = {
+        ':message_status': incoming.get('message_status') or existing.get('message_status') or '',
+        ':updated_at': incoming.get('event_timestamp') or incoming.get('created_at') or _now_iso(),
+    }
+    if incoming.get('quoted_message_id') and not existing.get('quoted_message_id'):
+        set_parts.extend([
+            'quoted_message_id = :quoted_message_id',
+            'quoted_text = :quoted_text',
+            'quoted_sender = :quoted_sender',
+        ])
+        values[':quoted_message_id'] = incoming.get('quoted_message_id', '')
+        values[':quoted_text'] = incoming.get('quoted_text', '')
+        values[':quoted_sender'] = incoming.get('quoted_sender', '')
+    if incoming.get('text') and incoming.get('text') != existing.get('text'):
+        set_parts.append('#txt = :text')
+        names['#txt'] = 'text'
+        values[':text'] = incoming.get('text', '')
+
+    kwargs = {
+        'Key': {'pk': existing['pk'], 'sk': existing['sk']},
+        'UpdateExpression': 'SET ' + ', '.join(set_parts),
+        'ExpressionAttributeValues': values,
+    }
+    if names:
+        kwargs['ExpressionAttributeNames'] = names
+    conversaciones_table.update_item(**kwargs)
 
 
 def _apply_message_status(status_item):
@@ -174,6 +212,7 @@ def _apply_message_status(status_item):
     message_status = status_item.get('message_status')
     if not message_id or not message_status:
         return
+    error_message = _whatsapp_status_error_message(status_item)
 
     result = conversaciones_table.query(
         IndexName='gsi-external-event',
@@ -183,19 +222,171 @@ def _apply_message_status(status_item):
     for message in result.get('Items', []):
         if message.get('tipo') != 'META_MENSAJE':
             continue
+        set_expression = (
+            'SET message_status = :message_status, '
+            'message_status_updated_at = :updated_at, '
+            'message_status_event_pk = :status_pk, '
+            'message_status_event_sk = :status_sk'
+        )
+        values = {
+            ':message_status': message_status,
+            ':updated_at': status_item.get('event_timestamp') or _now_iso(),
+            ':status_pk': status_item.get('pk', ''),
+            ':status_sk': status_item.get('sk', ''),
+        }
+        if error_message:
+            set_expression += ', error_message = :error_message'
+            values[':error_message'] = error_message
+        conversaciones_table.update_item(
+            Key={'pk': message['pk'], 'sk': message['sk']},
+            UpdateExpression=set_expression,
+            ExpressionAttributeValues=values,
+        )
+
+
+def _whatsapp_status_error_message(status_item):
+    errors = status_item.get('errors') or []
+    if not isinstance(errors, list) or not errors:
+        return ''
+    parts = []
+    for error in errors[:3]:
+        if not isinstance(error, dict):
+            parts.append(str(error))
+            continue
+        code = str(error.get('code') or '').strip()
+        title = str(error.get('title') or '').strip()
+        message = str(error.get('message') or error.get('details') or '').strip()
+        detail = ' - '.join(part for part in (title, message) if part)
+        parts.append(f'{code}: {detail}' if code and detail else detail or code)
+    return ' | '.join(part for part in parts if part)[:1000]
+
+
+def _is_whatsapp_auxiliary_event(item):
+    if item.get('channel') != 'whatsapp':
+        return False
+    event_type = item.get('event_type')
+    return (
+        (event_type == 'edit' and bool(item.get('edited_message_id')))
+        or (event_type == 'reaction' and bool(item.get('reaction_message_id')))
+        or (event_type == 'revoke' and bool(item.get('revoked_message_id')))
+    )
+
+
+def _apply_whatsapp_message_event(item):
+    if item.get('channel') != 'whatsapp':
+        return
+    event_type = item.get('event_type')
+    if event_type == 'edit':
+        _apply_message_edit(item)
+    elif event_type == 'reaction':
+        _apply_message_reaction(item)
+    elif event_type == 'revoke':
+        _apply_message_revoke(item)
+
+
+def _messages_by_external_id(external_event_id):
+    if not external_event_id:
+        return []
+    result = conversaciones_table.query(
+        IndexName='gsi-external-event',
+        KeyConditionExpression=Key('external_event_id').eq(external_event_id),
+        Limit=10,
+    )
+    return [item for item in result.get('Items', []) if item.get('tipo') == 'META_MENSAJE']
+
+
+def _apply_message_edit(edit_item):
+    target_id = edit_item.get('edited_message_id') or ''
+    edited_text = edit_item.get('edited_text') or ''
+    if not target_id or not edited_text:
+        return
+
+    for message in _messages_by_external_id(target_id):
+        original_text = message.get('original_text') or message.get('text') or ''
         conversaciones_table.update_item(
             Key={'pk': message['pk'], 'sk': message['sk']},
             UpdateExpression=(
-                'SET message_status = :message_status, '
-                'message_status_updated_at = :updated_at, '
-                'message_status_event_pk = :status_pk, '
-                'message_status_event_sk = :status_sk'
+                'SET #txt = :text, edited = :edited, edited_at = :edited_at, '
+                'edit_event_id = :edit_event_id, original_text = :original_text'
             ),
+            ExpressionAttributeNames={'#txt': 'text'},
             ExpressionAttributeValues={
-                ':message_status': message_status,
-                ':updated_at': status_item.get('event_timestamp') or _now_iso(),
-                ':status_pk': status_item.get('pk', ''),
-                ':status_sk': status_item.get('sk', ''),
+                ':text': edited_text,
+                ':edited': True,
+                ':edited_at': edit_item.get('event_timestamp') or _now_iso(),
+                ':edit_event_id': edit_item.get('external_event_id') or '',
+                ':original_text': original_text,
+            },
+        )
+        _update_lead_last_text_if_matches(message, target_id, edited_text)
+
+
+def _apply_message_reaction(reaction_item):
+    target_id = reaction_item.get('reaction_message_id') or ''
+    emoji = reaction_item.get('reaction_emoji') or ''
+    if not target_id:
+        return
+
+    for message in _messages_by_external_id(target_id):
+        reactions = list(message.get('reactions') or [])
+        sender_id = reaction_item.get('sender_id') or ''
+        reactions = [item for item in reactions if item.get('sender_id') != sender_id]
+        if emoji:
+            reactions.append({
+                'sender_id': sender_id,
+                'emoji': emoji,
+                'event_id': reaction_item.get('external_event_id') or '',
+                'event_timestamp': reaction_item.get('event_timestamp') or _now_iso(),
+            })
+        conversaciones_table.update_item(
+            Key={'pk': message['pk'], 'sk': message['sk']},
+            UpdateExpression='SET reactions = :reactions, reactions_updated_at = :updated_at',
+            ExpressionAttributeValues={
+                ':reactions': reactions,
+                ':updated_at': reaction_item.get('event_timestamp') or _now_iso(),
+            },
+        )
+
+
+def _apply_message_revoke(revoke_item):
+    target_id = revoke_item.get('revoked_message_id') or ''
+    if not target_id:
+        return
+
+    for message in _messages_by_external_id(target_id):
+        original_text = message.get('original_text') or message.get('text') or ''
+        conversaciones_table.update_item(
+            Key={'pk': message['pk'], 'sk': message['sk']},
+            UpdateExpression=(
+                'SET revoked = :revoked, revoked_at = :revoked_at, '
+                'revoke_event_id = :revoke_event_id, original_text = :original_text, '
+                '#txt = :text'
+            ),
+            ExpressionAttributeNames={'#txt': 'text'},
+            ExpressionAttributeValues={
+                ':revoked': True,
+                ':revoked_at': revoke_item.get('event_timestamp') or _now_iso(),
+                ':revoke_event_id': revoke_item.get('external_event_id') or '',
+                ':original_text': original_text,
+                ':text': 'Mensaje eliminado en WhatsApp',
+            },
+        )
+        _update_lead_last_text_if_matches(message, target_id, 'Mensaje eliminado en WhatsApp')
+
+
+def _update_lead_last_text_if_matches(message, target_id, text):
+    lead_key = _lead_key(message)
+    legacy_lead_key = _legacy_lead_key(message)
+    for pk in {lead_key, legacy_lead_key}:
+        lead = conversaciones_table.get_item(Key={'pk': pk, 'sk': 'METADATA'}).get('Item')
+        if not lead or lead.get('ultimo_evento_id') != target_id:
+            continue
+        conversaciones_table.update_item(
+            Key={'pk': pk, 'sk': 'METADATA'},
+            UpdateExpression='SET ultimo_mensaje_texto = :text, actualizado_en = :updated_at',
+            ExpressionAttributeValues={
+                ':text': text,
+                ':updated_at': _now_iso(),
             },
         )
 
@@ -247,6 +438,8 @@ def _upsert_meta_lead(message_item):
         'estado = if_not_exists(estado, :estado)',
         'primer_mensaje_en = if_not_exists(primer_mensaje_en, :primer_mensaje_en)',
         'ultimo_mensaje_en = :ultimo_mensaje_en',
+        'feed_pk = :feed_pk',
+        'feed_sk = :feed_sk',
         'ultimo_mensaje_texto = :ultimo_mensaje_texto',
         'ultimo_evento_id = :ultimo_evento_id',
         'actualizado_en = :actualizado_en',
@@ -295,6 +488,8 @@ def _upsert_meta_lead(message_item):
         ':estado': 'nuevo',
         ':primer_mensaje_en': message_item.get('event_timestamp', now),
         ':ultimo_mensaje_en': message_item.get('event_timestamp', now),
+        ':feed_pk': 'META_LEAD',
+        ':feed_sk': message_item.get('event_timestamp', now),
         ':ultimo_mensaje_texto': message_item.get('text', ''),
         ':ultimo_evento_id': message_item.get('external_event_id', ''),
         ':actualizado_en': now,
@@ -576,7 +771,7 @@ def _normalize_messenger_events(body):
     items = []
     for entry in body.get('entry') or []:
         page_id = str(entry.get('id') or '')
-        page = MESSENGER_PAGES.get(page_id, {})
+        page = _get_messenger_page(page_id)
         page_alias = page.get('alias') or page_id or 'unknown'
         for messaging_event in entry.get('messaging') or []:
             items.append(_build_conversation_item(
@@ -595,6 +790,33 @@ def _normalize_messenger_events(body):
                 event_payload=messaging_event,
             ))
     return [item for item in items if item]
+
+
+def _get_messenger_page(page_id):
+    page = MESSENGER_PAGES.get(page_id)
+    if page:
+        return page
+    if not conversaciones_table or not page_id:
+        return {}
+    try:
+        item = conversaciones_table.get_item(
+            Key={
+                'pk': 'META_ACCOUNT#messenger#jam_construcciones',
+                'sk': 'METADATA',
+            }
+        ).get('Item') or {}
+        if str(item.get('page_id') or item.get('account_id') or '') == str(page_id):
+            return {
+                'alias': item.get('account_alias') or 'jam_construcciones',
+                'token_param': item.get('token_param') or '',
+            }
+    except Exception as exc:
+        print(json.dumps({
+            'event': 'messenger_connected_page_lookup_failed',
+            'page_id': page_id,
+            'error': str(exc)[:500],
+        }))
+    return {}
 
 
 def _normalize_whatsapp_events(body):
@@ -709,6 +931,7 @@ def _build_conversation_item(channel, account_id, account_alias, owned_account_i
         'event_timestamp': event_timestamp,
         'text': text,
         'attachments': attachments,
+        **_meta_context_fields(event_payload),
         'ads_origin': ads_metadata,
         'campaign_id': ads_metadata['campaign_id'],
         'campaign_name': ads_metadata['campaign_name'],
@@ -735,6 +958,21 @@ def _is_conversation_message_event(event_payload, event_type):
         postback = event_payload.get('postback') or {}
         return bool(postback.get('title') or postback.get('payload'))
     return False
+
+
+def _meta_context_fields(event_payload):
+    message = event_payload.get('message') or {}
+    if not isinstance(message, dict):
+        return {}
+    reply_to = message.get('reply_to') or {}
+    if not isinstance(reply_to, dict):
+        return {}
+    quoted_message_id = _first_str(reply_to.get('mid'), reply_to.get('id'))
+    if not quoted_message_id:
+        return {}
+    return {
+        'quoted_message_id': quoted_message_id,
+    }
 
 
 def _meta_event_text(event_payload, attachments):
@@ -770,6 +1008,7 @@ def _build_whatsapp_message_item(
     if media:
         media = _archive_whatsapp_media(account_alias, media)
     ads_metadata = _extract_whatsapp_ads_metadata(event_payload)
+    special_fields = _whatsapp_special_fields(event_payload, message_type)
 
     return {
         'pk': f'CONVERSACION#whatsapp#{account_alias}#{contact_id}',
@@ -792,6 +1031,9 @@ def _build_whatsapp_message_item(
         'event_timestamp': event_timestamp,
         'text': text,
         'media': media,
+        **_whatsapp_context_fields(event_payload),
+        **special_fields,
+        **({'auxiliary_event': True} if message_type in {'edit', 'reaction', 'revoke'} else {}),
         'ads_origin': ads_metadata,
         'campaign_id': ads_metadata['campaign_id'],
         'campaign_name': ads_metadata['campaign_name'],
@@ -837,6 +1079,7 @@ def _build_whatsapp_echo_item(
     media = _whatsapp_media_summary(event_payload, message_type)
     if media:
         media = _archive_whatsapp_media(account_alias, media)
+    special_fields = _whatsapp_special_fields(event_payload, message_type)
 
     return {
         'pk': f'CONVERSACION#whatsapp#{account_alias}#{contact_id}',
@@ -858,6 +1101,9 @@ def _build_whatsapp_echo_item(
         'event_timestamp': event_timestamp,
         'text': text,
         'media': media,
+        **_whatsapp_context_fields(event_payload),
+        **special_fields,
+        **({'auxiliary_event': True} if message_type in {'edit', 'reaction', 'revoke'} else {}),
         'message_status': 'enviado_desde_app',
         'payload_summary': _whatsapp_payload_summary(event_payload, message_type),
         'created_at': created_at,
@@ -963,7 +1209,101 @@ def _whatsapp_text(event_payload, message_type):
             label = name or address or f'{lat},{lng}'
             return f'Ubicacion: {label} | {maps_url}'
         return 'Ubicacion compartida'
+    if message_type == 'edit':
+        edited_text = _whatsapp_edit_text(event_payload)
+        return edited_text or 'Mensaje editado en WhatsApp'
+    if message_type == 'reaction':
+        emoji = _whatsapp_reaction_emoji(event_payload)
+        return f'Reacciono {emoji} a un mensaje' if emoji else 'Reacciono a un mensaje'
+    if message_type == 'revoke':
+        special = _whatsapp_special_fields(event_payload, message_type)
+        return 'Mensaje eliminado en WhatsApp' if special.get('revoked_message_id') else 'Se elimino un mensaje'
+    if message_type == 'unsupported':
+        return 'Tipo de mensaje no soportado por WhatsApp API'
     return f'[{message_type}]'
+
+
+def _whatsapp_special_fields(event_payload, message_type):
+    if message_type == 'edit':
+        return {
+            'edited_message_id': _whatsapp_edit_message_id(event_payload),
+            'edited_text': _whatsapp_edit_text(event_payload),
+        }
+    if message_type == 'reaction':
+        return {
+            'reaction_message_id': _whatsapp_reaction_message_id(event_payload),
+            'reaction_emoji': _whatsapp_reaction_emoji(event_payload),
+        }
+    if message_type == 'revoke':
+        return {
+            'revoked_message_id': _first_str(
+                (event_payload.get('revoke') or {}).get('message_id'),
+                (event_payload.get('revoke') or {}).get('id'),
+                (event_payload.get('context') or {}).get('id'),
+            ),
+        }
+    return {}
+
+
+def _whatsapp_context_fields(event_payload):
+    context = event_payload.get('context') or {}
+    if not isinstance(context, dict):
+        return {}
+    quoted_message_id = _first_str(context.get('id'), context.get('message_id'))
+    if not quoted_message_id:
+        return {}
+    return {
+        'quoted_message_id': quoted_message_id,
+        'quoted_sender': _first_str(context.get('from')),
+    }
+
+
+def _whatsapp_edit_payload(event_payload):
+    edit = event_payload.get('edit') or {}
+    if not isinstance(edit, dict):
+        return {}, {}
+    message = edit.get('message') or edit.get('edited_message') or {}
+    if not isinstance(message, dict):
+        message = {}
+    return edit, message
+
+
+def _whatsapp_edit_message_id(event_payload):
+    edit, message = _whatsapp_edit_payload(event_payload)
+    return _first_str(
+        edit.get('message_id'),
+        edit.get('original_message_id'),
+        edit.get('target_message_id'),
+        (edit.get('context') or {}).get('id') if isinstance(edit.get('context'), dict) else '',
+        (event_payload.get('context') or {}).get('id'),
+        message.get('id'),
+    )
+
+
+def _whatsapp_edit_text(event_payload):
+    edit, message = _whatsapp_edit_payload(event_payload)
+    message_type = str(message.get('type') or edit.get('type') or '').strip()
+    source = message if message else edit
+    return _first_str(
+        ((source.get('text') or {}).get('body') if isinstance(source.get('text'), dict) else source.get('text')),
+        ((edit.get('text') or {}).get('body') if isinstance(edit.get('text'), dict) else edit.get('text')),
+        ((message.get(message_type) or {}).get('caption') if message_type else ''),
+    )[:4000]
+
+
+def _whatsapp_reaction_message_id(event_payload):
+    reaction = event_payload.get('reaction') or {}
+    return _first_str(
+        reaction.get('message_id'),
+        reaction.get('messageId'),
+        reaction.get('id'),
+        (event_payload.get('context') or {}).get('id'),
+    )
+
+
+def _whatsapp_reaction_emoji(event_payload):
+    reaction = event_payload.get('reaction') or {}
+    return _first_str(reaction.get('emoji'))
 
 
 def _whatsapp_media_summary(event_payload, message_type):
@@ -1077,7 +1417,7 @@ def _media_extension(mime_type, filename):
 
 def _whatsapp_payload_summary(event_payload, message_type):
     ads_metadata = _extract_whatsapp_ads_metadata(event_payload)
-    return {
+    summary = {
         'message_type': message_type,
         'has_text': bool(_whatsapp_text(event_payload, message_type)),
         'has_media': message_type in ('image', 'video', 'audio', 'document', 'sticker'),
@@ -1088,6 +1428,22 @@ def _whatsapp_payload_summary(event_payload, message_type):
         'has_ctwa_clid': bool(ads_metadata.get('ctwa_clid')),
         'ads_origin': ads_metadata,
     }
+    if message_type == 'edit':
+        summary.update({
+            'edited_message_id': _whatsapp_edit_message_id(event_payload),
+            'has_edited_text': bool(_whatsapp_edit_text(event_payload)),
+        })
+    if message_type == 'reaction':
+        summary.update({
+            'reaction_message_id': _whatsapp_reaction_message_id(event_payload),
+            'reaction_emoji': _whatsapp_reaction_emoji(event_payload),
+        })
+    if message_type == 'revoke':
+        special = _whatsapp_special_fields(event_payload, message_type)
+        summary.update({'revoked_message_id': special.get('revoked_message_id', '')})
+    if message_type == 'unsupported':
+        summary.update({'unsupported_raw_keys': sorted(event_payload.keys())[:30]})
+    return summary
 
 
 def _whatsapp_contact_name(contact_id, contacts):
@@ -1132,25 +1488,36 @@ def _resolve_meta_contact_profile(channel, account_id, account_alias, contact_id
     profile = _contact_profile_from_payload(event_payload)
     if profile.get('display_name'):
         return profile
-    if channel != 'instagram' or not contact_id or contact_id == 'unknown':
+    if channel not in {'instagram', 'messenger'} or not contact_id or contact_id == 'unknown':
         return profile
 
-    token = _get_instagram_token(account_id)
+    token = _get_instagram_token(account_id) if channel == 'instagram' else _get_messenger_token(account_id)
     if not token:
         return profile
 
-    graph_hosts = (
-        ('https://graph.instagram.com/v22.0', 'username,name,profile_pic'),
-        ('https://graph.instagram.com/v22.0', 'username,name'),
-    ) if token.startswith('IGAA') else (
-        ('https://graph.facebook.com/v26.0', 'username,name,profile_pic'),
-        ('https://graph.facebook.com/v26.0', 'username,name'),
-    )
+    if channel == 'messenger':
+        graph_hosts = (
+            ('https://graph.facebook.com/v26.0', 'first_name,last_name,name,profile_pic'),
+            ('https://graph.facebook.com/v26.0', 'name'),
+        )
+    else:
+        graph_hosts = (
+            ('https://graph.instagram.com/v22.0', 'username,name,profile_pic'),
+            ('https://graph.instagram.com/v22.0', 'username,name'),
+        ) if token.startswith('IGAA') else (
+            ('https://graph.facebook.com/v26.0', 'username,name,profile_pic'),
+            ('https://graph.facebook.com/v26.0', 'username,name'),
+        )
     for base_url, fields in graph_hosts:
         try:
             data = _graph_get_json(f'{base_url}/{contact_id}?fields={fields}', token)
             username = _first_str(data.get('username'))
-            name = _first_str(data.get('name'))
+            name = _first_str(data.get('name'), ' '.join(
+                part for part in [
+                    _first_str(data.get('first_name')),
+                    _first_str(data.get('last_name')),
+                ] if part
+            ))
             profile_pic = _first_str(data.get('profile_pic'), data.get('profile_picture_url'))
             display_name = f'@{username}' if username else name
             return {
@@ -1161,7 +1528,7 @@ def _resolve_meta_contact_profile(channel, account_id, account_alias, contact_id
             }
         except Exception as exc:
             print(json.dumps({
-                'event': 'instagram_contact_profile_lookup_failed',
+                'event': f'{channel}_contact_profile_lookup_failed',
                 'account_alias': account_alias,
                 'contact_id': contact_id,
                 'fields': fields,
@@ -1270,6 +1637,18 @@ def _get_instagram_token(account_id):
 
     result = ssm.get_parameter(
         Name=account['token_param'],
+        WithDecryption=True,
+    )
+    return result.get('Parameter', {}).get('Value')
+
+
+def _get_messenger_token(page_id):
+    page = MESSENGER_PAGES.get(str(page_id))
+    if not page or not page.get('token_param'):
+        return None
+
+    result = ssm.get_parameter(
+        Name=page['token_param'],
         WithDecryption=True,
     )
     return result.get('Parameter', {}).get('Value')

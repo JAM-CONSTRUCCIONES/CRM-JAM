@@ -46,6 +46,8 @@ import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliaria
 import { getProyectos, getUnidades } from '../../services/proyectos.service';
 import { actualizarTarea, crearTarea, getTareas, type TareaJam } from '../../services/tareas.service';
 import type { Proyecto, Unidad } from '../../types';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
+import { clienteFieldNormalizers, clienteFormRules, validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Paragraph, Text, Title } = Typography;
 const { Search, TextArea } = Input;
@@ -101,6 +103,15 @@ const formatDate = (value?: string) => {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
+};
+
+const resumenUltimoMensaje = (value?: string) => {
+  const text = (value || '').trim();
+  if (text === '[edit]') return 'Mensaje editado en WhatsApp';
+  if (text === '[reaction]') return 'Reaccion a un mensaje';
+  if (text === '[unsupported]') return 'Tipo de mensaje no soportado';
+  if (text === '[revoke]') return 'Mensaje eliminado en WhatsApp';
+  return text || 'Sin mensaje de texto';
 };
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
@@ -486,7 +497,9 @@ export default function MetaLeadsPage() {
 
   const abrirConversion = () => {
     if (!selectedLead) return;
+    convertForm.resetFields();
     convertForm.setFieldsValue({
+      cedula: selectedLead.cliente_cedula,
       inmobiliaria_id: selectedLead.inmobiliaria_id,
       telefono: selectedLead.channel === 'whatsapp' ? selectedLead.external_contact_id : '',
     });
@@ -521,10 +534,21 @@ export default function MetaLeadsPage() {
     if (!selectedLead) return;
     try {
       const values = await convertForm.validateFields();
+      const fechaNacimiento = values.fecha_nacimiento?.format
+        ? values.fecha_nacimiento.format('YYYY-MM-DD')
+        : values.fecha_nacimiento;
+      const payload = validateAndNormalizeClientePayload({
+        ...values,
+        fecha_nacimiento: fechaNacimiento,
+      });
+      if (selectedLead.cliente_cedula && payload.cedula !== selectedLead.cliente_cedula) {
+        message.error(`Este lead ya esta asociado a la cedula ${selectedLead.cliente_cedula}`);
+        return;
+      }
       setSavingConversion(true);
       const result = await convertirMetaLead(selectedLead.pk, {
-        ...values,
-        inmobiliaria_id: String(values.inmobiliaria_id || '').replace('INMOBILIARIA#', ''),
+        ...payload,
+        inmobiliaria_id: String(payload.inmobiliaria_id || '').replace('INMOBILIARIA#', ''),
       });
       setSelectedLead(result.lead);
       setConvertOpen(false);
@@ -864,7 +888,7 @@ export default function MetaLeadsPage() {
                               </Tag>
                             </div>
                             <Paragraph ellipsis={{ rows: 2 }} className="!mb-2 !mt-2 text-sm">
-                              {lead.ultimo_mensaje_texto || 'Sin mensaje de texto'}
+                              {resumenUltimoMensaje(lead.ultimo_mensaje_texto)}
                             </Paragraph>
                             <div className="mb-2 flex flex-wrap gap-1.5">
                               <Tag color={canalColor[lead.channel] || 'default'} bordered={false} style={{ background: 'transparent' }}>
@@ -1267,7 +1291,7 @@ export default function MetaLeadsPage() {
               title={
                 <Space>
                   <span>Oportunidades registradas</span>
-                  <Tag>{selectedLead.historial_conversiones?.length || 0}</Tag>
+                  <Tag>{(selectedLead.historial_conversiones?.length || 0) + (selectedLead.oportunidades_asociadas?.length || 0)}</Tag>
                 </Space>
               }
             >
@@ -1313,9 +1337,53 @@ export default function MetaLeadsPage() {
                     },
                   ]}
                 />
-              ) : (
+              ) : null}
+              {selectedLead.oportunidades_asociadas?.length ? (
+                <Table
+                  className={selectedLead.historial_conversiones?.length ? 'mt-3' : ''}
+                  size="small"
+                  pagination={false}
+                  rowKey={(item, index) => `${item.proceso_pk || index}-${item.unidad_id || 'sin-unidad'}`}
+                  dataSource={selectedLead.oportunidades_asociadas}
+                  columns={[
+                    {
+                      title: 'Origen',
+                      render: () => <Tag color="blue">Cliente asociado</Tag>,
+                    },
+                    {
+                      title: 'Proyecto',
+                      dataIndex: 'proyecto_id',
+                      render: (value?: string) => <Text strong>{getProyectoLabel(proyectos, value)}</Text>,
+                    },
+                    {
+                      title: 'Unidad',
+                      render: (_, item) => (
+                        item.unidad_id
+                          ? <Tag color="geekblue">{item.unidad_nombre || item.unidad_id}</Tag>
+                          : <Tag>Sin unidad</Tag>
+                      ),
+                    },
+                    {
+                      title: 'Estado',
+                      dataIndex: 'estado',
+                      render: (value?: string) => <Tag>{value || '-'}</Tag>,
+                    },
+                    {
+                      title: 'Cliente',
+                      dataIndex: 'cedula',
+                      render: (value?: string) => value || '-',
+                    },
+                    {
+                      title: 'Inmobiliaria',
+                      dataIndex: 'inmobiliaria_id',
+                      render: (value?: string) => getInmobiliariaLabel(inmobiliarias, value),
+                    },
+                  ]}
+                />
+              ) : null}
+              {!(selectedLead.historial_conversiones?.length || selectedLead.oportunidades_asociadas?.length) ? (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin oportunidades registradas" />
-              )}
+              ) : null}
             </Card>
 
             <Card title="Gestion del lead" size="small">
@@ -1537,9 +1605,9 @@ export default function MetaLeadsPage() {
             <Form.Item
               name="cedula"
               label="Cedula / Pasaporte"
-              rules={[{ required: true, message: 'Ingresa cedula o pasaporte' }]}
+              rules={clienteFormRules.cedula}
             >
-              <Input placeholder="Ej: 00112345678" />
+              <Input placeholder="Ej: 00112345678" disabled={Boolean(selectedLead?.cliente_cedula)} />
             </Form.Item>
             <Form.Item
               name="proyecto_id"
@@ -1560,14 +1628,16 @@ export default function MetaLeadsPage() {
             <Form.Item
               name="nombres"
               label="Nombres"
-              rules={[{ required: true, message: 'Ingresa nombres' }]}
+              normalize={clienteFieldNormalizers.nombre}
+              rules={clienteFormRules.nombres}
             >
               <Input placeholder="Nombres del cliente" />
             </Form.Item>
             <Form.Item
               name="apellidos"
               label="Apellidos"
-              rules={[{ required: true, message: 'Ingresa apellidos' }]}
+              normalize={clienteFieldNormalizers.nombre}
+              rules={clienteFormRules.apellidos}
             >
               <Input placeholder="Apellidos del cliente" />
             </Form.Item>
@@ -1601,11 +1671,23 @@ export default function MetaLeadsPage() {
                   }))}
               />
             </Form.Item>
-            <Form.Item name="correo" label="Correo">
+            <Form.Item name="correo" label="Correo" normalize={clienteFieldNormalizers.correo} rules={clienteFormRules.correo}>
               <Input type="email" placeholder="correo@ejemplo.com" />
             </Form.Item>
-            <Form.Item name="telefono" label="Telefono">
+            <Form.Item name="telefono" label="Telefono" rules={clienteFormRules.telefono}>
               <Input inputMode="numeric" placeholder="8490000000" />
+            </Form.Item>
+            <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento">
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+            </Form.Item>
+            <Form.Item name="estado_civil" label="Estado civil">
+              <EstadoCivilSelect />
+            </Form.Item>
+            <Form.Item name="nacionalidad" label="Nacionalidad">
+              <NacionalidadSelect />
+            </Form.Item>
+            <Form.Item name="pais_residencia" label="Pais de residencia">
+              <PaisResidenciaSelect />
             </Form.Item>
           </div>
         </Form>

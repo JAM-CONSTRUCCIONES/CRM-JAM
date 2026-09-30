@@ -69,6 +69,7 @@ const getColorExclusividad = (dias: number): string => {
 const ClientesPage = () => {
   const { usuario } = useAuthContext();
   const isAdmin = usuario?.rol !== 'inmobiliaria';
+  const canDeleteClientes = usuario?.rol === 'admin';
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
@@ -578,6 +579,10 @@ const ClientesPage = () => {
   };
 
   const abrirEliminar = (cliente: Cliente & { procesos?: Proceso[] }) => {
+    if (!canDeleteClientes) {
+      message.warning('Solo admin puede eliminar clientes');
+      return;
+    }
     console.log('[ELIMINAR] Cliente:', cliente);
     console.log('[ELIMINAR] drawerRegistros:', drawerRegistros);
     
@@ -598,6 +603,10 @@ const ClientesPage = () => {
 
   const handleEliminar = async () => {
     if (!clienteEliminar) return;
+    if (!canDeleteClientes) {
+      message.warning('Solo admin puede eliminar clientes');
+      return;
+    }
     setEliminando(true);
     try {
       const result = await eliminarClienteAdmin(
@@ -973,7 +982,9 @@ const ClientesPage = () => {
                   <Space>
                     <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(reg)}>Editar</Button>
                     <Button size="small" icon={<SwapOutlined />} onClick={() => abrirCambiarCedula(reg)}>Cambiar cédula</Button>
-                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => abrirEliminar(reg)}>Eliminar</Button>
+                    {canDeleteClientes && (
+                      <Button size="small" danger icon={<DeleteOutlined />} onClick={() => abrirEliminar(reg)}>Eliminar</Button>
+                    )}
                   </Space>
                 </div>
                 <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>

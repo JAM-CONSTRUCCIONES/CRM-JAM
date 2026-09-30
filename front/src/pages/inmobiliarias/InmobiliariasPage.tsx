@@ -22,6 +22,7 @@ import {
 import { getProyectos } from '../../services/proyectos.service';
 import type { Proyecto } from '../../types';
 import ImageCropModal from '../../components/common/ImageCropModal';
+import { useAuthContext } from '../../context/AuthContext';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -40,8 +41,10 @@ const inmoColor = (nombre: string) => {
 
 const InmobiliariasPage = () => {
   const navigate = useNavigate();
+  const { usuario } = useAuthContext();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isAdmin = usuario?.rol === 'admin';
   const [inmobiliarias, setInmobiliarias] = useState<Inmobiliaria[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -157,6 +160,10 @@ const InmobiliariasPage = () => {
   };
 
   const handleEliminarInmo = async (inmo: Inmobiliaria) => {
+    if (!isAdmin) {
+      message.warning('Solo admin puede eliminar inmobiliarias');
+      return;
+    }
     try {
       await eliminarInmobiliaria(inmo.pk); message.success('Inmobiliaria eliminada');
       await cargar();
@@ -189,6 +196,10 @@ const InmobiliariasPage = () => {
 
   const handleToggleUsuario = async (u: UsuarioInmo) => {
     if (!inmoSeleccionada) return;
+    if (!isAdmin) {
+      message.warning('Solo admin puede habilitar o deshabilitar usuarios');
+      return;
+    }
     try {
       if (u.activo) {
         await deshabilitarUsuario(inmoSeleccionada.pk, u.pk);
@@ -308,14 +319,16 @@ const InmobiliariasPage = () => {
                             icon={inmo.activo ? <StopOutlined /> : <CheckOutlined />} />
                         </Tooltip>
                       </Popconfirm>
-                      <Popconfirm title="¿Eliminar inmobiliaria?" okText="Sí" cancelText="No" okButtonProps={{ danger: true }}
-                        onConfirm={() => handleEliminarInmo(inmo)}>
-                        <Tooltip title="Eliminar">
-                          <Button size="small" type="text" danger
-                            style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 6 }}
-                            icon={<DeleteOutlined />} />
-                        </Tooltip>
-                      </Popconfirm>
+                      {isAdmin && (
+                        <Popconfirm title="¿Eliminar inmobiliaria?" okText="Sí" cancelText="No" okButtonProps={{ danger: true }}
+                          onConfirm={() => handleEliminarInmo(inmo)}>
+                          <Tooltip title="Eliminar">
+                            <Button size="small" type="text" danger
+                              style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 6 }}
+                              icon={<DeleteOutlined />} />
+                          </Tooltip>
+                        </Popconfirm>
+                      )}
                     </Space>
                   </div>
                   {/* Badge estado */}
@@ -566,14 +579,16 @@ const InmobiliariasPage = () => {
                         onConfirm={() => handleToggleUsuario(u)}
                       >
                         <Tooltip title={u.activo ? 'Deshabilitar' : 'Habilitar'}>
-                          <Button size="small" type="text" danger={u.activo}
-                            icon={u.activo ? <StopOutlined /> : <CheckOutlined />} />
+                          {isAdmin && (
+                            <Button size="small" type="text" danger={u.activo}
+                              icon={u.activo ? <StopOutlined /> : <CheckOutlined />} />
+                          )}
                         </Tooltip>
                       </Popconfirm>
                       <Popconfirm title="¿Eliminar usuario?" okText="Sí" cancelText="No" okButtonProps={{ danger: true }}
                         onConfirm={() => handleEliminarUsuario(u)}>
                         <Tooltip title="Eliminar">
-                          <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                          {isAdmin && <Button size="small" type="text" danger icon={<DeleteOutlined />} />}
                         </Tooltip>
                       </Popconfirm>
                     </div>

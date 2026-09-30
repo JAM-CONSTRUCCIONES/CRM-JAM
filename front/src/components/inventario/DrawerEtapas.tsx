@@ -13,9 +13,10 @@ interface Props {
   onEliminar: (etapaId: string) => void;
   onEditar: (etapa: Etapa) => void;
   onCancelarEdicion: () => void;
+  canDelete?: boolean;
 }
 
-const DrawerEtapas = ({ open, etapas, etapaEditando, onClose, onGuardar, onEliminar, onEditar, onCancelarEdicion }: Props) => {
+const DrawerEtapas = ({ open, etapas, etapaEditando, onClose, onGuardar, onEliminar, onEditar, onCancelarEdicion, canDelete }: Props) => {
   const [form] = Form.useForm();
 
   const handleGuardar = (values: any) => {
@@ -83,9 +84,11 @@ const DrawerEtapas = ({ open, etapas, etapaEditando, onClose, onGuardar, onElimi
                 icon={<EditOutlined />}
                 onClick={() => { onEditar(e); form.setFieldsValue({ nombre: e.nombre }); }}
               />
-              <Popconfirm title="¿Eliminar etapa?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(e.etapa_id)}>
-                <Button size="small" danger icon={<DeleteOutlined />} />
-              </Popconfirm>
+              {canDelete && (
+                <Popconfirm title="¿Eliminar etapa?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(e.etapa_id)}>
+                  <Button size="small" danger icon={<DeleteOutlined />} />
+                </Popconfirm>
+              )}
             </Space>
           </div>
         ))}

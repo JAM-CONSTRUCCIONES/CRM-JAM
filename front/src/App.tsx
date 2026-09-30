@@ -20,6 +20,7 @@ import CampaniasPage from './pages/campanias/CampaniasPage';
 import InventarioPublicoPage from './pages/inventario/InventarioPublicoPage';
 import TareasPage from './pages/tareas/TareasPage';
 import MetaCompliancePages from './pages/meta/MetaCompliancePages';
+import MetaFacebookCallbackPage from './pages/meta/MetaFacebookCallbackPage';
 import MetaInboxPage from './pages/meta/MetaInboxPage';
 import MetaLeadsPage from './pages/meta/MetaLeadsPage';
 
@@ -34,6 +35,7 @@ const App = () => (
         <Route path="/inventario-publico/:proyectoId" element={<InventarioPublicoPage />} />
         <Route path="/mfa-setup" element={<MfaSetupPage />} />
         <Route path="/instagram/callback" element={<MetaCompliancePages />} />
+        <Route path="/meta/facebook/callback" element={<MetaFacebookCallbackPage />} />
         <Route path="/instagram/auth/cancelled" element={<MetaCompliancePages />} />
         <Route path="/instagram/data-deletion" element={<MetaCompliancePages />} />
         <Route path="/privacidad" element={<MetaCompliancePages />} />

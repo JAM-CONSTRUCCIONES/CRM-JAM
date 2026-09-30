@@ -105,6 +105,10 @@ const UsuariosSistemaPage = () => {
   const esSelf = (u: UsuarioSistema) => u.pk === `USUARIO#${usuarioActual?.sub}`;
 
   const handleToggle = async (u: UsuarioSistema) => {
+    if (!isAdmin) {
+      message.warning('Solo admin puede habilitar o deshabilitar usuarios');
+      return;
+    }
     try {
       if (u.activo) {
         await deshabilitarUsuarioSistema(u.pk);
@@ -160,12 +164,12 @@ const UsuariosSistemaPage = () => {
         if (isMobile) {
           const items = [
             { key: 'editar', icon: <EditOutlined />, label: 'Editar', onClick: () => abrirEditar(u) },
-            {
+            ...(isAdmin ? [{
               key: 'toggle', icon: u.activo ? <StopOutlined /> : <CheckOutlined />,
               label: u.activo ? 'Deshabilitar' : 'Habilitar', danger: u.activo,
               disabled: self,
               onClick: () => !self && handleToggle(u),
-            },
+            }] : []),
             ...(isAdmin ? [{
               key: 'eliminar', icon: <DeleteOutlined />, label: 'Eliminar', danger: true,
               disabled: self,
@@ -186,16 +190,18 @@ const UsuariosSistemaPage = () => {
             <Tooltip title="Editar">
               <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditar(u)} />
             </Tooltip>
-            <Tooltip title={self ? 'No puedes modificar tu propio estado' : (u.activo ? 'Deshabilitar' : 'Habilitar')}>
-              <Popconfirm
-                title={u.activo ? 'Deshabilitar usuario?' : 'Habilitar usuario?'}
-                okText="Si" cancelText="No"
-                onConfirm={() => handleToggle(u)}
-                disabled={self}
-              >
-                <Button size="small" danger={u.activo} disabled={self} icon={u.activo ? <StopOutlined /> : <CheckOutlined />} />
-              </Popconfirm>
-            </Tooltip>
+            {isAdmin && (
+              <Tooltip title={self ? 'No puedes modificar tu propio estado' : (u.activo ? 'Deshabilitar' : 'Habilitar')}>
+                <Popconfirm
+                  title={u.activo ? 'Deshabilitar usuario?' : 'Habilitar usuario?'}
+                  okText="Si" cancelText="No"
+                  onConfirm={() => handleToggle(u)}
+                  disabled={self}
+                >
+                  <Button size="small" danger={u.activo} disabled={self} icon={u.activo ? <StopOutlined /> : <CheckOutlined />} />
+                </Popconfirm>
+              </Tooltip>
+            )}
             {isAdmin && (
               <Tooltip title={self ? 'No puedes eliminarte a ti mismo' : 'Eliminar'}>
                 <Popconfirm
@@ -237,12 +243,12 @@ const UsuariosSistemaPage = () => {
             const self = esSelf(u);
             const items = [
               { key: 'editar', icon: <EditOutlined />, label: 'Editar', onClick: () => abrirEditar(u) },
-              {
+              ...(isAdmin ? [{
                 key: 'toggle', icon: u.activo ? <StopOutlined /> : <CheckOutlined />,
                 label: u.activo ? 'Deshabilitar' : 'Habilitar', danger: u.activo,
                 disabled: self,
                 onClick: () => !self && handleToggle(u),
-              },
+              }] : []),
               ...(isAdmin ? [{
                 key: 'eliminar', icon: <DeleteOutlined />, label: 'Eliminar', danger: true,
                 disabled: self,

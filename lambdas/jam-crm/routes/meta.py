@@ -1,10 +1,11 @@
+import base64
 import os
 import re
 import json
 import uuid
 import urllib.error
 import urllib.request
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from datetime import datetime, timezone
 
 import boto3
@@ -49,6 +50,12 @@ METHODICA_CHANNEL_MESSAGES_URL = os.environ.get(
 )
 METHODICA_CHANNEL_KEY_PARAM = os.environ.get('METHODICA_CHANNEL_KEY_PARAM', '')
 METHODICA_TENANT_ID = os.environ.get('METHODICA_TENANT_ID', 'jam')
+META_APP_ID_PARAM = os.environ.get('META_APP_ID_PARAM', '')
+META_APP_SECRET_PARAM = os.environ.get('META_APP_SECRET_PARAM', '')
+META_FACEBOOK_REDIRECT_URI = os.environ.get('META_FACEBOOK_REDIRECT_URI', '')
+META_MESSENGER_PAGE_TOKEN_PARAM = os.environ.get('MESSENGER_PAGE_TOKEN_PARAM_JAM', '')
+META_MESSENGER_DEFAULT_ALIAS = 'jam_construcciones'
+META_OAUTH_SCOPES = 'pages_show_list,pages_manage_metadata,pages_messaging,instagram_business_basic,instagram_business_manage_messages'
 
 DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
@@ -65,6 +72,97 @@ MOTIVOS_CIERRE_META = {
 }
 
 
+def facebook_oauth_url(event):
+    app_id = _get_token(META_APP_ID_PARAM)
+    if not app_id:
+        return bad_request('Meta App ID no configurado')
+    redirect_uri = _facebook_redirect_uri()
+    params = {
+        'client_id': app_id,
+        'redirect_uri': redirect_uri,
+        'scope': META_OAUTH_SCOPES,
+        'response_type': 'code',
+        'state': 'jam-facebook-messenger',
+    }
+    return ok({
+        'auth_url': f'https://www.facebook.com/v26.0/dialog/oauth?{urlencode(params)}',
+        'redirect_uri': redirect_uri,
+    })
+
+
+def facebook_oauth_callback(event):
+    body = _json_body(event)
+    code = str(body.get('code') or '').strip()
+    page_id_preferido = str(body.get('page_id') or '').strip()
+    if not code:
+        return bad_request('code es requerido')
+
+    app_id = _get_token(META_APP_ID_PARAM)
+    app_secret = _get_token(META_APP_SECRET_PARAM)
+    if not app_id or not app_secret:
+        return bad_request('Meta App ID o App Secret no configurado')
+
+    redirect_uri = _facebook_redirect_uri()
+    token_data = _graph_get(
+        'https://graph.facebook.com/v26.0/oauth/access_token',
+        {
+            'client_id': app_id,
+            'client_secret': app_secret,
+            'redirect_uri': redirect_uri,
+            'code': code,
+        },
+    )
+    user_token = str(token_data.get('access_token') or '')
+    if not user_token:
+        return bad_request('Meta no devolvio access_token')
+
+    pages_data = _graph_get(
+        'https://graph.facebook.com/v26.0/me/accounts',
+        {
+            'fields': 'id,name,access_token,tasks,category',
+            'access_token': user_token,
+        },
+    )
+    pages = pages_data.get('data') if isinstance(pages_data.get('data'), list) else []
+    if not pages:
+        return bad_request('No se encontraron paginas administradas por este usuario')
+
+    selected = None
+    for page in pages:
+        if page_id_preferido and str(page.get('id')) == page_id_preferido:
+            selected = page
+            break
+    if not selected:
+        selected = pages[0]
+
+    page_id = str(selected.get('id') or '')
+    page_name = str(selected.get('name') or '')
+    page_token = str(selected.get('access_token') or '')
+    if not page_id or not page_token:
+        return bad_request('La pagina seleccionada no devolvio token')
+
+    _put_secure_parameter(META_MESSENGER_PAGE_TOKEN_PARAM, page_token)
+    subscription = _subscribe_page_to_webhook(page_id, page_token)
+    _upsert_connected_messenger_page(page_id, page_name)
+
+    return ok({
+        'connected': True,
+        'channel': 'messenger',
+        'account_alias': META_MESSENGER_DEFAULT_ALIAS,
+        'page_id': page_id,
+        'page_name': page_name,
+        'subscription': subscription,
+        'pages': [
+            {
+                'id': str(page.get('id') or ''),
+                'name': str(page.get('name') or ''),
+                'category': str(page.get('category') or ''),
+            }
+            for page in pages
+        ],
+    })
+
+
 def listar_leads(event):
     if not meta_table:
         return ok({'items': [], 'count': 0})
@@ -74,32 +172,48 @@ def listar_leads(event):
     estado = str(params.get('estado') or '').strip().lower()
     responsable_id = str(params.get('responsable_id') or '').strip()
     inmobiliaria_id = str(params.get('inmobiliaria_id') or '').strip()
+    search_text = str(params.get('q') or params.get('busqueda') or '').strip().lower()
+    cursor = str(params.get('cursor') or '').strip()
+    raw_limit = params.get('limit')
+    if raw_limit is None and not cursor:
+        limit = None
+    else:
+        try:
+            limit = int(raw_limit or 50)
+        except (TypeError, ValueError):
+            limit = 50
+        limit = max(1, min(limit, 100))
 
-    items = _scan_all()
-    leads = [item for item in items if item.get('tipo') == 'META_LEAD']
-    if canal:
-        leads = [item for item in leads if item.get('channel') == canal]
-    if estado:
-        leads = [item for item in leads if item.get('estado') == estado]
-    if responsable_id:
-        if responsable_id == SIN_ASIGNAR:
-            leads = [item for item in leads if not item.get('responsable_id')]
-        else:
-            leads = [item for item in leads if item.get('responsable_id') == responsable_id]
-    if inmobiliaria_id:
-        if inmobiliaria_id == SIN_ASIGNAR:
-            leads = [item for item in leads if not item.get('inmobiliaria_id')]
-        else:
-            inmobiliaria_normalizada = _normalizar_inmo_id(inmobiliaria_id)
-            leads = [
-                item for item in leads
-                if _normalizar_inmo_id(item.get('inmobiliaria_id')) == inmobiliaria_normalizada
-            ]
+    def matches_filters(item):
+        if canal and item.get('channel') != canal:
+            return False
+        if estado and item.get('estado') != estado:
+            return False
+        if responsable_id:
+            if responsable_id == SIN_ASIGNAR:
+                if item.get('responsable_id'):
+                    return False
+            elif item.get('responsable_id') != responsable_id:
+                return False
+        if inmobiliaria_id:
+            if inmobiliaria_id == SIN_ASIGNAR:
+                if item.get('inmobiliaria_id'):
+                    return False
+            else:
+                inmobiliaria_normalizada = _normalizar_inmo_id(inmobiliaria_id)
+                if _normalizar_inmo_id(item.get('inmobiliaria_id')) != inmobiliaria_normalizada:
+                    return False
+        if search_text and not _lead_matches_search(item, search_text):
+            return False
+        return True
 
-    leads.sort(key=lambda item: item.get('ultimo_mensaje_en', ''), reverse=True)
+    result = _listar_leads_feed(limit, cursor, matches_filters)
+
     return ok({
-        'items': leads,
-        'count': len(leads),
+        'items': result['items'],
+        'count': len(result['items']),
+        'has_more': bool(result.get('next_cursor')),
+        'next_cursor': result.get('next_cursor', ''),
     })
 
 
@@ -118,6 +232,10 @@ def ver_conversacion(event):
 
     if not lead:
         return ok({'lead': None, 'mensajes': []})
+
+    oportunidades_asociadas = _listar_oportunidades_cliente_asociado(lead)
+    if oportunidades_asociadas:
+        lead['oportunidades_asociadas'] = oportunidades_asociadas
 
     # Paginacion / incremental para no traer conversaciones enteras de golpe.
     #  - after:  solo mensajes mas nuevos que ese sk (modo polling incremental)
@@ -459,6 +577,11 @@ def enviar_mensaje(event):
     media_type = str(body.get('media_type') or '').strip().lower()
     media_url = str(body.get('media_url') or '').strip()
     media_filename = str(body.get('filename') or '').strip()
+    media_content_type = str(body.get('content_type') or '').strip()
+    media_voice = bool(body.get('voice'))
+    quoted_message_id = str(body.get('quoted_message_id') or body.get('context_message_id') or '').strip()
+    quoted_text = str(body.get('quoted_text') or '').strip()[:500]
+    quoted_sender = str(body.get('quoted_sender') or '').strip()[:120]
     if len(texto) > 4000:
         return bad_request('texto no debe exceder 4000 caracteres')
     if media_type and media_type not in {'image', 'video', 'audio', 'document'}:
@@ -510,6 +633,10 @@ def enviar_mensaje(event):
         'enviado_por_sub': usuario['sub'],
         'enviado_por_nombre': usuario['nombre'],
     }
+    if quoted_message_id:
+        mensaje['quoted_message_id'] = quoted_message_id
+        mensaje['quoted_text'] = quoted_text
+        mensaje['quoted_sender'] = quoted_sender
     if media_type and media_url:
         mensaje['event_type'] = media_type
         mensaje['media'] = {
@@ -519,6 +646,7 @@ def enviar_mensaje(event):
             'caption': texto,
             'public_url': media_url,
             'storage_status': 'stored',
+            **({'voice': True} if media_voice else {}),
         }
 
     send_result = _send_meta_message(
@@ -526,6 +654,9 @@ def enviar_mensaje(event):
         media_type=media_type,
         media_url=media_url,
         media_filename=media_filename,
+        media_content_type=media_content_type,
+        media_voice=media_voice,
+        quoted_message_id=quoted_message_id,
     )
     if send_result.get('ok'):
         mensaje['message_status'] = 'enviado'
@@ -591,6 +722,10 @@ def convertir_lead(event):
 
     if not all([cedula, proyecto_id, inmobiliaria_id, nombres, apellidos]):
         return bad_request('cedula, proyecto_id, inmobiliaria_id, nombres y apellidos son requeridos')
+
+    cedula_asociada = str(lead.get('cliente_cedula') or '').strip().upper()
+    if cedula_asociada and cedula != cedula_asociada:
+        return conflict(f'Este lead ya esta asociado a la cedula {cedula_asociada}. No se puede registrar con otra cedula')
 
     pk_cliente = f'CLIENTE#{cedula}#{inmobiliaria_id}'
     sk_cliente = f'PROYECTO#{proyecto_id}'
@@ -838,6 +973,100 @@ def convertir_lead(event):
     })
 
 
+def asociar_cliente_existente(event):
+    if not all([meta_table, clientes_table, procesos_table]):
+        return bad_request('Tablas requeridas no configuradas')
+
+    params = event.get('queryStringParameters') or {}
+    lead_pk = str(params.get('lead_pk') or '').strip()
+    if not lead_pk:
+        return bad_request('lead_pk es requerido')
+
+    lead = meta_table.get_item(
+        Key={'pk': lead_pk, 'sk': 'METADATA'}
+    ).get('Item')
+    if not lead:
+        return bad_request('Lead Meta no encontrado')
+
+    body = _json_body(event)
+    try:
+        cedula = _normalizar_documento(body.get('cedula'))
+    except ValueError as exc:
+        return bad_request(str(exc))
+
+    if not cedula:
+        return bad_request('cedula es requerida')
+
+    registros_cliente = _buscar_registros_cliente_por_cedula(cedula)
+    if not registros_cliente:
+        return bad_request('Cliente existente no encontrado')
+
+    ahora = _now()
+    usuario = {
+        'sub': get_sub(event) or '',
+        'nombre': get_nombre(event),
+    }
+    cliente_principal = _cliente_principal(registros_cliente)
+    cliente_nombre = _cliente_nombre(cliente_principal)
+    nombres_variantes = sorted({
+        nombre for nombre in (_cliente_nombre(item) for item in registros_cliente)
+        if nombre
+    })
+
+    meta_table.update_item(
+        Key={'pk': lead_pk, 'sk': 'METADATA'},
+        UpdateExpression=(
+            'SET cliente_asociado = :cliente_asociado, '
+            'cliente_asociacion_tipo = :cliente_asociacion_tipo, '
+            'cliente_cedula = :cedula, cliente_nombre = :cliente_nombre, '
+            'cliente_registros_count = :cliente_registros_count, '
+            'cliente_nombre_variantes = :cliente_nombre_variantes, asociado_en = :asociado_en, '
+            'asociado_por_sub = :asociado_por_sub, asociado_por_nombre = :asociado_por_nombre, '
+            'actualizado_en = :actualizado_en'
+            ' REMOVE cliente_pk, cliente_sk, cliente_inmobiliaria_id, cliente_proyecto_id'
+        ),
+        ExpressionAttributeValues={
+            ':cliente_asociado': True,
+            ':cliente_asociacion_tipo': 'cedula',
+            ':cedula': cedula,
+            ':cliente_nombre': cliente_nombre,
+            ':cliente_registros_count': len(registros_cliente),
+            ':cliente_nombre_variantes': nombres_variantes,
+            ':asociado_en': ahora,
+            ':asociado_por_sub': usuario['sub'],
+            ':asociado_por_nombre': usuario['nombre'],
+            ':actualizado_en': ahora,
+        },
+    )
+    meta_table.put_item(Item={
+        'pk': lead_pk,
+        'sk': f'ACTIVIDAD#{ahora}#cliente_asociado',
+        'tipo': 'META_ACTIVIDAD',
+        'tipo_actividad': 'cliente_asociado',
+        'creado_en': ahora,
+        'usuario_sub': usuario['sub'],
+        'usuario_nombre': usuario['nombre'],
+        'cedula': cedula,
+        'cliente_registros_count': len(registros_cliente),
+        'cliente_nombre': cliente_nombre,
+    })
+
+    lead_actualizado = meta_table.get_item(
+        Key={'pk': lead_pk, 'sk': 'METADATA'}
+    ).get('Item')
+    oportunidades = _listar_oportunidades_cliente_asociado(lead_actualizado or {})
+    if lead_actualizado is not None:
+        lead_actualizado['oportunidades_asociadas'] = oportunidades
+
+    return ok({
+        'message': 'Cliente existente asociado al lead Meta',
+        'lead': lead_actualizado,
+        'cliente': cliente_principal,
+        'clientes': registros_cliente,
+        'oportunidades_asociadas': oportunidades,
+    })
+
+
 def _conversation_pk_from_lead(lead):
     channel = lead.get('channel')
     account_alias = lead.get('account_alias')
@@ -994,6 +1223,178 @@ def _scan_all(**kwargs):
     return items
 
 
+def _encode_cursor(last_key):
+    if not last_key:
+        return ''
+    payload = json.dumps(last_key, separators=(',', ':'), default=str).encode('utf-8')
+    return base64.urlsafe_b64encode(payload).decode('ascii')
+
+
+def _decode_cursor(cursor):
+    if not cursor:
+        return None
+    try:
+        padded = cursor + ('=' * (-len(cursor) % 4))
+        return json.loads(base64.urlsafe_b64decode(padded.encode('ascii')).decode('utf-8'))
+    except Exception:
+        return None
+
+
+def _lead_matches_search(item, search_text):
+    fields = (
+        item.get('external_contact_id'),
+        item.get('nombre_manual'),
+        item.get('contact_profile_name'),
+        item.get('contact_username'),
+        item.get('ultimo_mensaje_texto'),
+        item.get('responsable_nombre'),
+        item.get('inmobiliaria_nombre'),
+        item.get('account_alias'),
+        item.get('fuente'),
+        item.get('campaign_name'),
+        item.get('campaign_id'),
+        item.get('ad_name'),
+        item.get('ad_id'),
+    )
+    return any(search_text in str(value or '').lower() for value in fields)
+
+
+def _buscar_registros_cliente_por_cedula(cedula):
+    try:
+        result = clientes_table.query(
+            IndexName='gsi-cedula-proyecto',
+            KeyConditionExpression=Key('cedula').eq(cedula),
+        )
+        items = result.get('Items', [])
+        while result.get('LastEvaluatedKey'):
+            result = clientes_table.query(
+                IndexName='gsi-cedula-proyecto',
+                KeyConditionExpression=Key('cedula').eq(cedula),
+                ExclusiveStartKey=result['LastEvaluatedKey'],
+            )
+            items.extend(result.get('Items', []))
+        return items
+    except Exception as exc:
+        print(f'Error buscando registros de cliente por cedula: {exc}')
+        return []
+
+
+def _cliente_nombre(cliente):
+    return ' '.join([
+        str(cliente.get('nombres') or '').strip(),
+        str(cliente.get('apellidos') or '').strip(),
+    ]).strip()
+
+
+def _cliente_principal(registros):
+    def score(item):
+        completitud = sum(1 for campo in ('nombres', 'apellidos', 'telefono', 'correo') if item.get(campo))
+        fecha = item.get('fecha_captacion') or ''
+        return (fecha, completitud)
+
+    return sorted(registros, key=score, reverse=True)[0]
+
+
+def _listar_oportunidades_cliente_asociado(lead):
+    cedula = lead.get('cliente_cedula') or ''
+    if not all([procesos_table, cedula]):
+        return []
+    try:
+        result = procesos_table.query(
+            IndexName='gsi-cedula-procesos',
+            KeyConditionExpression=Key('cedula').eq(cedula),
+            ScanIndexForward=False,
+        )
+        items = result.get('Items', [])
+        while result.get('LastEvaluatedKey'):
+            result = procesos_table.query(
+                IndexName='gsi-cedula-procesos',
+                KeyConditionExpression=Key('cedula').eq(cedula),
+                ScanIndexForward=False,
+                ExclusiveStartKey=result['LastEvaluatedKey'],
+            )
+            items.extend(result.get('Items', []))
+    except Exception as exc:
+        print(f'Error cargando oportunidades de cliente asociado: {exc}')
+        return []
+
+    items.sort(key=lambda item: item.get('actualizado_en') or item.get('fecha_inicio') or '', reverse=True)
+    oportunidades = []
+    for item in items:
+        oportunidades.append({
+            'origen': 'cliente_asociado',
+            'cedula': item.get('cedula') or cedula,
+            'inmobiliaria_id': _normalizar_inmo_id(item.get('inmobiliaria_id') or ''),
+            'proyecto_id': item.get('proyecto_id') or '',
+            'unidad_id': item.get('unidad_id') or '',
+            'unidad_nombre': item.get('unidad_nombre') or item.get('unidad_id') or '',
+            'estado': item.get('estado') or '',
+            'fecha_inicio': item.get('fecha_inicio') or '',
+            'actualizado_en': item.get('actualizado_en') or '',
+            'proceso_pk': item.get('pk') or '',
+            'proceso_sk': item.get('sk') or '',
+        })
+    return oportunidades
+
+
+def _listar_leads_feed(limit=None, cursor='', matches_filters=None):
+    matches_filters = matches_filters or (lambda item: True)
+    start_key = _decode_cursor(cursor)
+    try:
+        items = []
+        kwargs = {
+            'IndexName': 'gsi-meta-leads-feed',
+            'KeyConditionExpression': Key('feed_pk').eq('META_LEAD'),
+            'ScanIndexForward': False,
+        }
+        if limit:
+            kwargs['Limit'] = limit
+        if start_key:
+            kwargs['ExclusiveStartKey'] = start_key
+
+        last_key = None
+        while limit is None or len(items) < limit:
+            result = meta_table.query(**kwargs)
+            items.extend([item for item in result.get('Items', []) if matches_filters(item)])
+            last_key = result.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            kwargs['ExclusiveStartKey'] = last_key
+
+        return {
+            'items': items[:limit] if limit else items,
+            'next_cursor': _encode_cursor(last_key),
+        }
+    except ClientError as exc:
+        code = exc.response.get('Error', {}).get('Code')
+        if code not in {'ValidationException', 'ResourceNotFoundException'}:
+            raise
+
+    scan_kwargs = {}
+    if start_key:
+        scan_kwargs['ExclusiveStartKey'] = start_key
+    items = []
+    last_key = None
+    while limit is None or len(items) < limit:
+        result = meta_table.scan(**scan_kwargs)
+        leads_page = [
+            item for item in result.get('Items', [])
+            if item.get('tipo') == 'META_LEAD' and matches_filters(item)
+        ]
+        items.extend(leads_page)
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            break
+        scan_kwargs['ExclusiveStartKey'] = last_key
+
+    leads = items[:limit] if limit else items
+    leads.sort(key=lambda item: item.get('ultimo_mensaje_en', ''), reverse=True)
+    return {
+        'items': leads,
+        'next_cursor': _encode_cursor(last_key),
+    }
+
+
 def _query_all(**kwargs):
     items = []
     while True:
@@ -1011,6 +1412,8 @@ def _actualizar_lead_por_mensaje_saliente(lead_pk, mensaje):
         Key={'pk': lead_pk, 'sk': 'METADATA'},
         UpdateExpression=(
             'SET ultimo_mensaje_en = :ultimo_mensaje_en, '
+            'feed_pk = :feed_pk, '
+            'feed_sk = :feed_sk, '
             'ultimo_mensaje_texto = :ultimo_mensaje_texto, '
             'ultimo_evento_id = :ultimo_evento_id, '
             'actualizado_en = :actualizado_en '
@@ -1018,6 +1421,8 @@ def _actualizar_lead_por_mensaje_saliente(lead_pk, mensaje):
         ),
         ExpressionAttributeValues={
             ':ultimo_mensaje_en': mensaje.get('event_timestamp'),
+            ':feed_pk': 'META_LEAD',
+            ':feed_sk': mensaje.get('event_timestamp'),
             ':ultimo_mensaje_texto': mensaje.get('text', ''),
             ':ultimo_evento_id': mensaje.get('external_event_id', ''),
             ':actualizado_en': _now(),
@@ -1026,7 +1431,7 @@ def _actualizar_lead_por_mensaje_saliente(lead_pk, mensaje):
     )
 
 
-def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=''):
+def _send_meta_message(lead, texto, media_type='', media_url='', media_filename='', media_content_type='', media_voice=False, quoted_message_id=''):
     canal = str(lead.get('channel') or '').lower()
     account_alias = str(lead.get('account_alias') or '')
     contact_id = str(lead.get('external_contact_id') or '')
@@ -1037,6 +1442,35 @@ def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=
                 str(lead.get('phone_number_id') or '')
                 or WHATSAPP_PHONE_NUMBER_IDS.get(account_alias, '')
             )
+            if quoted_message_id or (media_type and media_url):
+                token = _get_token(WHATSAPP_TOKEN_PARAMS.get(account_alias))
+                if token and phone_number_id:
+                    media_id = ''
+                    if media_type == 'audio' and media_url:
+                        upload_result = _upload_whatsapp_cloud_media(
+                            phone_number_id,
+                            token,
+                            media_url,
+                            media_content_type or 'audio/ogg',
+                            media_filename or 'audio.ogg',
+                        )
+                        if upload_result.get('ok'):
+                            media_id = upload_result.get('media_id') or ''
+                    return _post_graph(
+                        f'https://graph.facebook.com/v22.0/{phone_number_id}/messages',
+                        token,
+                        _whatsapp_cloud_message_payload(
+                            contact_id,
+                            texto,
+                            media_type=media_type,
+                            media_url=media_url,
+                            media_id=media_id,
+                            media_filename=media_filename,
+                            media_voice=media_voice,
+                            quoted_message_id=quoted_message_id,
+                        ),
+                    )
+
             payload = {
                 'tenant': METHODICA_TENANT_ID,
                 'provider': 'whatsapp',
@@ -1046,6 +1480,16 @@ def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=
                 'leadPk': lead.get('pk', ''),
                 'accountAlias': account_alias,
             }
+            if quoted_message_id:
+                payload['context'] = {'message_id': quoted_message_id}
+                payload['context_message_id'] = quoted_message_id
+                payload['contextMessageId'] = quoted_message_id
+                payload['quoted_message_id'] = quoted_message_id
+                payload['quotedMessageId'] = quoted_message_id
+                payload['reply_to'] = {'message_id': quoted_message_id}
+                payload['replyTo'] = {'messageId': quoted_message_id}
+                payload['reply_to_message_id'] = quoted_message_id
+                payload['replyToMessageId'] = quoted_message_id
             if media_type and media_url:
                 payload['mediaType'] = media_type
                 payload['mediaUrl'] = media_url
@@ -1058,7 +1502,22 @@ def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=
         if canal == 'messenger':
             token = _get_token(MESSENGER_TOKEN_PARAMS.get(account_alias))
             if not token:
-                return _pending_config('Messenger no tiene page access token configurado')
+                payload = {
+                    'tenant': METHODICA_TENANT_ID,
+                    'provider': 'messenger',
+                    'to': contact_id,
+                    'text': texto,
+                    'leadPk': lead.get('pk', ''),
+                    'accountAlias': account_alias,
+                }
+                if media_type and media_url:
+                    payload['mediaType'] = media_type
+                    payload['mediaUrl'] = media_url
+                    if texto:
+                        payload['caption'] = texto
+                    if media_filename:
+                        payload['filename'] = media_filename
+                return _post_methodica_channel_message(payload)
             message_payload = _meta_send_message_payload(texto, media_type, media_url)
             return _post_graph(
                 'https://graph.facebook.com/v26.0/me/messages',
@@ -1083,12 +1542,13 @@ def _send_meta_message(lead, texto, media_type='', media_url='', media_filename=
                 if not account_id:
                     return _pending_config('Instagram no tiene account_id configurado')
                 url = f'https://graph.facebook.com/v22.0/{account_id}/messages'
+            message_payload = _meta_send_message_payload(texto, media_type, media_url)
             return _post_graph(
                 url,
                 token,
                 {
                     'recipient': {'id': contact_id},
-                    'message': _meta_send_message_payload(texto, media_type, media_url),
+                    'message': message_payload,
                 },
             )
 
@@ -1122,6 +1582,85 @@ def _meta_send_message_payload(texto, media_type='', media_url=''):
     return {'text': texto}
 
 
+def _upload_whatsapp_cloud_media(phone_number_id, token, media_url, content_type, filename):
+    try:
+        with urllib.request.urlopen(media_url, timeout=20) as response:
+            file_bytes = response.read()
+            response_content_type = response.headers.get('Content-Type') or ''
+    except Exception as exc:
+        return {'ok': False, 'message': f'No se pudo descargar el audio para Meta: {exc}'}
+
+    upload_content_type = (content_type or response_content_type or 'audio/ogg').split(';')[0].strip()
+    boundary = f'----jam-meta-{uuid.uuid4().hex}'
+    parts = [
+        (
+            f'--{boundary}\r\n'
+            'Content-Disposition: form-data; name="messaging_product"\r\n\r\n'
+            'whatsapp\r\n'
+        ).encode('utf-8'),
+        (
+            f'--{boundary}\r\n'
+            'Content-Disposition: form-data; name="type"\r\n\r\n'
+            f'{upload_content_type}\r\n'
+        ).encode('utf-8'),
+        (
+            f'--{boundary}\r\n'
+            f'Content-Disposition: form-data; name="file"; filename="{filename or "audio.ogg"}"\r\n'
+            f'Content-Type: {upload_content_type}\r\n\r\n'
+        ).encode('utf-8'),
+        file_bytes,
+        f'\r\n--{boundary}--\r\n'.encode('utf-8'),
+    ]
+    request = urllib.request.Request(
+        f'https://graph.facebook.com/v22.0/{phone_number_id}/media',
+        data=b''.join(parts),
+        method='POST',
+        headers={
+            'Authorization': f'Bearer {token}',
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            response_body = json.loads(response.read().decode('utf-8') or '{}')
+    except urllib.error.HTTPError as exc:
+        response_text = exc.read().decode('utf-8', 'replace')
+        return {'ok': False, 'message': response_text[:1000]}
+    except Exception as exc:
+        return {'ok': False, 'message': str(exc)}
+
+    media_id = str(response_body.get('id') or '')
+    return {'ok': bool(media_id), 'media_id': media_id, 'response': response_body}
+
+
+def _whatsapp_cloud_message_payload(to, texto, media_type='', media_url='', media_id='', media_filename='', media_voice=False, quoted_message_id=''):
+    payload = {
+        'messaging_product': 'whatsapp',
+        'to': to,
+    }
+    if quoted_message_id:
+        payload['context'] = {'message_id': quoted_message_id}
+
+    if media_type and media_url:
+        payload['type'] = media_type
+        media_payload = {'id': media_id} if media_id else {'link': media_url}
+        if media_type in {'image', 'video', 'document'} and texto:
+            media_payload['caption'] = texto
+        if media_type == 'audio' and media_voice:
+            media_payload['voice'] = True
+        if media_type == 'document' and media_filename:
+            media_payload['filename'] = media_filename
+        payload[media_type] = media_payload
+        return payload
+
+    payload['type'] = 'text'
+    payload['text'] = {
+        'preview_url': False,
+        'body': texto,
+    }
+    return payload
+
+
 def _pending_config(message):
     return {
         'ok': False,
@@ -1134,7 +1673,7 @@ def _pending_config(message):
 def _post_methodica_channel_message(payload):
     channel_key = _get_token(METHODICA_CHANNEL_KEY_PARAM)
     if not METHODICA_CHANNEL_MESSAGES_URL or not channel_key:
-        return _pending_config('Methodica hub no tiene API key configurada para WhatsApp')
+        return _pending_config('Methodica hub no tiene API key configurada')
     request = urllib.request.Request(
         METHODICA_CHANNEL_MESSAGES_URL,
         data=json.dumps(payload).encode('utf-8'),
@@ -1174,6 +1713,72 @@ def _get_token(param_name):
         if exc.response.get('Error', {}).get('Code') == 'ParameterNotFound':
             return ''
         raise
+
+
+def _put_secure_parameter(param_name, value):
+    if not param_name:
+        raise ValueError('Parametro SSM no configurado para Messenger')
+    ssm.put_parameter(
+        Name=param_name,
+        Value=value,
+        Type='SecureString',
+        Overwrite=True,
+    )
+
+
+def _facebook_redirect_uri():
+    if META_FACEBOOK_REDIRECT_URI:
+        return META_FACEBOOK_REDIRECT_URI
+    return 'https://dcgjiswnwqab6.cloudfront.net/meta/facebook/callback'
+
+
+def _graph_get(url, params):
+    full_url = f'{url}?{urlencode(params)}'
+    request = urllib.request.Request(full_url, method='GET')
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode('utf-8') or '{}')
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode('utf-8', 'replace')[:1000]
+        raise ValueError(f'Meta rechazo la solicitud: {detail}')
+
+
+def _subscribe_page_to_webhook(page_id, page_token):
+    payload = urlencode({
+        'subscribed_fields': 'messages,messaging_postbacks,message_deliveries,message_reads',
+        'access_token': page_token,
+    }).encode('utf-8')
+    request = urllib.request.Request(
+        f'https://graph.facebook.com/v26.0/{page_id}/subscribed_apps',
+        data=payload,
+        method='POST',
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode('utf-8') or '{}')
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode('utf-8', 'replace')[:1000]
+        raise ValueError(f'No se pudo suscribir la pagina al webhook: {detail}')
+
+
+def _upsert_connected_messenger_page(page_id, page_name):
+    if not meta_table:
+        return
+    ahora = _now()
+    meta_table.put_item(Item={
+        'pk': f'META_ACCOUNT#messenger#{META_MESSENGER_DEFAULT_ALIAS}',
+        'sk': 'METADATA',
+        'tipo': 'META_ACCOUNT',
+        'channel': 'messenger',
+        'account_alias': META_MESSENGER_DEFAULT_ALIAS,
+        'account_id': page_id,
+        'page_id': page_id,
+        'page_name': page_name,
+        'token_param': META_MESSENGER_PAGE_TOKEN_PARAM,
+        'connected': True,
+        'actualizado_en': ahora,
+    })
 
 
 def _post_graph(url, token, payload):

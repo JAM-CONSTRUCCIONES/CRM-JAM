@@ -38,6 +38,9 @@ const InventarioPage = () => {
   const isPreview = !!previewInmoId;
   // En preview: comportarse como inmobiliaria (sin acciones de edición)
   const canEditEffective = isPreview ? false : inv.canEdit;
+  const canDeleteEffective = isPreview ? false : inv.canDelete;
+  const canManageBloqueosEffective = isPreview ? false : inv.canManageBloqueos;
+  const canSeeAdminInventoryInfo = isPreview ? false : (inv.isAdmin || inv.isCoordinador);
   const isInmobiliariaEffective = isPreview ? true : inv.isInmobiliaria;
   // Filtrar proyectos asignados a la inmobiliaria en preview
   const proyectosPreview = isPreview
@@ -393,53 +396,55 @@ const InventarioPage = () => {
                       <Space>
                         <Button size="small" type="text" icon={<EditOutlined />} style={{ color: '#fff', background: 'rgba(0,0,0,0.25)', borderRadius: 6 }}
                           onClick={() => abrirEditarProyecto(p)} />
-                        <Popconfirm
-                          title="¿Eliminar proyecto?"
-                          description="Se eliminarán inventario, procesos e historiales del proyecto. Los clientes se conservarán como desvinculados."
-                          okText="Sí, eliminar"
-                          cancelText="Cancelar"
-                          okButtonProps={{ danger: true }}
-                          disabled={!!eliminandoId}
-                          onConfirm={async () => {
-                            setEliminandoId(p.proyecto_id);
-                            const hide = message.loading(`Eliminando proyecto "${p.nombre}"...`, 0);
-                            try {
-                              await eliminarProyecto(p.proyecto_id);
-                              // Polling hasta que el proyecto desaparezca (SF async)
-                              let intentos = 0;
-                              while (intentos < 40) {
-                                await new Promise(r => setTimeout(r, 2000));
-                                try {
-                                  const actual = await getProyecto(p.proyecto_id);
-                                  if (!actual || actual.activo === false) break;
-                                } catch {
-                                  break; // 404 = ya eliminado
+                        {canDeleteEffective && (
+                          <Popconfirm
+                            title="¿Eliminar proyecto?"
+                            description="Se eliminarán inventario, procesos e historiales del proyecto. Los clientes se conservarán como desvinculados."
+                            okText="Sí, eliminar"
+                            cancelText="Cancelar"
+                            okButtonProps={{ danger: true }}
+                            disabled={!!eliminandoId}
+                            onConfirm={async () => {
+                              setEliminandoId(p.proyecto_id);
+                              const hide = message.loading(`Eliminando proyecto "${p.nombre}"...`, 0);
+                              try {
+                                await eliminarProyecto(p.proyecto_id);
+                                // Polling hasta que el proyecto desaparezca (SF async)
+                                let intentos = 0;
+                                while (intentos < 40) {
+                                  await new Promise(r => setTimeout(r, 2000));
+                                  try {
+                                    const actual = await getProyecto(p.proyecto_id);
+                                    if (!actual || actual.activo === false) break;
+                                  } catch {
+                                    break; // 404 = ya eliminado
+                                  }
+                                  intentos++;
                                 }
-                                intentos++;
+                                hide();
+                                message.success('Proyecto eliminado correctamente');
+                                inv.cargarProyectos();
+                              } catch (err: any) {
+                                hide();
+                                const status = err?.response?.status ?? err?.response?.statusCode;
+                                const msg = err?.response?.data?.message || err?.message;
+                                if (status === 409) {
+                                  message.error(msg || 'El proyecto ya tiene una eliminación en curso.');
+                                } else {
+                                  message.error(msg || 'Error al eliminar el proyecto.');
+                                }
+                              } finally {
+                                setEliminandoId(null);
                               }
-                              hide();
-                              message.success('Proyecto eliminado correctamente');
-                              inv.cargarProyectos();
-                            } catch (err: any) {
-                              hide();
-                              const status = err?.response?.status ?? err?.response?.statusCode;
-                              const msg = err?.response?.data?.message || err?.message;
-                              if (status === 409) {
-                                message.error(msg || 'El proyecto ya tiene una eliminación en curso.');
-                              } else {
-                                message.error(msg || 'Error al eliminar el proyecto.');
-                              }
-                            } finally {
-                              setEliminandoId(null);
-                            }
-                          }}>
-                          <Button
-                            size="small" type="text" danger icon={<DeleteOutlined />}
-                            style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 6 }}
-                            loading={eliminandoId === p.proyecto_id}
-                            disabled={!!eliminandoId && eliminandoId !== p.proyecto_id}
-                          />
-                        </Popconfirm>
+                            }}>
+                            <Button
+                              size="small" type="text" danger icon={<DeleteOutlined />}
+                              style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 6 }}
+                              loading={eliminandoId === p.proyecto_id}
+                              disabled={!!eliminandoId && eliminandoId !== p.proyecto_id}
+                            />
+                          </Popconfirm>
+                        )}
                       </Space>
                     </div>
                   )}
@@ -565,13 +570,14 @@ const InventarioPage = () => {
 
           <TablaUnidades
             unidades={unidadesVisibles} etapas={inv.etapas} loading={inv.loading}
-            isAdmin={isPreview ? false : inv.isAdmin} isInmobiliaria={isInmobiliariaEffective}
+            isAdmin={canSeeAdminInventoryInfo} isInmobiliaria={isInmobiliariaEffective}
             canEdit={canEditEffective}
+            canDelete={canDeleteEffective}
             inmoNombre={inv.inmoNombre}
             onEditar={abrirEditarUnidad}
             onEliminar={inv.handleEliminarUnidad}
             onBloquear={isPreview ? undefined : (u => { setUnidadABloquear(u); setModalBloqueo(true); })}
-            onCrearBloqueoAdmin={isPreview || !inv.isAdmin ? undefined : (u => { setUnidadParaBloqueoAdmin(u); setModalCrearBloqueoAdmin(true); })}
+            onCrearBloqueoAdmin={!canManageBloqueosEffective ? undefined : (u => { setUnidadParaBloqueoAdmin(u); setModalCrearBloqueoAdmin(true); })}
           />
         </>
       )}
@@ -631,6 +637,7 @@ const InventarioPage = () => {
         onEliminar={inv.handleEliminarEtapa}
         onEditar={e => inv.setEtapaEditando(e)}
         onCancelarEdicion={() => inv.setEtapaEditando(null)}
+        canDelete={canDeleteEffective}
       />
 
       <ModalUnidad

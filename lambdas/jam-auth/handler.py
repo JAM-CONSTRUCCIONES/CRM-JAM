@@ -49,6 +49,12 @@ def handler(event, context):
     if not _is_internal(event):
         return forbidden('Sin permisos')
 
+    if method == 'DELETE' and _get_rol(event) != 'admin':
+        return forbidden('Solo administrador puede eliminar')
+
+    if method == 'PUT' and path.endswith(('/habilitar', '/deshabilitar')) and usuario_id and _get_rol(event) != 'admin':
+        return forbidden('Solo administrador puede habilitar o deshabilitar usuarios')
+
     # ── Config: email templates (via query param or body marker) ─────────────
     qs_params = event.get('queryStringParameters') or {}
     body_raw = event.get('body') or '{}'

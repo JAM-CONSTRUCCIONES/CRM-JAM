@@ -20,6 +20,7 @@ interface Props {
   isAdmin: boolean;
   isInmobiliaria: boolean;
   canEdit?: boolean;
+  canDelete?: boolean;
   readOnlyPublic?: boolean;
   inmoNombre: (id: string) => string;
   onEditar: (u: Unidad) => void;
@@ -29,8 +30,8 @@ interface Props {
 }
 
 // ── Card móvil ────────────────────────────────────────────────────────────────
-const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: {
-  u: Unidad; etapas: Etapa[]; isAdmin: boolean; isInmobiliaria: boolean; canEdit?: boolean; readOnlyPublic?: boolean;
+const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, canDelete, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: {
+  u: Unidad; etapas: Etapa[]; isAdmin: boolean; isInmobiliaria: boolean; canEdit?: boolean; canDelete?: boolean; readOnlyPublic?: boolean;
   inmoNombre: (id: string) => string;
   onEditar: (u: Unidad) => void; onEliminar: (u: Unidad) => void; onBloquear?: (u: Unidad) => void;
   onCrearBloqueoAdmin?: (u: Unidad) => void;
@@ -67,9 +68,11 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPubli
           {canEdit && (
             <Space size={4}>
               <Button size="small" icon={<EditOutlined />} onClick={() => onEditar(u)} />
-              <Popconfirm title="¿Eliminar unidad?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(u)}>
-                <Button size="small" danger icon={<DeleteOutlined />} />
-              </Popconfirm>
+              {canDelete && (
+                <Popconfirm title="¿Eliminar unidad?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(u)}>
+                  <Button size="small" danger icon={<DeleteOutlined />} />
+                </Popconfirm>
+              )}
             </Space>
           )}
         </div>
@@ -146,7 +149,7 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, readOnlyPubli
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
-const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: Props) => {
+const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, canDelete, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: Props) => {
   const { md } = useBreakpoint();
 
   // Móvil → cards
@@ -157,7 +160,7 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
       <div>
         {unidades.map(u => (
           <UnidadCard key={u.unidad_id} u={u} etapas={etapas}
-            isAdmin={isAdmin} isInmobiliaria={isInmobiliaria} canEdit={canEdit} inmoNombre={inmoNombre}
+            isAdmin={isAdmin} isInmobiliaria={isInmobiliaria} canEdit={canEdit} canDelete={canDelete} inmoNombre={inmoNombre}
             readOnlyPublic={readOnlyPublic}
             onEditar={onEditar} onEliminar={onEliminar} onBloquear={onBloquear} onCrearBloqueoAdmin={onCrearBloqueoAdmin} />
         ))}
@@ -247,9 +250,11 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
         <Space>
           <Tooltip title="Editar"><Button size="small" icon={<EditOutlined />} onClick={() => onEditar(u)} /></Tooltip>
           <Tooltip title={u.comentario ? `Ver comentario interno: ${u.comentario}` : 'Sin comentario interno'}><Button size="small" icon={<MessageOutlined />} disabled={!u.comentario} style={u.comentario ? { color: '#faad14' } : undefined} /></Tooltip>
-          <Popconfirm title="¿Eliminar unidad?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(u)}>
-            <Tooltip title="Eliminar"><Button size="small" danger icon={<DeleteOutlined />} /></Tooltip>
-          </Popconfirm>
+          {canDelete && (
+            <Popconfirm title="¿Eliminar unidad?" okText="Sí" cancelText="No" onConfirm={() => onEliminar(u)}>
+              <Tooltip title="Eliminar"><Button size="small" danger icon={<DeleteOutlined />} /></Tooltip>
+            </Popconfirm>
+          )}
         </Space>
       )},
     ] : isAdmin ? [

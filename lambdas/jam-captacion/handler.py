@@ -1,5 +1,5 @@
 import json
-from utils.auth import require_admin
+from utils.auth import get_rol, require_admin
 from utils.response import forbidden, not_found
 from routes import clientes, scheduler_handler
 
@@ -44,6 +44,16 @@ def handler(event, context):
     # ===== ADMIN: guard =====
     if is_admin and not require_admin(event):
         return forbidden()
+
+    qs = event.get('queryStringParameters') or {}
+    es_eliminacion_cliente = (
+        (method in ('DELETE', 'POST') and path == '/admin/clientes/eliminar') or
+        (method == 'PUT' and qs.get('accion') == 'eliminar') or
+        (method == 'DELETE' and cedula and proyecto_id and is_admin) or
+        (method == 'POST' and cedula and proyecto_id and path.endswith('/eliminar') and is_admin)
+    )
+    if es_eliminacion_cliente and get_rol(event) != 'admin':
+        return forbidden('Solo administrador puede eliminar')
 
     if method == 'GET' and path == '/admin/clientes/buscar':
         # Nuevo endpoint de búsqueda general

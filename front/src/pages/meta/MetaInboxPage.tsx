@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import OpusMediaRecorder from 'opus-media-recorder';
+import encoderWorkerUrl from 'opus-media-recorder/encoderWorker.umd.js?url';
+import oggOpusWasmUrl from 'opus-media-recorder/OggOpusEncoder.wasm?url';
+import webmOpusWasmUrl from 'opus-media-recorder/WebMOpusEncoder.wasm?url';
 import {
   Button,
   Card,
+  Checkbox,
+  DatePicker,
   Empty,
   Form,
   Input,
@@ -13,7 +19,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { ArrowLeftOutlined, EditOutlined, FileOutlined, LinkOutlined, PaperClipOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, AudioOutlined, DeleteOutlined, EditOutlined, FileOutlined, LinkOutlined, PauseOutlined, PaperClipOutlined, PlayCircleFilled, ReloadOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
 import {
   convertirMetaLead,
   enviarMetaMensaje,
@@ -23,13 +29,17 @@ import {
   gestionarMetaLead,
   getMetaConversacion,
   listarMetaLeads,
+  asociarMetaLeadCliente,
   type MetaLead,
   type MetaMensaje,
 } from '../../services/meta.service';
+import { buscarClientesAdmin } from '../../services/clientes.service';
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
 import { getProyectos, getUnidades } from '../../services/proyectos.service';
 import { getUsuariosSistema, type UsuarioSistema } from '../../services/sistema.service';
-import type { Proyecto, Unidad } from '../../types';
+import type { Cliente, Proyecto, Unidad } from '../../types';
+import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
+import { clienteFieldNormalizers, clienteFormRules, validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Paragraph, Text } = Typography;
 const { Search, TextArea } = Input;
@@ -45,6 +55,8 @@ const canalColor: Record<string, string> = {
   messenger: 'blue',
   whatsapp: 'green',
 };
+
+const CANALES_CON_RESPUESTA_CITADA = new Set(['whatsapp']);
 
 const estadoColor: Record<string, string> = {
   nuevo: 'blue',
@@ -69,6 +81,19 @@ const formatHora = (value?: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatDuracionAudio = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
+const formatDuracionCorta = (seconds?: number) => {
+  if (!seconds || !Number.isFinite(seconds)) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${String(secs).padStart(2, '0')}`;
 };
 
 // Texto del separador de fecha (Hoy / Ayer / fecha corta).
@@ -108,8 +133,13 @@ const motivosCierre = [
 ];
 
 const METHODICA_WHATSAPP_ONBOARDING_URL = 'https://methodicatechnology.com/whatsapp/onboarding';
-const JAM_WHATSAPP_WEBHOOK_URL = 'https://agfdz17sk6.execute-api.us-east-1.amazonaws.com/api/webhooks/whatsapp';
-const JAM_META_INBOX_URL = 'https://d12nm0khvt8zd9.cloudfront.net/meta-inbox';
+const CRM_API_URL = String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const JAM_WHATSAPP_WEBHOOK_URL = `${CRM_API_URL}/webhooks/whatsapp`;
+const JAM_META_INBOX_URL =
+  typeof window !== 'undefined' ? `${window.location.origin}/meta-inbox` : '/meta-inbox';
+const LEADS_PAGE_SIZE = 50;
+const MAX_REENVIO_MENSAJES = 10;
+const MAX_REENVIO_DESTINOS = 5;
 
 const attachmentsOf = (mensaje: MetaMensaje) => {
   if (mensaje.attachments?.length) return mensaje.attachments;
@@ -127,10 +157,78 @@ const attachmentsOf = (mensaje: MetaMensaje) => {
   return [];
 };
 
+const whatsappReplyId = (mensaje?: MetaMensaje | null) => {
+  const externalId = String(mensaje?.external_event_id || '').trim();
+  if (externalId && !externalId.startsWith('local#')) return externalId;
+  const metaId = String(mensaje?.meta_response?.messages?.[0]?.id || '').trim();
+  if (metaId) return metaId;
+  return '';
+};
+
+const firmaAdjuntoMensaje = (mensaje: MetaMensaje) => {
+  const adjuntos = attachmentsOf(mensaje);
+  if (!adjuntos.length) return '';
+  return adjuntos.map((adjunto) => [
+    adjunto.public_url || adjunto.url || '',
+    adjunto.filename || '',
+    adjunto.mime_type || '',
+    adjunto.type || '',
+    adjunto.id || '',
+  ].join('|')).join('||');
+};
+
 // Firma de la lista de mensajes: id + estado de cada uno. Permite detectar
 // tanto mensajes nuevos como cambios de estado (sent/delivered/read).
 const mensajesSignature = (mensajes: MetaMensaje[]) =>
-  mensajes.map((m) => `${m.sk}:${m.message_status || ''}`).join('|');
+  mensajes.map((m) => [
+    m.sk,
+    m.external_event_id || '',
+    m.message_status || '',
+    m.text || '',
+    m.quoted_message_id || '',
+    m.quoted_text || '',
+    m.quoted_sender || '',
+    m.edited ? 'edited' : '',
+    m.revoked ? 'revoked' : '',
+    (m.reactions || []).map((reaction) => `${reaction.sender_id || ''}:${reaction.emoji || ''}`).join(','),
+  ].join(':')).join('|');
+
+const mergeMensajePreservandoContexto = (base: MetaMensaje, nuevo: MetaMensaje): MetaMensaje => ({
+  ...base,
+  ...nuevo,
+  quoted_message_id: nuevo.quoted_message_id || base.quoted_message_id,
+  quoted_text: nuevo.quoted_text || base.quoted_text,
+  quoted_sender: nuevo.quoted_sender || base.quoted_sender,
+  reactions: nuevo.reactions || base.reactions,
+});
+
+const mensajesMismoEnvio = (a: MetaMensaje, b: MetaMensaje) => {
+  if (a.external_event_id && b.external_event_id && a.external_event_id === b.external_event_id) return true;
+  if (a.direction !== b.direction || a.direction !== 'outgoing') return false;
+
+  const timeA = new Date(a.event_timestamp || a.created_at || 0).getTime();
+  const timeB = new Date(b.event_timestamp || b.created_at || 0).getTime();
+  if (Math.abs(timeA - timeB) >= 120000) return false;
+
+  if (Boolean(a.text || b.text) && (a.text || '') === (b.text || '')) return true;
+
+  const firmaA = firmaAdjuntoMensaje(a);
+  const firmaB = firmaAdjuntoMensaje(b);
+  return Boolean(firmaA && firmaB && firmaA === firmaB);
+};
+
+const mergeMensajesMeta = (actuales: MetaMensaje[], nuevos: MetaMensaje[]) => {
+  const fusion = [...actuales];
+  nuevos.forEach((nuevo) => {
+    const index = fusion.findIndex((actual) => mensajesMismoEnvio(actual, nuevo));
+    if (index >= 0) {
+      fusion[index] = mergeMensajePreservandoContexto(fusion[index], nuevo);
+    } else {
+      fusion.push(nuevo);
+    }
+  });
+  return fusion;
+};
 
 // Nombre a mostrar del contacto: nombre editado por el agente > alias de perfil
 // (WhatsApp/Meta) > numero/id. Asi los numeros de WhatsApp muestran algo util.
@@ -139,6 +237,20 @@ const nombreContacto = (lead: MetaLead) =>
   || (lead.contact_profile_name || '').trim()
   || (lead.contact_username ? `@${lead.contact_username}` : '')
   || lead.external_contact_id;
+
+const mergeRecentLeadsByPk = (actuales: MetaLead[], nuevos: MetaLead[]) => {
+  const map = new Map<string, MetaLead>();
+  [...actuales, ...nuevos].forEach((lead) => map.set(lead.pk, lead));
+  return Array.from(map.values()).sort((a, b) =>
+    String(b.ultimo_mensaje_en || '').localeCompare(String(a.ultimo_mensaje_en || '')),
+  );
+};
+
+const appendLeadsByPk = (actuales: MetaLead[], nuevos: MetaLead[]) => {
+  const map = new Map<string, MetaLead>();
+  [...actuales, ...nuevos].forEach((lead) => map.set(lead.pk, lead));
+  return Array.from(map.values());
+};
 
 const getProyectoLabel = (proyectos: Proyecto[], proyectoId?: string) => (
   proyectos.find((proyecto) => proyecto.proyecto_id === proyectoId)?.nombre || proyectoId || '-'
@@ -150,8 +262,190 @@ const getInmobiliariaLabel = (inmobiliarias: Inmobiliaria[], inmobiliariaId?: st
   || '-'
 );
 
+type ClienteGrupo = {
+  cedula: string;
+  nombre: string;
+  variantes: string[];
+  registros: Cliente[];
+  inmobiliarias: string[];
+  proyectos: string[];
+  contactos: string[];
+};
+
+type MetaAttachment = NonNullable<MetaMensaje['attachments']>[number];
+
+type ReenvioAdjunto = {
+  attachment: MetaAttachment;
+  sourceMessage: MetaMensaje;
+};
+
+type RecorderLike = {
+  state: RecordingState;
+  ondataavailable: ((event: BlobEvent) => void) | null;
+  onstop: ((event: Event) => void) | null;
+  start(timeslice?: number): void;
+  stop(): void;
+};
+
+const nombreCliente = (cliente: Cliente) =>
+  `${cliente.nombres || ''} ${cliente.apellidos || ''}`.trim() || cliente.cedula;
+
+const textoMensaje = (mensaje: MetaMensaje) => {
+  const raw = (mensaje.text || '').trim();
+  if (mensaje.revoked) return 'Mensaje eliminado en WhatsApp';
+  if (mensaje.event_type === 'edit' || raw === '[edit]') {
+    return mensaje.edited_text || 'Mensaje editado en WhatsApp';
+  }
+  if (mensaje.event_type === 'reaction' || raw === '[reaction]') {
+    return mensaje.reaction_emoji
+      ? `Reacciono ${mensaje.reaction_emoji} a un mensaje`
+      : 'Reacciono a un mensaje';
+  }
+  if (mensaje.event_type === 'unsupported' || raw === '[unsupported]') {
+    return 'Tipo de mensaje no soportado por WhatsApp API';
+  }
+  if (mensaje.event_type === 'revoke' || raw === '[revoke]') {
+    return mensaje.revoked_message_id ? 'Mensaje eliminado en WhatsApp' : 'Se elimino un mensaje';
+  }
+  return raw;
+};
+
+const resumenMensajeCitado = (mensaje?: MetaMensaje | null) => {
+  if (!mensaje) return 'Mensaje citado';
+  const text = textoMensaje(mensaje);
+  if (text) return text;
+  const attachment = attachmentsOf(mensaje)[0];
+  if (attachment?.type) return `Adjunto: ${attachment.type}`;
+  return 'Mensaje citado';
+};
+
+const normalizarTipoMedia = (attachment: MetaAttachment) => {
+  if (esSticker(attachment)) return '';
+  const type = String(attachment.type || '').toLowerCase();
+  const mime = String(attachment.mime_type || '').toLowerCase();
+  if (type === 'image' || mime.startsWith('image/')) return 'image';
+  if (type === 'video' || mime.startsWith('video/')) return 'video';
+  if (type === 'audio' || type === 'voice_note' || mime.startsWith('audio/')) return 'audio';
+  if (type === 'document' || mime === 'application/pdf') return 'document';
+  return '';
+};
+
+const etiquetaAdjunto = (attachment: MetaAttachment) =>
+  attachment.filename || attachment.caption || attachment.title || attachment.type || 'Archivo';
+
+const esSticker = (attachment: MetaAttachment) =>
+  String(attachment.type || '').toLowerCase() === 'sticker'
+  || String(attachment.mime_type || '').toLowerCase() === 'image/webp'
+  || /\.webp($|\?)/i.test(String(attachment.filename || attachment.title || attachment.caption || attachment.public_url || attachment.url || ''))
+  || /sticker/i.test(String(attachment.filename || attachment.title || attachment.caption || attachment.type || ''));
+
+const esPng = (attachment: MetaAttachment) =>
+  String(attachment.mime_type || '').toLowerCase() === 'image/png'
+  || /\.png($|\?)/i.test(String(attachment.filename || attachment.title || attachment.caption || attachment.public_url || attachment.url || ''));
+
+const esNotaVoz = (attachment: MetaAttachment) =>
+  Boolean(attachment.voice)
+  || String(attachment.type || '').toLowerCase() === 'voice_note'
+  || /^nota-voz-/i.test(String(attachment.filename || ''))
+  || String(attachment.mime_type || '').toLowerCase().includes('opus');
+
+const esMensajeAudio = (mensaje: MetaMensaje) =>
+  String(mensaje.event_type || '').toLowerCase() === 'audio'
+  || ['[audio]', '[voice_note]'].includes((mensaje.text || '').trim().toLowerCase())
+  || attachmentsOf(mensaje).some((attachment) => normalizarTipoMedia(attachment) === 'audio');
+
+const mensajePermiteRespuestaCitada = (mensaje: MetaMensaje, channel?: string) =>
+  CANALES_CON_RESPUESTA_CITADA.has(channel || mensaje.channel)
+  && Boolean(whatsappReplyId(mensaje))
+  && !esMensajeAudio(mensaje);
+
+const mensajeKey = (mensaje: MetaMensaje) => `${mensaje.pk}::${mensaje.sk}`;
+
+const adjuntosReenviables = (mensaje: MetaMensaje) =>
+  attachmentsOf(mensaje).filter((attachment) => attachment.public_url && normalizarTipoMedia(attachment));
+
+const mensajeReenviableWhatsapp = (mensaje: MetaMensaje) => {
+  if (mensaje.channel !== 'whatsapp' || mensaje.revoked) return false;
+  const attachments = attachmentsOf(mensaje);
+  const text = textoMensaje(mensaje);
+  if (attachments.length && attachments.every(esSticker)) return false;
+  if (adjuntosReenviables(mensaje).length) return true;
+  return Boolean(text && !isPlaceholderConAdjunto(mensaje, attachments.length));
+};
+
+const esEventoAuxiliarWhatsapp = (mensaje: MetaMensaje) =>
+  mensaje.channel === 'whatsapp'
+  && (
+    (mensaje.event_type === 'edit' && Boolean(mensaje.edited_message_id))
+    || (mensaje.event_type === 'reaction' && Boolean(mensaje.reaction_message_id))
+    || (mensaje.event_type === 'revoke' && Boolean(mensaje.revoked_message_id))
+  );
+
+const esEventoControlWhatsapp = (mensaje: MetaMensaje) =>
+  mensaje.channel === 'whatsapp' && ['edit', 'reaction', 'revoke'].includes(mensaje.event_type);
+
+const isPlaceholderConAdjunto = (mensaje: MetaMensaje, attachmentsLength: number) =>
+  attachmentsLength > 0
+  && /^\[(audio|video|image|sticker|document|voice_note)\]$/i.test((mensaje.text || '').trim());
+
+const resumenUltimoMensaje = (value?: string) => {
+  const text = (value || '').trim();
+  if (text === '[edit]') return 'Mensaje editado en WhatsApp';
+  if (text === '[reaction]') return 'Reaccion a un mensaje';
+  if (text === '[unsupported]') return 'Tipo de mensaje no soportado';
+  if (text === '[revoke]') return 'Mensaje eliminado en WhatsApp';
+  return text || 'Sin mensaje de texto';
+};
+
+const mensajeErrorMeta = (value?: string) => {
+  const text = (value || '').trim();
+  if (!text) return '';
+  if (
+    /outside of allowed window/i.test(text)
+    || /24\s*hours?/i.test(text)
+    || /131047/.test(text)
+    || /470/.test(text)
+    || /ventana/i.test(text)
+  ) {
+    return 'No se pudo enviar: este mensaje esta fuera de la ventana de atencion permitida. Debes responder dentro de las 24 horas desde el ultimo mensaje del cliente; despues de ese tiempo el cliente debe escribir nuevamente para reabrir la conversacion.';
+  }
+  return text;
+};
+
+const estadoMensajeMeta = (value?: string) => {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return '';
+  return ({
+    pending: 'pendiente',
+    pendiente: 'pendiente',
+    sending: 'enviando',
+    enviando: 'enviando',
+    sent: 'enviado',
+    enviado: 'enviado',
+    delivered: 'entregado',
+    read: 'leido',
+    failed: 'fallido',
+    fallido: 'fallido',
+    pendiente_configuracion: 'pendiente',
+  } as Record<string, string>)[status] || status;
+};
+
+const esMensajeFallidoMeta = (mensaje: MetaMensaje) =>
+  ['failed', 'fallido'].includes(String(mensaje.message_status || '').toLowerCase());
+
+const errorVisibleMensajeMeta = (mensaje: MetaMensaje) => {
+  const error = mensajeErrorMeta(mensaje.meta_error || mensaje.error_message);
+  if (error) return error;
+  if (esMensajeFallidoMeta(mensaje)) {
+    return 'No se pudo enviar el mensaje. Revisa el detalle del envio o intenta nuevamente.';
+  }
+  return '';
+};
+
 export default function MetaInboxPage() {
   const [leads, setLeads] = useState<MetaLead[]>([]);
+  const [leadsCursor, setLeadsCursor] = useState('');
+  const [hasMoreLeads, setHasMoreLeads] = useState(false);
   const [selectedLead, setSelectedLead] = useState<MetaLead | null>(null);
   const [mensajes, setMensajes] = useState<MetaMensaje[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
@@ -161,11 +455,22 @@ export default function MetaInboxPage() {
   const [canal, setCanal] = useState<string>();
   const [busqueda, setBusqueda] = useState('');
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [loadingMoreLeads, setLoadingMoreLeads] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [hasMoreMensajes, setHasMoreMensajes] = useState(false);
   const [loadingMoreMensajes, setLoadingMoreMensajes] = useState(false);
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
+  const [grabandoAudio, setGrabandoAudio] = useState(false);
+  const [procesandoAudio, setProcesandoAudio] = useState(false);
+  const [duracionAudio, setDuracionAudio] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const audioRecorderRef = useRef<RecorderLike | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioTimerRef = useRef<number | null>(null);
+  const audioPlayerRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const [audioReproduciendo, setAudioReproduciendo] = useState('');
+  const [audioProgreso, setAudioProgreso] = useState<Record<string, { current: number; duration: number }>>({});
   const [editNombreOpen, setEditNombreOpen] = useState(false);
   const [nombreEditando, setNombreEditando] = useState('');
   const [guardandoNombre, setGuardandoNombre] = useState(false);
@@ -177,7 +482,24 @@ export default function MetaInboxPage() {
   const [savingConversion, setSavingConversion] = useState(false);
   const [sending, setSending] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [asociarOpen, setAsociarOpen] = useState(false);
+  const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [tipoBusquedaCliente, setTipoBusquedaCliente] = useState<'cedula' | 'nombre'>('cedula');
+  const [clientesEncontrados, setClientesEncontrados] = useState<Cliente[]>([]);
+  const [buscandoClientes, setBuscandoClientes] = useState(false);
+  const [asociandoCliente, setAsociandoCliente] = useState(false);
   const [respuesta, setRespuesta] = useState('');
+  const [mensajeCitado, setMensajeCitado] = useState<MetaMensaje | null>(null);
+  const [reenvioAdjunto, setReenvioAdjunto] = useState<ReenvioAdjunto | null>(null);
+  const [reenvioDestinoPk, setReenvioDestinoPk] = useState('');
+  const [reenvioCaption, setReenvioCaption] = useState('');
+  const [reenvioOpciones, setReenvioOpciones] = useState<MetaLead[]>([]);
+  const [buscandoDestinoReenvio, setBuscandoDestinoReenvio] = useState(false);
+  const [reenviandoAdjunto, setReenviandoAdjunto] = useState(false);
+  const [seleccionReenvioActiva, setSeleccionReenvioActiva] = useState(false);
+  const [mensajesSeleccionadosReenvio, setMensajesSeleccionadosReenvio] = useState<string[]>([]);
+  const [reenvioSeleccionOpen, setReenvioSeleccionOpen] = useState(false);
+  const [reenvioDestinoPks, setReenvioDestinoPks] = useState<string[]>([]);
   const [form] = Form.useForm();
   const [convertForm] = Form.useForm();
   const mensajesPanelRef = useRef<HTMLDivElement | null>(null);
@@ -194,10 +516,12 @@ export default function MetaInboxPage() {
   // pausar el refresco automatico mientras el usuario esta trabajando.
   const selectedLeadRef = useRef<MetaLead | null>(null);
   const mensajesRef = useRef<MetaMensaje[]>([]);
+  const busquedaRef = useRef('');
+  const canalRef = useRef<string | undefined>(undefined);
   const convCycleRef = useRef(0);
   const busyRef = useRef(false);
-  const LEADS_POLL_MS = 10000;
-  const CONVERSATION_POLL_MS = 7000;
+  const LEADS_POLL_MS = 3000;
+  const CONVERSATION_POLL_MS = 3000;
   // #4 Backoff: cuando la API falla, se saltan ciclos de forma progresiva
   // (1, 2, 4... hasta un tope) y se vuelve al ritmo normal al recuperarse.
   const MAX_BACKOFF_STEPS = 6;
@@ -207,24 +531,55 @@ export default function MetaInboxPage() {
   const convSkipRef = useRef(0);
 
   const conversaciones = useMemo(() => {
-    const text = busqueda.trim().toLowerCase();
-    return leads.filter((lead) => {
-      const matchesCanal = !canal || lead.channel === canal;
-      if (!matchesCanal) return false;
-      if (!text) return true;
-      return [
-        lead.external_contact_id,
-        lead.nombre_manual,
-        lead.contact_profile_name,
-        lead.ultimo_mensaje_texto,
-        lead.responsable_nombre,
-        lead.inmobiliaria_nombre,
-        lead.account_alias,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(text));
+    return leads;
+  }, [leads]);
+
+  const clientesAgrupados = useMemo<ClienteGrupo[]>(() => {
+    const groups = new Map<string, ClienteGrupo>();
+    clientesEncontrados.forEach((cliente) => {
+      const cedula = cliente.cedula || '';
+      if (!cedula) return;
+      const current = groups.get(cedula) || {
+        cedula,
+        nombre: nombreCliente(cliente),
+        variantes: [],
+        registros: [],
+        inmobiliarias: [],
+        proyectos: [],
+        contactos: [],
+      };
+      current.registros.push(cliente);
+      const nombre = nombreCliente(cliente);
+      if (nombre && !current.variantes.includes(nombre)) current.variantes.push(nombre);
+      const inmo = String(cliente.inmobiliaria_id || '').replace('INMOBILIARIA#', '');
+      if (inmo && !current.inmobiliarias.includes(inmo)) current.inmobiliarias.push(inmo);
+      if (cliente.proyecto_id && !current.proyectos.includes(cliente.proyecto_id)) current.proyectos.push(cliente.proyecto_id);
+      const contacto = cliente.telefono || cliente.correo;
+      if (contacto && !current.contactos.includes(contacto)) current.contactos.push(contacto);
+      current.registros.sort((a, b) => String(b.fecha_captacion || '').localeCompare(String(a.fecha_captacion || '')));
+      current.nombre = nombreCliente(current.registros[0]);
+      groups.set(cedula, current);
     });
-  }, [busqueda, canal, leads]);
+    return Array.from(groups.values());
+  }, [clientesEncontrados]);
+
+  const mensajesVisibles = useMemo(
+    () => mensajes.filter((mensaje) => !esEventoAuxiliarWhatsapp(mensaje)),
+    [mensajes],
+  );
+
+  const mensajesPorExternalId = useMemo(() => {
+    const map = new Map<string, MetaMensaje>();
+    mensajes.forEach((mensaje) => {
+      if (mensaje.external_event_id) map.set(mensaje.external_event_id, mensaje);
+    });
+    return map;
+  }, [mensajes]);
+
+  const mensajesSeleccionadosParaReenvio = useMemo(() => {
+    const keys = new Set(mensajesSeleccionadosReenvio);
+    return mensajesVisibles.filter((mensaje) => keys.has(mensajeKey(mensaje)) && mensajeReenviableWhatsapp(mensaje));
+  }, [mensajesSeleccionadosReenvio, mensajesVisibles]);
 
   // WhatsApp se considera conectado si ya existe al menos una conversacion
   // de ese canal. Si es asi, ocultamos el boton "Conectar WhatsApp".
@@ -243,9 +598,17 @@ export default function MetaInboxPage() {
   }, []);
 
   useEffect(() => {
-    cargarLeads();
     cargarAsignables();
   }, []);
+
+  useEffect(() => {
+    busquedaRef.current = busqueda;
+    canalRef.current = canal;
+    const timer = window.setTimeout(() => {
+      cargarLeads();
+    }, busqueda.trim() ? 350 : 0);
+    return () => window.clearTimeout(timer);
+  }, [busqueda, canal]);
 
   // Mantiene el ref sincronizado con el lead seleccionado para el polling.
   useEffect(() => {
@@ -326,11 +689,38 @@ export default function MetaInboxPage() {
     skipRef.current = Math.min(2 ** (failRef.current - 1), 2 ** (MAX_BACKOFF_STEPS - 1));
   };
 
+  const leadsParams = (cursor?: string) => {
+    const text = busqueda.trim();
+    const filtrosActivos = Boolean(text || canal);
+    return {
+      ...(canal ? { canal } : {}),
+      ...(text ? { q: text } : {}),
+      ...(filtrosActivos ? {} : { limit: LEADS_PAGE_SIZE, ...(cursor ? { cursor } : {}) }),
+    };
+  };
+
+  const leadsParamsRef = (cursor?: string) => {
+    const text = busquedaRef.current.trim();
+    const activeCanal = canalRef.current;
+    const filtrosActivos = Boolean(text || activeCanal);
+    return {
+      ...(activeCanal ? { canal: activeCanal } : {}),
+      ...(text ? { q: text } : {}),
+      ...(filtrosActivos ? {} : { limit: LEADS_PAGE_SIZE, ...(cursor ? { cursor } : {}) }),
+    };
+  };
+
   // Actualiza la lista de leads sin spinner ni abrir conversacion.
   const refrescarLeadsSilencioso = async () => {
     try {
-      const data = await listarMetaLeads();
-      setLeads(data.items || []);
+      const data = await listarMetaLeads(leadsParamsRef());
+      setLeads((prev) => mergeRecentLeadsByPk(prev, data.items || []));
+      setSelectedLead((prev) => {
+        if (!prev) return prev;
+        return data.items?.find((lead) => lead.pk === prev.pk) || prev;
+      });
+      setLeadsCursor(data.next_cursor || '');
+      setHasMoreLeads(Boolean(data.has_more));
       leadsFailRef.current = 0; // exito: se resetea el backoff
     } catch {
       // Silencioso: no interrumpimos al usuario. Aplicamos backoff.
@@ -355,22 +745,40 @@ export default function MetaInboxPage() {
       // Si el usuario cambio de conversacion mientras cargaba, descartamos.
       if (selectedLeadRef.current?.pk !== lead.pk) return;
       convFailRef.current = 0; // exito: se resetea el backoff
+      if (data.lead) {
+        const refreshedLead = data.lead;
+        setSelectedLead(refreshedLead);
+        setLeads((prev) => mergeRecentLeadsByPk(prev, [refreshedLead]));
+      }
       const traidos = data.mensajes || [];
       if (data.incremental) {
         if (!traidos.length) return;
+        if (traidos.some(esEventoControlWhatsapp)) {
+          const latest = await getMetaConversacion(lead.pk, { limit: CONVERSATION_PAGE_SIZE });
+          if (selectedLeadRef.current?.pk !== lead.pk) return;
+          if (latest.lead) {
+            const refreshedLead = latest.lead;
+            setSelectedLead(refreshedLead);
+            setLeads((prev) => mergeRecentLeadsByPk(prev, [refreshedLead]));
+          }
+          const latestMensajes = latest.mensajes || [];
+          setMensajes((prev) => {
+            const fusion = mergeMensajesMeta(prev, latestMensajes);
+            return mensajesSignature(prev) !== mensajesSignature(fusion) ? fusion : prev;
+          });
+          setHasMoreMensajes(Boolean(latest.has_more));
+          return;
+        }
         // Append de los nuevos, evitando duplicados por sk.
         setMensajes((prev) => {
-          const existentes = new Set(prev.map((m) => m.sk));
-          const faltantes = traidos.filter((m) => !existentes.has(m.sk));
-          return faltantes.length ? [...prev, ...faltantes] : prev;
+          const fusion = mergeMensajesMeta(prev, traidos);
+          return mensajesSignature(prev) !== mensajesSignature(fusion) ? fusion : prev;
         });
       } else {
         // Refresh de estado: fusiona la ultima pagina con el historial ya cargado
         // (que puede tener mensajes mas antiguos por "cargar anteriores").
         setMensajes((prev) => {
-          const traidosSks = new Set(traidos.map((m) => m.sk));
-          const anteriores = prev.filter((m) => !traidosSks.has(m.sk));
-          const fusion = [...anteriores, ...traidos];
+          const fusion = mergeMensajesMeta(prev, traidos);
           return mensajesSignature(prev) !== mensajesSignature(fusion) ? fusion : prev;
         });
       }
@@ -383,8 +791,10 @@ export default function MetaInboxPage() {
   const cargarLeads = async () => {
     setLoadingLeads(true);
     try {
-      const data = await listarMetaLeads();
+      const data = await listarMetaLeads(leadsParams());
       setLeads(data.items || []);
+      setLeadsCursor(data.next_cursor || '');
+      setHasMoreLeads(Boolean(data.has_more));
       if (!selectedLead && data.items?.length) {
         // Si hay un query param ?lead=pk, abre ese lead especifico.
         // En entrada normal al inbox no se selecciona nada hasta que el usuario elija.
@@ -407,6 +817,21 @@ export default function MetaInboxPage() {
     }
   };
 
+  const cargarMasLeads = async () => {
+    if (!leadsCursor || loadingMoreLeads) return;
+    setLoadingMoreLeads(true);
+    try {
+      const data = await listarMetaLeads(leadsParams(leadsCursor));
+      setLeads((prev) => appendLeadsByPk(prev, data.items || []));
+      setLeadsCursor(data.next_cursor || '');
+      setHasMoreLeads(Boolean(data.has_more));
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudieron cargar mas conversaciones');
+    } finally {
+      setLoadingMoreLeads(false);
+    }
+  };
+
   const cargarAsignables = async () => {
     try {
       const [usuariosData, inmobiliariasData, proyectosData] = await Promise.all([
@@ -425,6 +850,9 @@ export default function MetaInboxPage() {
   const abrirConversacion = async (lead: MetaLead, clearText = true) => {
     setSelectedLead(lead);
     if (clearText) setRespuesta('');
+    setMensajeCitado(null);
+    setSeleccionReenvioActiva(false);
+    setMensajesSeleccionadosReenvio([]);
     setLoadingConversation(true);
     try {
       // Solo cargamos la ultima pagina (mensajes mas recientes). Los anteriores
@@ -530,6 +958,8 @@ export default function MetaInboxPage() {
       return;
     }
     const lead = selectedLead;
+    const quoted = mensajeCitado;
+    const quotedMessageId = whatsappReplyId(quoted);
     // UI optimista: mostramos el mensaje al instante y limpiamos el input,
     // sin recargar todo el chat ni bloquear con spinner.
     const tempSk = `MENSAJE#pending#${Date.now()}`;
@@ -538,21 +968,34 @@ export default function MetaInboxPage() {
       sk: tempSk,
       tipo: 'META_MENSAJE',
       channel: lead.channel,
-      texto,
+      text: texto,
       direction: 'outgoing',
       message_status: 'enviando',
+      quoted_message_id: quotedMessageId,
+      quoted_text: quoted ? resumenMensajeCitado(quoted) : undefined,
+      quoted_sender: quoted ? (quoted.direction === 'incoming' ? nombreContacto(lead) : 'Tu') : undefined,
       creado_en: new Date().toISOString(),
     } as unknown as MetaMensaje;
     setMensajes((prev) => [...prev, optimista]);
     setRespuesta('');
+    setMensajeCitado(null);
     setSending(true);
     try {
-      const result = await enviarMetaMensaje(lead.pk, { texto });
+      const result = await enviarMetaMensaje(lead.pk, {
+        texto,
+        quoted_message_id: quotedMessageId,
+        quoted_text: quoted ? resumenMensajeCitado(quoted) : undefined,
+        quoted_sender: quoted ? (quoted.direction === 'incoming' ? nombreContacto(lead) : 'Tu') : undefined,
+      });
       // Reemplazamos la burbuja temporal por el mensaje real devuelto.
       setMensajes((prev) => {
+        const actualTemp = prev.find((m) => m.sk === tempSk);
         const sinTemp = prev.filter((m) => m.sk !== tempSk);
-        if (result.item && !sinTemp.some((m) => m.sk === result.item!.sk)) {
-          return [...sinTemp, result.item as MetaMensaje];
+        if (result.item) {
+          const real = actualTemp
+            ? mergeMensajePreservandoContexto(actualTemp, result.item as MetaMensaje)
+            : result.item as MetaMensaje;
+          return mergeMensajesMeta(sinTemp, [real]);
         }
         return sinTemp.length !== prev.length ? sinTemp : prev;
       });
@@ -576,9 +1019,138 @@ export default function MetaInboxPage() {
     }
   };
 
+  const esArchivoPng = (file: File) =>
+    /image\/png/i.test(file.type) || /\.png$/i.test(file.name);
+
+  const normalizarImagenParaWhatsapp = async (file: File) => {
+    const isWebp = /image\/webp/i.test(file.type) || /\.webp$/i.test(file.name);
+    if (!isWebp) return file;
+
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = objectUrl;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx || !canvas.width || !canvas.height) return file;
+      ctx.drawImage(image, 0, 0);
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((value) => (value ? resolve(value) : reject(new Error('No se pudo normalizar la imagen'))), 'image/png');
+      });
+      const filename = `${file.name.replace(/\.[^.]+$/, '')}.png`;
+      return new File([blob], filename, { type: 'image/png' });
+    } catch {
+      return file;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const VOICE_NOTE_MIME = 'audio/ogg; codecs=opus';
+
+  const crearGrabadorNotaVoz = (stream: MediaStream): RecorderLike => {
+    if (window.MediaRecorder?.isTypeSupported?.(VOICE_NOTE_MIME)) {
+      return new MediaRecorder(stream, { mimeType: VOICE_NOTE_MIME });
+    }
+    return new OpusMediaRecorder(
+      stream,
+      { mimeType: VOICE_NOTE_MIME },
+      {
+        encoderWorkerFactory: () => new Worker(encoderWorkerUrl),
+        OggOpusEncoderWasmPath: oggOpusWasmUrl,
+        WebMOpusEncoderWasmPath: webmOpusWasmUrl,
+      },
+    ) as unknown as RecorderLike;
+  };
+
+  const limpiarGrabacionAudio = async () => {
+    if (audioTimerRef.current) {
+      window.clearInterval(audioTimerRef.current);
+      audioTimerRef.current = null;
+    }
+    if (audioRecorderRef.current && audioRecorderRef.current.state !== 'inactive') {
+      audioRecorderRef.current.stop();
+    }
+    audioRecorderRef.current = null;
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    audioStreamRef.current = null;
+    setGrabandoAudio(false);
+    setDuracionAudio(0);
+  };
+
+  const detenerGrabacionAudio = async (enviar: boolean) => {
+    const recorder = audioRecorderRef.current;
+    if (!grabandoAudio || !recorder) return;
+    setProcesandoAudio(enviar);
+    recorder.onstop = async () => {
+      const chunks = [...audioChunksRef.current];
+      audioChunksRef.current = [];
+      await limpiarGrabacionAudio();
+      if (!enviar) {
+        setProcesandoAudio(false);
+        return;
+      }
+      if (!chunks.length) {
+        message.warning('No se capturo audio');
+        setProcesandoAudio(false);
+        return;
+      }
+      try {
+        const blob = new Blob(chunks, { type: VOICE_NOTE_MIME });
+        const file = new File([blob], `nota-voz-${Date.now()}.ogg`, { type: VOICE_NOTE_MIME });
+        await adjuntarArchivo(file, { voice: true });
+      } catch (error: any) {
+        message.error(error?.message || 'No se pudo preparar la nota de voz');
+      } finally {
+        setProcesandoAudio(false);
+      }
+    };
+    recorder.stop();
+  };
+
+  const iniciarGrabacionAudio = async () => {
+    if (!selectedLead || selectedLead.channel !== 'whatsapp') {
+      message.warning('Las notas de voz estan disponibles solo para WhatsApp');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      message.error('Este navegador no permite grabar audio');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = crearGrabadorNotaVoz(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) audioChunksRef.current.push(event.data);
+      };
+      recorder.start(250);
+      audioRecorderRef.current = recorder;
+      audioStreamRef.current = stream;
+      setGrabandoAudio(true);
+      setDuracionAudio(0);
+      audioTimerRef.current = window.setInterval(() => {
+        setDuracionAudio((prev) => prev + 1);
+      }, 1000);
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo acceder al microfono');
+      await limpiarGrabacionAudio();
+    }
+  };
+
+  useEffect(() => () => {
+    void limpiarGrabacionAudio();
+  }, []);
+
   // Envia un archivo (imagen/video/documento/audio) por WhatsApp: lo sube a S3
   // y luego manda el mensaje con la URL publica para que Meta lo descargue.
-  const adjuntarArchivo = async (file: File) => {
+  const adjuntarArchivo = async (file: File, opts?: { voice?: boolean }) => {
     if (!selectedLead) return;
     if (file.size > MAX_MEDIA_MB * 1024 * 1024) {
       message.error(`El archivo supera el limite de ${MAX_MEDIA_MB} MB.`);
@@ -586,10 +1158,15 @@ export default function MetaInboxPage() {
     }
     const lead = selectedLead;
     const caption = respuesta.trim();
+    const quoted = mensajeCitado;
     setSubiendoArchivo(true);
     try {
-      const upload = await getMetaMediaUploadUrl(file.type || 'application/octet-stream', file.name);
-      await subirArchivoAS3(upload.upload_url, file);
+      const enviarComoDocumento = esArchivoPng(file);
+      const archivoEnvio = enviarComoDocumento ? file : await normalizarImagenParaWhatsapp(file);
+      const upload = await getMetaMediaUploadUrl(archivoEnvio.type || 'application/octet-stream', archivoEnvio.name);
+      await subirArchivoAS3(upload.upload_url, archivoEnvio);
+      const mediaTypeEnvio = enviarComoDocumento ? 'document' : upload.media_type;
+      const quotedMessageId = whatsappReplyId(quoted);
       // Burbuja optimista con el archivo.
       const tempSk = `MENSAJE#pending#${Date.now()}`;
       const optimista = {
@@ -600,30 +1177,43 @@ export default function MetaInboxPage() {
         text: caption,
         direction: 'outgoing',
         message_status: 'enviando',
-        event_type: upload.media_type,
+        event_type: mediaTypeEnvio,
+        quoted_message_id: quotedMessageId,
+        quoted_text: quoted ? resumenMensajeCitado(quoted) : undefined,
+        quoted_sender: quoted ? (quoted.direction === 'incoming' ? nombreContacto(lead) : 'Tu') : undefined,
         media: {
-          type: upload.media_type,
+          type: mediaTypeEnvio,
           mime_type: upload.content_type,
-          filename: file.name,
+          filename: archivoEnvio.name,
           caption,
           public_url: upload.public_url,
           storage_status: 'stored',
+          ...(opts?.voice ? { voice: true } : {}),
         },
         creado_en: new Date().toISOString(),
       } as unknown as MetaMensaje;
       setMensajes((prev) => [...prev, optimista]);
       setRespuesta('');
+      setMensajeCitado(null);
       const result = await enviarMetaMensaje(lead.pk, {
         texto: caption,
-        media_type: upload.media_type,
+        media_type: mediaTypeEnvio,
         media_url: upload.public_url,
         content_type: upload.content_type,
-        filename: file.name,
+        filename: archivoEnvio.name,
+        voice: opts?.voice,
+        quoted_message_id: quotedMessageId,
+        quoted_text: quoted ? resumenMensajeCitado(quoted) : undefined,
+        quoted_sender: quoted ? (quoted.direction === 'incoming' ? nombreContacto(lead) : 'Tu') : undefined,
       });
       setMensajes((prev) => {
+        const actualTemp = prev.find((m) => m.sk === tempSk);
         const sinTemp = prev.filter((m) => m.sk !== tempSk);
-        if (result.item && !sinTemp.some((m) => m.sk === result.item!.sk)) {
-          return [...sinTemp, result.item as MetaMensaje];
+        if (result.item) {
+          const real = actualTemp
+            ? mergeMensajePreservandoContexto(actualTemp, result.item as MetaMensaje)
+            : result.item as MetaMensaje;
+          return mergeMensajesMeta(sinTemp, [real]);
         }
         return sinTemp;
       });
@@ -637,6 +1227,234 @@ export default function MetaInboxPage() {
     } finally {
       setSubiendoArchivo(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const abrirReenvioAdjunto = (attachment: MetaAttachment, sourceMessage: MetaMensaje) => {
+    if (sourceMessage.channel !== 'whatsapp') {
+      message.warning('El reenvio de archivos esta disponible solo para WhatsApp');
+      return;
+    }
+    if (!attachment.public_url) {
+      message.warning('Este archivo aun no tiene una URL archivada para reenviar');
+      return;
+    }
+    if (!normalizarTipoMedia(attachment)) {
+      message.warning('Este tipo de archivo no se puede reenviar por Meta');
+      return;
+    }
+    setReenvioAdjunto({ attachment, sourceMessage });
+    setReenvioDestinoPk('');
+    setReenvioCaption(attachment.caption || attachment.filename || '');
+    setReenvioOpciones(leads.filter((lead) => lead.channel === 'whatsapp' && lead.pk !== selectedLead?.pk).slice(0, 50));
+  };
+
+  const toggleAudio = async (key: string) => {
+    const audio = audioPlayerRefs.current[key];
+    if (!audio) return;
+    Object.entries(audioPlayerRefs.current).forEach(([otherKey, otherAudio]) => {
+      if (otherKey !== key && otherAudio && !otherAudio.paused) otherAudio.pause();
+    });
+    if (audio.paused) {
+      await audio.play();
+      setAudioReproduciendo(key);
+    } else {
+      audio.pause();
+      setAudioReproduciendo('');
+    }
+  };
+
+  const actualizarProgresoAudio = (key: string, audio: HTMLAudioElement) => {
+    setAudioProgreso((prev) => ({
+      ...prev,
+      [key]: {
+        current: audio.currentTime || 0,
+        duration: audio.duration || prev[key]?.duration || 0,
+      },
+    }));
+  };
+
+  const seekAudio = (key: string, value: number) => {
+    const audio = audioPlayerRefs.current[key];
+    if (!audio) return;
+    audio.currentTime = value;
+    actualizarProgresoAudio(key, audio);
+  };
+
+  const buscarDestinoReenvio = async (query: string) => {
+    const text = query.trim();
+    setBuscandoDestinoReenvio(true);
+    try {
+      const data = await listarMetaLeads({
+        canal: 'whatsapp',
+        ...(text ? { q: text } : { limit: LEADS_PAGE_SIZE }),
+      });
+      setReenvioOpciones((data.items || []).filter((lead) => lead.channel === 'whatsapp' && lead.pk !== selectedLead?.pk));
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudieron buscar conversaciones');
+    } finally {
+      setBuscandoDestinoReenvio(false);
+    }
+  };
+
+  const prepararAdjuntoParaReenvio = async (attachment: MetaAttachment) => {
+    const mediaType = normalizarTipoMedia(attachment);
+    const originalUrl = attachment.public_url || '';
+    if (esSticker(attachment) || !mediaType || !originalUrl) {
+      throw new Error('Este archivo no se puede reenviar');
+    }
+    if (esPng(attachment)) {
+      return {
+        mediaType: 'document',
+        mediaUrl: originalUrl,
+        contentType: 'image/png',
+        filename: attachment.filename || etiquetaAdjunto(attachment) || 'imagen.png',
+      };
+    }
+    return {
+      mediaType,
+      mediaUrl: originalUrl,
+      contentType: attachment.mime_type,
+      filename: attachment.filename || etiquetaAdjunto(attachment),
+    };
+  };
+
+  const toggleMensajeReenvio = (mensaje: MetaMensaje) => {
+    if (!mensajeReenviableWhatsapp(mensaje)) {
+      message.warning('Este mensaje no se puede reenviar');
+      return;
+    }
+    const key = mensajeKey(mensaje);
+    setMensajesSeleccionadosReenvio((prev) => {
+      if (prev.includes(key)) return prev.filter((item) => item !== key);
+      if (prev.length >= MAX_REENVIO_MENSAJES) {
+        message.warning(`Puedes seleccionar hasta ${MAX_REENVIO_MENSAJES} mensajes`);
+        return prev;
+      }
+      return [...prev, key];
+    });
+  };
+
+  const abrirReenvioSeleccion = () => {
+    if (!mensajesSeleccionadosParaReenvio.length) {
+      message.warning('Selecciona al menos un mensaje reenviable');
+      return;
+    }
+    setReenvioDestinoPks([]);
+    setReenvioOpciones(leads.filter((lead) => lead.channel === 'whatsapp' && lead.pk !== selectedLead?.pk).slice(0, 50));
+    setReenvioSeleccionOpen(true);
+  };
+
+  const reenviarAdjunto = async () => {
+    if (!reenvioAdjunto || !reenvioDestinoPk) {
+      message.warning('Selecciona una conversacion destino');
+      return;
+    }
+    const destino = reenvioOpciones.find((lead) => lead.pk === reenvioDestinoPk)
+      || leads.find((lead) => lead.pk === reenvioDestinoPk);
+    if (!destino) {
+      message.warning('Selecciona una conversacion destino valida');
+      return;
+    }
+    const attachment = reenvioAdjunto.attachment;
+    const mediaType = normalizarTipoMedia(attachment);
+    if (!mediaType || !attachment.public_url) {
+      message.warning('Este archivo no se puede reenviar');
+      return;
+    }
+    setReenviandoAdjunto(true);
+    try {
+      const media = await prepararAdjuntoParaReenvio(attachment);
+      const result = await enviarMetaMensaje(destino.pk, {
+        texto: reenvioCaption.trim(),
+        media_type: media.mediaType,
+        media_url: media.mediaUrl,
+        content_type: media.contentType,
+        filename: media.filename,
+      });
+      if (!result.sent) {
+        message.warning('Reenvio registrado, pero Meta rechazo el envio real.');
+      } else {
+        message.success('Archivo reenviado');
+      }
+      setReenvioAdjunto(null);
+      setReenvioDestinoPk('');
+      setReenvioCaption('');
+      if (selectedLead?.pk === destino.pk) {
+        refrescarConversacionSilencioso(destino);
+      }
+      cargarLeads();
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo reenviar el archivo');
+    } finally {
+      setReenviandoAdjunto(false);
+    }
+  };
+
+  const reenviarSeleccion = async () => {
+    if (!mensajesSeleccionadosParaReenvio.length) {
+      message.warning('Selecciona al menos un mensaje');
+      return;
+    }
+    if (!reenvioDestinoPks.length) {
+      message.warning('Selecciona al menos una conversacion destino');
+      return;
+    }
+    if (reenvioDestinoPks.length > MAX_REENVIO_DESTINOS) {
+      message.warning(`Puedes seleccionar hasta ${MAX_REENVIO_DESTINOS} destinos`);
+      return;
+    }
+    const destinos = reenvioDestinoPks
+      .map((pk) => reenvioOpciones.find((lead) => lead.pk === pk) || leads.find((lead) => lead.pk === pk))
+      .filter((lead): lead is MetaLead => Boolean(lead && lead.channel === 'whatsapp'));
+    if (!destinos.length) {
+      message.warning('Selecciona destinos validos de WhatsApp');
+      return;
+    }
+
+    setReenviandoAdjunto(true);
+    let enviados = 0;
+    let fallidos = 0;
+    try {
+      for (const destino of destinos) {
+        for (const mensaje of mensajesSeleccionadosParaReenvio) {
+          const attachments = adjuntosReenviables(mensaje);
+          const text = textoMensaje(mensaje);
+          const enviarTexto = text && !isPlaceholderConAdjunto(mensaje, attachmentsOf(mensaje).length);
+          if (attachments.length) {
+            for (const attachment of attachments) {
+              const media = await prepararAdjuntoParaReenvio(attachment);
+              const result = await enviarMetaMensaje(destino.pk, {
+                texto: enviarTexto ? text : (attachment.caption || ''),
+                media_type: media.mediaType,
+                media_url: media.mediaUrl,
+                content_type: media.contentType,
+                filename: media.filename,
+              });
+              if (result.sent) enviados += 1;
+              else fallidos += 1;
+            }
+          } else if (enviarTexto) {
+            const result = await enviarMetaMensaje(destino.pk, { texto: text });
+            if (result.sent) enviados += 1;
+            else fallidos += 1;
+          }
+        }
+      }
+      if (fallidos) {
+        message.warning(`Reenvio terminado: ${enviados} enviado(s), ${fallidos} fallido(s)`);
+      } else {
+        message.success(`Reenvio completado: ${enviados} mensaje(s)`);
+      }
+      setReenvioSeleccionOpen(false);
+      setSeleccionReenvioActiva(false);
+      setMensajesSeleccionadosReenvio([]);
+      setReenvioDestinoPks([]);
+      cargarLeads();
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo completar el reenvio');
+    } finally {
+      setReenviandoAdjunto(false);
     }
   };
 
@@ -667,12 +1485,58 @@ export default function MetaInboxPage() {
 
   const abrirConversion = () => {
     if (!selectedLead) return;
+    convertForm.resetFields();
     convertForm.setFieldsValue({
+      cedula: selectedLead.cliente_cedula,
       inmobiliaria_id: selectedLead.inmobiliaria_id,
       telefono: selectedLead.channel === 'whatsapp' ? selectedLead.external_contact_id : '',
     });
     setUnidades([]);
     setConvertOpen(true);
+  };
+
+  const abrirAsociarCliente = () => {
+    if (!selectedLead) return;
+    setTipoBusquedaCliente('cedula');
+    setBusquedaCliente(selectedLead.channel === 'whatsapp' ? selectedLead.external_contact_id : '');
+    setClientesEncontrados([]);
+    setAsociarOpen(true);
+  };
+
+  const buscarClienteExistente = async () => {
+    const query = busquedaCliente.trim();
+    if (query.length < 2) {
+      message.warning('Escribe al menos 2 caracteres');
+      return;
+    }
+    setBuscandoClientes(true);
+    try {
+      const data = await buscarClientesAdmin(query, tipoBusquedaCliente);
+      setClientesEncontrados(data || []);
+      if (!data?.length) message.info('No se encontraron clientes');
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo buscar clientes');
+    } finally {
+      setBuscandoClientes(false);
+    }
+  };
+
+  const asociarCliente = async (grupo: ClienteGrupo) => {
+    if (!selectedLead) return;
+    setAsociandoCliente(true);
+    try {
+      const result = await asociarMetaLeadCliente(selectedLead.pk, {
+        cedula: grupo.cedula,
+      });
+      setSelectedLead(result.lead);
+      setLeads((prev) => prev.map((lead) => (lead.pk === result.lead.pk ? result.lead : lead)));
+      setAsociarOpen(false);
+      message.success('Cliente asociado al lead');
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo asociar el cliente');
+    } finally {
+      setAsociandoCliente(false);
+    }
   };
 
   const irAHistorialMensajes = () => {
@@ -698,10 +1562,21 @@ export default function MetaInboxPage() {
     if (!selectedLead) return;
     try {
       const values = await convertForm.validateFields();
+      const fechaNacimiento = values.fecha_nacimiento?.format
+        ? values.fecha_nacimiento.format('YYYY-MM-DD')
+        : values.fecha_nacimiento;
+      const payload = validateAndNormalizeClientePayload({
+        ...values,
+        fecha_nacimiento: fechaNacimiento,
+      });
+      if (selectedLead.cliente_cedula && payload.cedula !== selectedLead.cliente_cedula) {
+        message.error(`Este lead ya esta asociado a la cedula ${selectedLead.cliente_cedula}`);
+        return;
+      }
       setSavingConversion(true);
       const result = await convertirMetaLead(selectedLead.pk, {
-        ...values,
-        inmobiliaria_id: String(values.inmobiliaria_id || '').replace('INMOBILIARIA#', ''),
+        ...payload,
+        inmobiliaria_id: String(payload.inmobiliaria_id || '').replace('INMOBILIARIA#', ''),
       });
       setSelectedLead(result.lead);
       setConvertOpen(false);
@@ -758,37 +1633,46 @@ export default function MetaInboxPage() {
                 <Spin />
               </div>
             ) : conversaciones.length ? (
-              conversaciones.map((lead) => {
-                const active = selectedLead?.pk === lead.pk;
-                const pending = toNumber(lead.mensajes_recibidos) > toNumber(lead.mensajes_enviados);
-                return (
-                  <button
-                    key={lead.pk}
-                    type="button"
-                    onClick={() => abrirConversacion(lead)}
-                    className={`block w-full border-b border-[var(--app-border)] px-3 py-2.5 text-left transition hover:bg-[var(--panel-soft-bg)] ${
-                      active ? 'bg-[var(--action-soft-hover)]' : 'bg-transparent'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <Text strong className="block max-w-[240px] truncate md:max-w-[200px]">{nombreContacto(lead)}</Text>
-                        <Text type="secondary" className="block max-w-[240px] truncate text-xs md:max-w-[200px]">
-                          {lead.account_alias || canalLabel[lead.channel] || 'Meta'}
-                        </Text>
+              <>
+                {conversaciones.map((lead) => {
+                  const active = selectedLead?.pk === lead.pk;
+                  const pending = toNumber(lead.mensajes_recibidos) > toNumber(lead.mensajes_enviados);
+                  return (
+                    <button
+                      key={lead.pk}
+                      type="button"
+                      onClick={() => abrirConversacion(lead)}
+                      className={`block w-full border-b border-[var(--app-border)] px-3 py-2.5 text-left transition hover:bg-[var(--panel-soft-bg)] ${
+                        active ? 'bg-[var(--action-soft-hover)]' : 'bg-transparent'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <Text strong className="block max-w-[240px] truncate md:max-w-[200px]">{nombreContacto(lead)}</Text>
+                          <Text type="secondary" className="block max-w-[240px] truncate text-xs md:max-w-[200px]">
+                            {lead.account_alias || canalLabel[lead.channel] || 'Meta'}
+                          </Text>
+                        </div>
+                        {pending && <Tag color="orange" bordered={false} style={{ background: 'transparent' }}>Nuevo</Tag>}
                       </div>
-                      {pending && <Tag color="orange" bordered={false} style={{ background: 'transparent' }}>Nuevo</Tag>}
-                    </div>
-                    <Paragraph ellipsis={{ rows: 1 }} className="!mb-1 !mt-1.5 text-sm">
-                      {lead.ultimo_mensaje_texto || 'Sin mensaje de texto'}
-                    </Paragraph>
-                    <div className="flex items-center justify-between gap-2">
-                      <Tag color={canalColor[lead.channel] || 'default'} bordered={false} style={{ background: 'transparent' }}>{canalLabel[lead.channel] || lead.channel}</Tag>
-                      <Text type="secondary" className="text-xs">{formatDate(lead.ultimo_mensaje_en)}</Text>
-                    </div>
-                  </button>
-                );
-              })
+                      <Paragraph ellipsis={{ rows: 1 }} className="!mb-1 !mt-1.5 text-sm">
+                        {resumenUltimoMensaje(lead.ultimo_mensaje_texto)}
+                      </Paragraph>
+                      <div className="flex items-center justify-between gap-2">
+                        <Tag color={canalColor[lead.channel] || 'default'} bordered={false} style={{ background: 'transparent' }}>{canalLabel[lead.channel] || lead.channel}</Tag>
+                        <Text type="secondary" className="text-xs">{formatDate(lead.ultimo_mensaje_en)}</Text>
+                      </div>
+                    </button>
+                  );
+                })}
+                {hasMoreLeads && (
+                  <div className="border-b border-[var(--app-border)] p-3">
+                    <Button block size="small" onClick={cargarMasLeads} loading={loadingMoreLeads}>
+                      Cargar mas
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="grid h-full place-items-center p-4">
                 <Empty description="Sin conversaciones" />
@@ -826,6 +1710,18 @@ export default function MetaInboxPage() {
                   </Tag>
                 </div>
                 <Space size={4}>
+                  {selectedLead.channel === 'whatsapp' && (
+                    <Button
+                      size="small"
+                      type={seleccionReenvioActiva ? 'primary' : 'default'}
+                      onClick={() => {
+                        setSeleccionReenvioActiva((value) => !value);
+                        setMensajesSeleccionadosReenvio([]);
+                      }}
+                    >
+                      {seleccionReenvioActiva ? 'Cancelar seleccion' : 'Seleccionar'}
+                    </Button>
+                  )}
                   <Button type="text" size="small" icon={<ReloadOutlined />} onClick={() => abrirConversacion(selectedLead)} loading={loadingConversation} title="Recargar" />
                   <Button
                     type={leadPanelOpen ? 'primary' : 'default'}
@@ -847,7 +1743,7 @@ export default function MetaInboxPage() {
                   <div className="grid h-full place-items-center">
                     <Spin />
                   </div>
-                ) : mensajes.length ? (
+                ) : mensajesVisibles.length ? (
                   <div className="space-y-1.5">
                     {hasMoreMensajes && (
                       <div className="flex justify-center">
@@ -861,11 +1757,18 @@ export default function MetaInboxPage() {
                         </Button>
                       </div>
                     )}
-                    {mensajes.map((mensaje, idx) => {
+                    {mensajesVisibles.map((mensaje, idx) => {
                       const incoming = mensaje.direction === 'incoming';
                       const attachments = attachmentsOf(mensaje);
+                      const displayText = textoMensaje(mensaje);
+                      const keyReenvio = mensajeKey(mensaje);
+                      const reenviable = mensajeReenviableWhatsapp(mensaje);
+                      const seleccionadoReenvio = mensajesSeleccionadosReenvio.includes(keyReenvio);
+                      const quotedOriginal = mensaje.quoted_message_id
+                        ? mensajesPorExternalId.get(mensaje.quoted_message_id)
+                        : null;
                       // Separador de fecha cuando cambia el dia.
-                      const prevDia = idx > 0 ? diaKey(mensajes[idx - 1].event_timestamp) : null;
+                      const prevDia = idx > 0 ? diaKey(mensajesVisibles[idx - 1].event_timestamp) : null;
                       const esteDia = diaKey(mensaje.event_timestamp);
                       const mostrarSeparador = esteDia && esteDia !== prevDia;
                       return (
@@ -880,17 +1783,48 @@ export default function MetaInboxPage() {
                             </div>
                           )}
                           <div className={`flex ${incoming ? 'justify-start' : 'justify-end'}`}>
-                          <div className={`max-w-[88%] px-3 py-1.5 shadow-sm sm:max-w-[78%] ${
+                          {seleccionReenvioActiva && (
+                            <div className={`flex items-center ${incoming ? 'mr-2' : 'ml-2 order-2'}`}>
+                              <Checkbox
+                                checked={seleccionadoReenvio}
+                                disabled={!reenviable}
+                                onChange={() => toggleMensajeReenvio(mensaje)}
+                              />
+                            </div>
+                          )}
+                          <div
+                            role={seleccionReenvioActiva && reenviable ? 'button' : undefined}
+                            tabIndex={seleccionReenvioActiva && reenviable ? 0 : undefined}
+                            onClick={() => {
+                              if (seleccionReenvioActiva && reenviable) toggleMensajeReenvio(mensaje);
+                            }}
+                            onKeyDown={(event) => {
+                              if (seleccionReenvioActiva && reenviable && (event.key === 'Enter' || event.key === ' ')) {
+                                event.preventDefault();
+                                toggleMensajeReenvio(mensaje);
+                              }
+                            }}
+                            className={`max-w-[88%] px-3 py-1.5 shadow-sm sm:max-w-[78%] ${
                             incoming
                               ? 'rounded-[0_16px_16px_16px] bg-[var(--panel-bg)]'
                               : 'rounded-[16px_16px_0_16px] border border-[var(--action-border)] bg-[var(--action-soft-hover)]'
-                          }`}>
-                            {(mensaje.text || attachments.length === 0) && (
+                          } ${seleccionadoReenvio ? 'ring-2 ring-[var(--action-border)]' : ''} ${seleccionReenvioActiva && reenviable ? 'cursor-pointer' : ''}`}>
+                            {mensaje.quoted_message_id && (
+                              <div className="mb-1 rounded-md border-l-2 border-[var(--action-border)] bg-[var(--panel-soft-bg)] px-2 py-1">
+                                <Text type="secondary" className="block text-[11px]">
+                                  {mensaje.quoted_sender || (quotedOriginal?.direction === 'incoming' ? nombreContacto(selectedLead) : 'Tu')}
+                                </Text>
+                                <Paragraph ellipsis={{ rows: 2 }} className="!mb-0 text-xs">
+                                  {mensaje.quoted_text || resumenMensajeCitado(quotedOriginal)}
+                                </Paragraph>
+                              </div>
+                            )}
+                            {(displayText || attachments.length === 0) && (
                               // No mostrar el texto si es solo un placeholder del tipo multimedia
                               // (ej. "[audio]", "[image]") y ya hay attachment que lo muestra.
-                              !(attachments.length > 0 && /^\[(audio|video|image|sticker|document|voice_note)\]$/i.test((mensaje.text || '').trim())) && (
+                              !isPlaceholderConAdjunto(mensaje, attachments.length) && (
                               <Paragraph className="!mb-0.5 whitespace-pre-wrap text-sm">
-                                {(mensaje.text || 'Evento sin texto').split(/(https?:\/\/\S+)/g).map((part, i) =>
+                                {(displayText || 'Evento sin texto').split(/(https?:\/\/\S+)/g).map((part, i) =>
                                   /^https?:\/\//.test(part)
                                     ? <a key={i} href={part} target="_blank" rel="noreferrer" className="underline">{part}</a>
                                     : part
@@ -919,6 +1853,16 @@ export default function MetaInboxPage() {
                                           />
                                         </a>
                                         {label && <Text type="secondary" className="mt-0.5 block text-[11px]">{label}</Text>}
+                                        {selectedLead.channel === 'whatsapp' && !seleccionReenvioActiva && attachment.public_url && normalizarTipoMedia(attachment) && (
+                                          <Button
+                                            size="small"
+                                            type="link"
+                                            className="!h-auto !p-0 text-[11px]"
+                                            onClick={() => abrirReenvioAdjunto(attachment, mensaje)}
+                                          >
+                                            Reenviar
+                                          </Button>
+                                        )}
                                       </div>
                                     );
                                   }
@@ -934,16 +1878,78 @@ export default function MetaInboxPage() {
                                           preload="metadata"
                                         />
                                         {label && <Text type="secondary" className="mt-0.5 block text-[11px]">{label}</Text>}
+                                        {selectedLead.channel === 'whatsapp' && !seleccionReenvioActiva && attachment.public_url && normalizarTipoMedia(attachment) && (
+                                          <Button
+                                            size="small"
+                                            type="link"
+                                            className="!h-auto !p-0 text-[11px]"
+                                            onClick={() => abrirReenvioAdjunto(attachment, mensaje)}
+                                          >
+                                            Reenviar
+                                          </Button>
+                                        )}
                                       </div>
                                     );
                                   }
 
                                   // Audio / nota de voz: player inline compacto
                                   if ((type === 'audio' || type === 'voice_note' || mime.startsWith('audio/')) && href) {
+                                    const audioKey = `${mensaje.sk}-${index}-${href}`;
+                                    const progress = audioProgreso[audioKey] || { current: 0, duration: 0 };
+                                    const playing = audioReproduciendo === audioKey;
+                                    const notaVoz = esNotaVoz(attachment);
                                     return (
-                                      <div key={`${type}-${index}`} className="flex flex-col gap-0.5">
-                                        <audio src={href} controls className="w-full min-w-[220px]" preload="metadata" />
-                                        {label && <Text type="secondary" className="text-[11px]">{label}</Text>}
+                                      <div key={`${type}-${index}`} className="flex min-w-[280px] max-w-[420px] flex-col gap-1">
+                                        <div className="flex items-center gap-2 rounded-full bg-slate-800/90 px-3 py-2 text-white shadow-sm">
+                                          <button
+                                            type="button"
+                                            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                                            onClick={() => void toggleAudio(audioKey)}
+                                            title={playing ? 'Pausar' : 'Reproducir'}
+                                          >
+                                            {playing ? <PauseOutlined /> : <PlayCircleFilled />}
+                                          </button>
+                                          <div className="min-w-0 flex-1">
+                                            <input
+                                              type="range"
+                                              min={0}
+                                              max={Math.max(progress.duration || 0, 1)}
+                                              step="0.1"
+                                              value={Math.min(progress.current || 0, Math.max(progress.duration || 0, 1))}
+                                              onChange={(event) => seekAudio(audioKey, Number(event.target.value))}
+                                              className="h-1 w-full accent-sky-300"
+                                              title="Progreso de audio"
+                                            />
+                                            <div className="mt-0.5 flex items-center justify-between text-[11px] text-white/80">
+                                              <span>{formatDuracionCorta(progress.current)}</span>
+                                              <span>{formatDuracionCorta(progress.duration)}</span>
+                                            </div>
+                                          </div>
+                                          <span className="h-6 w-6 rounded-full bg-white/20" title={notaVoz ? 'Nota de voz' : 'Audio'} />
+                                        </div>
+                                        <audio
+                                          ref={(node) => { audioPlayerRefs.current[audioKey] = node; }}
+                                          src={href}
+                                          preload="metadata"
+                                          className="hidden"
+                                          onLoadedMetadata={(event) => actualizarProgresoAudio(audioKey, event.currentTarget)}
+                                          onTimeUpdate={(event) => actualizarProgresoAudio(audioKey, event.currentTarget)}
+                                          onEnded={() => setAudioReproduciendo('')}
+                                          onPause={() => {
+                                            setAudioReproduciendo((current) => (current === audioKey ? '' : current));
+                                          }}
+                                        />
+                                        {label && !notaVoz && <Text type="secondary" className="text-[11px]">{label}</Text>}
+                                        {selectedLead.channel === 'whatsapp' && !seleccionReenvioActiva && attachment.public_url && normalizarTipoMedia(attachment) && (
+                                          <Button
+                                            size="small"
+                                            type="link"
+                                            className="!h-auto !self-start !p-0 text-[11px]"
+                                            onClick={() => abrirReenvioAdjunto(attachment, mensaje)}
+                                          >
+                                            Reenviar
+                                          </Button>
+                                        )}
                                       </div>
                                     );
                                   }
@@ -959,20 +1965,52 @@ export default function MetaInboxPage() {
                                       {attachment.storage_status && attachment.storage_status !== 'stored' && (
                                         <Tag className="!m-0 text-[10px]">{attachment.storage_status}</Tag>
                                       )}
+                                      {selectedLead.channel === 'whatsapp' && !seleccionReenvioActiva && attachment.public_url && normalizarTipoMedia(attachment) && (
+                                        <Button
+                                          size="small"
+                                          type="link"
+                                          className="!h-auto !p-0 text-[11px]"
+                                          onClick={() => abrirReenvioAdjunto(attachment, mensaje)}
+                                        >
+                                          Reenviar
+                                        </Button>
+                                      )}
                                     </div>
                                   );
                                 })}
                               </div>
                             )}
+                            {mensaje.reactions?.length ? (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {mensaje.reactions.map((reaction, index) => (
+                                  <Tag key={`${reaction.sender_id || 'reaction'}-${index}`} className="!m-0 text-xs">
+                                    {reaction.emoji || 'Reaccion'}
+                                  </Tag>
+                                ))}
+                              </div>
+                            ) : null}
                             <div className="mt-0.5 flex items-center gap-1.5">
                               <Text type="secondary" className="text-[11px] leading-none">{formatHora(mensaje.event_timestamp)}</Text>
+                              {mensaje.edited && (
+                                <Text type="secondary" className="text-[11px] leading-none">(edit)</Text>
+                              )}
                               {!incoming && mensaje.message_status && (
-                                <Text type="secondary" className="text-[11px] leading-none">{mensaje.message_status}</Text>
+                                <Text type="secondary" className="text-[11px] leading-none">{estadoMensajeMeta(mensaje.message_status)}</Text>
+                              )}
+                              {mensajePermiteRespuestaCitada(mensaje, selectedLead.channel) && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  className="!h-auto !p-0 text-[11px] leading-none"
+                                  onClick={() => setMensajeCitado(mensaje)}
+                                >
+                                  Responder
+                                </Button>
                               )}
                             </div>
-                            {(mensaje.meta_error || mensaje.error_message) && (
+                            {errorVisibleMensajeMeta(mensaje) && (
                               <Text type="secondary" className="mt-0.5 block text-[11px]">
-                                {mensaje.meta_error || mensaje.error_message}
+                                {errorVisibleMensajeMeta(mensaje)}
                               </Text>
                             )}
                           </div>
@@ -981,6 +2019,32 @@ export default function MetaInboxPage() {
                       );
                     })}
                     <div ref={messagesEndRef} />
+                    {seleccionReenvioActiva && (
+                      <div className="sticky bottom-2 z-10 mx-auto flex max-w-md items-center justify-between gap-2 rounded-md border border-[var(--app-border)] bg-[var(--panel-bg)] px-3 py-2 shadow-lg">
+                        <Text className="text-sm">
+                          {mensajesSeleccionadosParaReenvio.length} seleccionado(s)
+                        </Text>
+                        <Space size={6}>
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setSeleccionReenvioActiva(false);
+                              setMensajesSeleccionadosReenvio([]);
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            size="small"
+                            type="primary"
+                            disabled={!mensajesSeleccionadosParaReenvio.length}
+                            onClick={abrirReenvioSeleccion}
+                          >
+                            Reenviar
+                          </Button>
+                        </Space>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid h-full place-items-center">
@@ -990,6 +2054,19 @@ export default function MetaInboxPage() {
               </div>
 
               <div className="border-t border-[var(--app-border)] bg-[var(--panel-bg)] px-2 py-2 sm:px-3">
+                {mensajeCitado && (
+                  <div className="mb-2 flex items-start justify-between gap-2 rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] px-2 py-1.5">
+                    <div className="min-w-0 border-l-2 border-[var(--action-border)] pl-2">
+                      <Text type="secondary" className="block text-[11px]">Respondiendo a</Text>
+                      <Paragraph ellipsis={{ rows: 2 }} className="!mb-0 text-xs">
+                        {resumenMensajeCitado(mensajeCitado)}
+                      </Paragraph>
+                    </div>
+                    <Button size="small" type="text" onClick={() => setMensajeCitado(null)}>
+                      Quitar
+                    </Button>
+                  </div>
+                )}
                 <TextArea
                   autoSize={{ minRows: 1, maxRows: 4 }}
                   maxLength={4000}
@@ -1006,6 +2083,11 @@ export default function MetaInboxPage() {
                 />
                 <div className="flex items-center justify-between gap-2">
                   <Text type="secondary" className="text-[11px]">Enter envia · Shift+Enter nueva linea</Text>
+                  {grabandoAudio && (
+                    <Text type="secondary" className="text-[11px]">
+                      Grabando {formatDuracionAudio(duracionAudio)}
+                    </Text>
+                  )}
                   <Space size={6}>
                     <input
                       ref={fileInputRef}
@@ -1020,14 +2102,41 @@ export default function MetaInboxPage() {
                     <Button
                       icon={<PaperClipOutlined />}
                       loading={subiendoArchivo}
+                      disabled={grabandoAudio || procesandoAudio}
                       onClick={() => fileInputRef.current?.click()}
                       title="Adjuntar archivo"
                     />
+                    {grabandoAudio ? (
+                      <>
+                        <Button
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => detenerGrabacionAudio(false)}
+                          title="Cancelar nota de voz"
+                        />
+                        <Button
+                          type="primary"
+                          danger
+                          icon={<StopOutlined />}
+                          loading={procesandoAudio || subiendoArchivo}
+                          onClick={() => detenerGrabacionAudio(true)}
+                          title="Detener y enviar nota de voz"
+                        />
+                      </>
+                    ) : (
+                      <Button
+                        icon={<AudioOutlined />}
+                        loading={procesandoAudio}
+                        disabled={subiendoArchivo || selectedLead.channel !== 'whatsapp'}
+                        onClick={iniciarGrabacionAudio}
+                        title="Grabar nota de voz"
+                      />
+                    )}
                     <Button
                       type="primary"
                       icon={<SendOutlined />}
                       loading={sending}
-                      disabled={!respuesta.trim()}
+                      disabled={!respuesta.trim() || grabandoAudio || procesandoAudio}
                       onClick={enviarRespuesta}
                       title="Enviar"
                     />
@@ -1067,6 +2176,22 @@ export default function MetaInboxPage() {
                   {selectedLead.inmobiliaria_nombre || 'Sin asignar'}
                 </Paragraph>
               </div>
+              {selectedLead.cliente_asociado && (
+                <div className="rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] p-3">
+                  <Text strong>Cliente asociado</Text>
+                  <Paragraph className="!mb-0 !mt-1 text-sm">
+                    {selectedLead.cliente_nombre || 'Cliente existente'} · {selectedLead.cliente_cedula || '-'}
+                  </Paragraph>
+                  <Text type="secondary" className="text-xs">
+                    {selectedLead.cliente_registros_count || 1} registro(s) asociado(s)
+                  </Text>
+                  {selectedLead.cliente_nombre_variantes && selectedLead.cliente_nombre_variantes.length > 1 && (
+                    <Paragraph className="!mb-0 !mt-1 text-xs" type="secondary">
+                      Variantes: {selectedLead.cliente_nombre_variantes.join(', ')}
+                    </Paragraph>
+                  )}
+                </div>
+              )}
               {selectedLead.estado === 'convertido' ? (
                 <div className="rounded-md border border-green-200 bg-green-50 p-3">
                   <Text strong className="text-green-700">Cliente registrado</Text>
@@ -1083,18 +2208,23 @@ export default function MetaInboxPage() {
                   </Space>
                 </div>
               ) : (
-                <Button block onClick={abrirConversion}>
-                  Registrar cliente o bloqueo
-                </Button>
+                <Space direction="vertical" className="w-full">
+                  <Button block onClick={abrirConversion}>
+                    Registrar cliente o bloqueo
+                  </Button>
+                  <Button block onClick={abrirAsociarCliente}>
+                    Asociar cliente existente
+                  </Button>
+                </Space>
               )}
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <Text strong>Oportunidades registradas</Text>
-                  <Tag>{selectedLead.historial_conversiones?.length || 0}</Tag>
+                  <Tag>{(selectedLead.historial_conversiones?.length || 0) + (selectedLead.oportunidades_asociadas?.length || 0)}</Tag>
                 </div>
-                {selectedLead.historial_conversiones?.length ? (
+                {(selectedLead.historial_conversiones?.length || selectedLead.oportunidades_asociadas?.length) ? (
                   <div className="space-y-2">
-                    {selectedLead.historial_conversiones.map((item, index) => (
+                    {(selectedLead.historial_conversiones || []).map((item, index) => (
                       <div
                         key={`${item.convertido_en || index}-${item.unidad_id || 'sin-unidad'}`}
                         className="rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] p-3"
@@ -1114,6 +2244,29 @@ export default function MetaInboxPage() {
                           </Text>
                           <Text type="secondary" className="text-xs">
                             {formatDate(item.convertido_en)} · {item.usuario_nombre || 'Sistema'}
+                          </Text>
+                        </Space>
+                      </div>
+                    ))}
+                    {(selectedLead.oportunidades_asociadas || []).map((item, index) => (
+                      <div
+                        key={`${item.proceso_pk || index}-${item.unidad_id || 'sin-unidad'}`}
+                        className="rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] p-3"
+                      >
+                        <Space direction="vertical" size={2} className="w-full">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Tag color="blue">Cliente asociado</Tag>
+                            <Tag>{item.estado || 'proceso'}</Tag>
+                            <Text strong>{getProyectoLabel(proyectos, item.proyecto_id)}</Text>
+                          </div>
+                          <Text className="text-sm">
+                            Unidad: {item.unidad_nombre || item.unidad_id || 'Sin unidad'}
+                          </Text>
+                          <Text type="secondary" className="text-xs">
+                            Cliente {item.cedula || '-'} · {getInmobiliariaLabel(inmobiliarias, item.inmobiliaria_id)}
+                          </Text>
+                          <Text type="secondary" className="text-xs">
+                            {formatDate(item.actualizado_en || item.fecha_inicio)}
                           </Text>
                         </Space>
                       </div>
@@ -1220,6 +2373,206 @@ export default function MetaInboxPage() {
       </Modal>
 
       <Modal
+        title="Asociar cliente existente"
+        open={asociarOpen}
+        onCancel={() => setAsociarOpen(false)}
+        footer={null}
+        width={720}
+        destroyOnClose
+      >
+        <Space direction="vertical" className="w-full" size={12}>
+          <Space.Compact className="w-full">
+            <Select
+              value={tipoBusquedaCliente}
+              onChange={setTipoBusquedaCliente}
+              options={[
+                { value: 'cedula', label: 'Cedula' },
+                { value: 'nombre', label: 'Nombre' },
+              ]}
+              style={{ width: 130 }}
+            />
+            <Search
+              allowClear
+              value={busquedaCliente}
+              placeholder="Buscar cliente existente"
+              loading={buscandoClientes}
+              onChange={(event) => setBusquedaCliente(event.target.value)}
+              onSearch={buscarClienteExistente}
+              enterButton="Buscar"
+            />
+          </Space.Compact>
+          {clientesAgrupados.length ? (
+            <div className="space-y-2">
+              {clientesAgrupados.map((grupo) => (
+                <div
+                  key={grupo.cedula}
+                  className="rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] p-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <Space direction="vertical" size={2}>
+                      <Text strong>{grupo.nombre}</Text>
+                      <Text type="secondary" className="text-xs">
+                        {grupo.cedula} · {grupo.registros.length} registro(s)
+                      </Text>
+                      <Text type="secondary" className="text-xs">
+                        Inmobiliarias: {grupo.inmobiliarias.map((id) => getInmobiliariaLabel(inmobiliarias, id)).join(', ') || '-'}
+                      </Text>
+                      <Text type="secondary" className="text-xs">
+                        Proyectos: {grupo.proyectos.map((id) => getProyectoLabel(proyectos, id)).join(', ') || '-'}
+                      </Text>
+                      {grupo.variantes.length > 1 && (
+                        <Text type="secondary" className="text-xs">
+                          Variantes: {grupo.variantes.join(', ')}
+                        </Text>
+                      )}
+                    </Space>
+                    <Button
+                      type="primary"
+                      size="small"
+                      loading={asociandoCliente}
+                      onClick={() => asociarCliente(grupo)}
+                    >
+                      Asociar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Busca y selecciona un cliente" />
+          )}
+        </Space>
+      </Modal>
+
+      <Modal
+        title="Reenviar archivo"
+        open={Boolean(reenvioAdjunto)}
+        onCancel={() => {
+          setReenvioAdjunto(null);
+          setReenvioDestinoPk('');
+          setReenvioCaption('');
+        }}
+        onOk={reenviarAdjunto}
+        okText="Reenviar"
+        cancelText="Cancelar"
+        confirmLoading={reenviandoAdjunto}
+        destroyOnClose
+      >
+        <Space direction="vertical" className="w-full" size={12}>
+          <div className="rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] p-3">
+            <Text strong>{reenvioAdjunto ? etiquetaAdjunto(reenvioAdjunto.attachment) : 'Archivo'}</Text>
+            <Text type="secondary" className="mt-1 block text-xs">
+              {reenvioAdjunto ? normalizarTipoMedia(reenvioAdjunto.attachment) || reenvioAdjunto.attachment.type || 'archivo' : ''}
+            </Text>
+          </div>
+          <Select
+            showSearch
+            value={reenvioDestinoPk || undefined}
+            placeholder="Seleccionar conversacion destino"
+            filterOption={false}
+            loading={buscandoDestinoReenvio}
+            onSearch={buscarDestinoReenvio}
+            onDropdownVisibleChange={(open) => {
+              if (open && !reenvioOpciones.length) buscarDestinoReenvio('');
+            }}
+            onChange={setReenvioDestinoPk}
+            options={reenvioOpciones.map((lead) => ({
+              value: lead.pk,
+              label: `${canalLabel[lead.channel] || lead.channel} - ${nombreContacto(lead)}`,
+            }))}
+          />
+          <Input.TextArea
+            autoSize={{ minRows: 2, maxRows: 4 }}
+            maxLength={1000}
+            value={reenvioCaption}
+            onChange={(event) => setReenvioCaption(event.target.value)}
+            placeholder="Mensaje opcional"
+          />
+        </Space>
+      </Modal>
+
+      <Modal
+        title="Reenviar mensajes"
+        open={reenvioSeleccionOpen}
+        onCancel={() => {
+          setReenvioSeleccionOpen(false);
+          setReenvioDestinoPks([]);
+        }}
+        onOk={reenviarSeleccion}
+        okText="Reenviar"
+        cancelText="Cancelar"
+        confirmLoading={reenviandoAdjunto}
+        width={620}
+        destroyOnClose
+      >
+        <Space direction="vertical" className="w-full" size={12}>
+          <div className="grid gap-3 rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] p-3 sm:grid-cols-3">
+            <div>
+              <Text type="secondary" className="block text-xs">Mensajes</Text>
+              <Text strong>{mensajesSeleccionadosParaReenvio.length}</Text>
+            </div>
+            <div>
+              <Text type="secondary" className="block text-xs">Destinos</Text>
+              <Text strong>{reenvioDestinoPks.length}</Text>
+            </div>
+            <div>
+              <Text type="secondary" className="block text-xs">Envios</Text>
+              <Text strong>{mensajesSeleccionadosParaReenvio.length * reenvioDestinoPks.length}</Text>
+            </div>
+          </div>
+          <Search
+            allowClear
+            loading={buscandoDestinoReenvio}
+            placeholder="Buscar chat WhatsApp por nombre o numero"
+            onSearch={buscarDestinoReenvio}
+            onChange={(event) => {
+              if (!event.target.value.trim()) buscarDestinoReenvio('');
+            }}
+          />
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            {reenvioOpciones.length ? reenvioOpciones.map((lead) => {
+              const checked = reenvioDestinoPks.includes(lead.pk);
+              return (
+                <button
+                  key={lead.pk}
+                  type="button"
+                  onClick={() => {
+                    setReenvioDestinoPks((prev) => {
+                      if (prev.includes(lead.pk)) return prev.filter((pk) => pk !== lead.pk);
+                      if (prev.length >= MAX_REENVIO_DESTINOS) {
+                        message.warning(`Puedes seleccionar hasta ${MAX_REENVIO_DESTINOS} destinos`);
+                        return prev;
+                      }
+                      return [...prev, lead.pk];
+                    });
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left transition ${
+                    checked
+                      ? 'border-[var(--action-border)] bg-[var(--action-soft-hover)]'
+                      : 'border-[var(--app-border)] bg-[var(--panel-bg)] hover:border-[var(--action-border)]'
+                  }`}
+                >
+                  <Checkbox checked={checked} />
+                  <span className="min-w-0 flex-1">
+                    <Text strong className="block truncate">{nombreContacto(lead)}</Text>
+                    <Text type="secondary" className="block truncate text-xs">
+                      {lead.external_contact_id} - {lead.account_alias || 'WhatsApp'}
+                    </Text>
+                  </span>
+                  <Tag color="green" bordered={false} style={{ background: 'transparent' }}>WhatsApp</Tag>
+                </button>
+              );
+            }) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Busca o selecciona un chat destino" />
+            )}
+          </div>
+          <Text type="secondary" className="text-xs">
+            Maximo {MAX_REENVIO_MENSAJES} mensajes y {MAX_REENVIO_DESTINOS} destinos por operacion. Los stickers no se reenvian; PNG se envia como documento.
+          </Text>
+        </Space>
+      </Modal>
+
+      <Modal
         title="Registrar cliente o bloqueo desde Meta"
         open={convertOpen}
         onCancel={() => setConvertOpen(false)}
@@ -1233,9 +2586,9 @@ export default function MetaInboxPage() {
             <Form.Item
               name="cedula"
               label="Cedula / Pasaporte"
-              rules={[{ required: true, message: 'Ingresa cedula o pasaporte' }]}
+              rules={clienteFormRules.cedula}
             >
-              <Input placeholder="Ej: 00112345678" />
+              <Input placeholder="Ej: 00112345678" disabled={Boolean(selectedLead?.cliente_cedula)} />
             </Form.Item>
             <Form.Item
               name="proyecto_id"
@@ -1256,14 +2609,16 @@ export default function MetaInboxPage() {
             <Form.Item
               name="nombres"
               label="Nombres"
-              rules={[{ required: true, message: 'Ingresa nombres' }]}
+              normalize={clienteFieldNormalizers.nombre}
+              rules={clienteFormRules.nombres}
             >
               <Input placeholder="Nombres del cliente" />
             </Form.Item>
             <Form.Item
               name="apellidos"
               label="Apellidos"
-              rules={[{ required: true, message: 'Ingresa apellidos' }]}
+              normalize={clienteFieldNormalizers.nombre}
+              rules={clienteFormRules.apellidos}
             >
               <Input placeholder="Apellidos del cliente" />
             </Form.Item>
@@ -1297,11 +2652,23 @@ export default function MetaInboxPage() {
                   }))}
               />
             </Form.Item>
-            <Form.Item name="correo" label="Correo">
+            <Form.Item name="correo" label="Correo" normalize={clienteFieldNormalizers.correo} rules={clienteFormRules.correo}>
               <Input type="email" placeholder="correo@ejemplo.com" />
             </Form.Item>
-            <Form.Item name="telefono" label="Telefono">
+            <Form.Item name="telefono" label="Telefono" rules={clienteFormRules.telefono}>
               <Input inputMode="numeric" placeholder="8490000000" />
+            </Form.Item>
+            <Form.Item name="fecha_nacimiento" label="Fecha de nacimiento">
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+            </Form.Item>
+            <Form.Item name="estado_civil" label="Estado civil">
+              <EstadoCivilSelect />
+            </Form.Item>
+            <Form.Item name="nacionalidad" label="Nacionalidad">
+              <NacionalidadSelect />
+            </Form.Item>
+            <Form.Item name="pais_residencia" label="Pais de residencia">
+              <PaisResidenciaSelect />
             </Form.Item>
           </div>
         </Form>

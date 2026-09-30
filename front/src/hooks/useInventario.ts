@@ -20,8 +20,11 @@ export type Vista = 'proyectos' | 'unidades';
 export function useInventario() {
   const { usuario } = useAuth();
   const isAdmin = usuario?.rol === 'admin';
+  const isCoordinador = usuario?.rol === 'coordinador';
   const isInmobiliaria = usuario?.rol === 'inmobiliaria';
   const canEdit = usuario?.rol === 'admin' || usuario?.rol === 'coordinador';
+  const canDelete = usuario?.rol === 'admin';
+  const canManageBloqueos = usuario?.rol === 'admin' || usuario?.rol === 'coordinador';
 
   const [vista, setVista] = useState<Vista>('proyectos');
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
@@ -116,8 +119,8 @@ export function useInventario() {
 
   useEffect(() => {
     cargarProyectos();
-    if (isAdmin) getInmobiliarias().then(setInmobiliarias).catch(() => {});
-  }, [cargarProyectos, isAdmin]);
+    if (canManageBloqueos) getInmobiliarias().then(setInmobiliarias).catch(() => {});
+  }, [cargarProyectos, canManageBloqueos]);
 
   const seleccionarProyecto = (id: string) => {
     setProyectoId(id);
@@ -255,7 +258,7 @@ export function useInventario() {
   return {
     // Estado
     vista, proyectos, proyectoId, unidades, etapas, inmobiliarias, loading,
-    proyectoActual, isAdmin, isInmobiliaria, canEdit,
+    proyectoActual, isAdmin, isCoordinador, isInmobiliaria, canEdit, canDelete, canManageBloqueos,
     // Filtros
     filtroEstado, setFiltroEstado, filtroEtapa, setFiltroEtapa,
     filtroUnidad, setFiltroUnidad, filtroTipo, setFiltroTipo, filtroManzana, setFiltroManzana, filtroPiso, setFiltroPiso,

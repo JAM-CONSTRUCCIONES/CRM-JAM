@@ -314,6 +314,12 @@ export class JamStack extends cdk.Stack {
       sortKey: { name: 'event_timestamp', type: dynamodb.AttributeType.STRING },
     });
 
+    metaConversacionesTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-meta-leads-feed',
+      partitionKey: { name: 'feed_pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'feed_sk', type: dynamodb.AttributeType.STRING },
+    });
+
     const tareasTable = new dynamodb.Table(this, 'JamTareasTable', {
       tableName: resourceName('jam-tareas'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
@@ -597,6 +603,15 @@ export class JamStack extends cdk.Stack {
         MESSENGER_PAGE_TOKEN_PARAM_JAM: isProd
           ? '/jam/prod/meta/messenger/jam-construcciones/page-access-token'
           : '/jam/dev/meta/messenger/jam-construcciones/page-access-token',
+        META_APP_ID_PARAM: isProd
+          ? '/jam/prod/meta/app-id'
+          : '/jam/dev/meta/app-id',
+        META_APP_SECRET_PARAM: isProd
+          ? '/jam/prod/meta/app-secret'
+          : '/jam/dev/meta/app-secret',
+        META_FACEBOOK_REDIRECT_URI: isProd
+          ? 'https://dcgjiswnwqab6.cloudfront.net/meta/facebook/callback'
+          : 'https://d12nm0khvt8zd9.cloudfront.net/meta/facebook/callback',
         WHATSAPP_TOKEN_PARAM_JAM: isProd
           ? '/jam/prod/meta/whatsapp/jam-construcciones/access-token'
           : '/jam/dev/meta/whatsapp/jam-construcciones/access-token',
@@ -636,8 +651,16 @@ export class JamStack extends cdk.Stack {
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/jamconstruccionessrl/access-token`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/caneyoriental/access-token`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/messenger/jam-construcciones/page-access-token`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/app-id`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/app-secret`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/whatsapp/jam-construcciones/access-token`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/methodica/channel-api-key`,
+      ],
+    }));
+    crmLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:PutParameter'],
+      resources: [
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/messenger/jam-construcciones/page-access-token`,
       ],
     }));
 
@@ -679,6 +702,9 @@ export class JamStack extends cdk.Stack {
         INSTAGRAM_USER_ID_JAM: '17841451399457183',
         INSTAGRAM_USER_ID_CANEY: '17841479714105082',
         MESSENGER_PAGE_ID_JAM: '134590556407660',
+        MESSENGER_PAGE_TOKEN_PARAM_JAM: isProd
+          ? '/jam/prod/meta/messenger/jam-construcciones/page-access-token'
+          : '/jam/dev/meta/messenger/jam-construcciones/page-access-token',
         WHATSAPP_BUSINESS_ACCOUNT_ID_JAM: isProd ? '127983130284042' : '2173053779923477',
         WHATSAPP_PHONE_NUMBER_ID_JAM: isProd ? '109857822123688' : '1072749679263713',
         WHATSAPP_TOKEN_PARAM_JAM: isProd
@@ -693,6 +719,7 @@ export class JamStack extends cdk.Stack {
       resources: [
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/jamconstruccionessrl/access-token`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/instagram/caneyoriental/access-token`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/messenger/jam-construcciones/page-access-token`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/jam/${stage}/meta/whatsapp/jam-construcciones/access-token`,
       ],
     }));

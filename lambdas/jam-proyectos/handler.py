@@ -58,6 +58,9 @@ def handler(event, context):
         if is_admin and not require_admin(event):
             return forbidden()
 
+        if method == 'DELETE' and is_admin and rol != 'admin':
+            return forbidden('Solo administrador puede eliminar')
+
         # ===== MIGRACIONES EXCEL =====
 
         if method == 'GET' and path.endswith('/inventario/upload-url'):

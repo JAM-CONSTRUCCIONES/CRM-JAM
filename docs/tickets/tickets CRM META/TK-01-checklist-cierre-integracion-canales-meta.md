@@ -1,78 +1,109 @@
 # TK-01 - Checklist de cierre: Integracion de canales Meta
 
+Ultima actualizacion: 2026-09-21
+
 ## Objetivo del ticket
 
 Integrar y visualizar dentro del CRM las conversaciones e interacciones provenientes de WhatsApp, Instagram y Facebook Messenger, permitiendo que los mensajes recibidos y enviados puedan gestionarse y quedar registrados directamente dentro del CRM.
 
 ## Hecho en backend
 
-- Webhook unico de Meta configurado para recibir eventos.
-- Verificacion de webhook mediante token de verificacion.
-- Recepcion y normalizacion de eventos de Instagram.
-- Recepcion y normalizacion de eventos de Facebook Messenger.
-- Recepcion y normalizacion base de eventos de WhatsApp Cloud API.
-- Creacion automatica de lead preliminar Meta al recibir un mensaje.
-- Actualizacion del lead existente cuando llega un nuevo mensaje del mismo contacto/canal.
-- Registro de mensajes entrantes en DynamoDB.
-- Registro de mensajes salientes en DynamoDB.
-- Endpoint interno para responder mensajes desde el CRM.
-- Lectura de tokens desde AWS Systems Manager Parameter Store.
-- Manejo de estado `pendiente_configuracion` cuando falta token o aprobacion de Meta.
-- Manejo de estado `fallido` cuando Meta rechaza el envio.
-- Registro de actividad del lead cuando se envia una respuesta.
-- Conversion de lead Meta preliminar a cliente formal del CRM.
-- Bloqueo de conversion cuando ya existe cliente con la misma cedula en el mismo proyecto/inmobiliaria.
-- Bloqueo de posible duplicado por telefono o correo dentro del mismo proyecto al convertir un lead Meta.
-- Soporte base para estados de WhatsApp, como entregado/leido/fallido cuando Meta los envie.
-- Soporte base para adjuntos entrantes: imagenes, videos, audios, documentos, stickers o links enviados por Meta.
-- Archivado propio en S3 para archivos de WhatsApp cuando el webhook recibe `media_id` y existe token configurado.
+- [x] Webhook unico de Meta configurado para recibir eventos.
+- [x] Verificacion de webhook mediante token de verificacion.
+- [x] Recepcion y normalizacion de eventos de Instagram.
+- [x] Recepcion y normalizacion de eventos de Facebook Messenger.
+- [x] Recepcion y normalizacion base de eventos de WhatsApp Cloud API.
+- [x] Creacion automatica de lead preliminar Meta al recibir un mensaje.
+- [x] Actualizacion del lead existente cuando llega un nuevo mensaje del mismo contacto/canal.
+- [x] Registro de mensajes entrantes en DynamoDB.
+- [x] Registro de mensajes salientes en DynamoDB.
+- [x] Endpoint interno para responder mensajes desde el CRM.
+- [x] Lectura de tokens desde AWS Systems Manager Parameter Store.
+- [x] Manejo de estado `pendiente_configuracion` cuando falta token o aprobacion de Meta.
+- [x] Manejo de estado `fallido` cuando Meta rechaza el envio.
+- [x] Registro de actividad del lead cuando se envia una respuesta.
+- [x] Conversion de lead Meta preliminar a cliente formal del CRM.
+- [x] Bloqueo de conversion cuando ya existe cliente con la misma cedula en el mismo proyecto/inmobiliaria.
+- [x] Bloqueo de posible duplicado por telefono o correo dentro del mismo proyecto al convertir un lead Meta.
+- [x] Soporte base para estados de WhatsApp (entregado/leido/fallido).
+- [x] Soporte base para adjuntos entrantes: imagenes, videos, audios, documentos, stickers.
+- [x] Archivado en S3 para archivos de WhatsApp cuando el webhook recibe `media_id`.
+
+### Agregado en esta sesion (2026-09-21)
+
+- [x] Token permanente (System User, no expira) para WhatsApp — cargado en Secrets Manager.
+- [x] Multi-tenant: cada conexion guarda su propio access token; el envio usa el token/numero del tenant correcto.
+- [x] Endpoint publico controlado para WhatsApp Embedded Signup (`/channels/whatsapp/connect`).
+- [x] Soporte de coexistencia: mensajes enviados desde la app del celular (smb_message_echoes) aparecen en el CRM.
+- [x] Envio de multimedia saliente (imagen/video/audio/PDF) desde el CRM via presigned URL a S3.
+- [x] Estado real del numero en Meta (verificationStatus, numberReady, qualityRating) guardado en la conexion.
+- [x] Paginacion de mensajes: carga los ultimos 50 al abrir, "cargar anteriores" sin salto de scroll.
+- [x] Tokens de Instagram copiados y validos en SSM dev (JAM y CANEY).
+- [x] Nombre editable por contacto (nombre_manual) para numeros de WhatsApp.
 
 ## Hecho en frontend
 
-- Ruta administrativa `Leads Meta`.
-- Ruta nueva `Inbox Meta` para uso diario tipo bandeja/chat.
-- Lista de conversaciones por canal.
-- Filtro por Instagram, Messenger y WhatsApp.
-- Busqueda por contacto, mensaje, responsable, inmobiliaria o cuenta.
-- Vista de conversacion tipo chat.
-- Panel lateral con datos del lead.
-- Cambio rapido de estado del lead.
-- Asignacion rapida de responsable.
-- Asignacion rapida de inmobiliaria.
-- Conversion del lead Meta a cliente formal desde `Leads Meta`.
-- Conversion del lead Meta a cliente formal desde `Inbox Meta`.
-- Composer para responder mensajes.
-- Respuestas rapidas predefinidas.
-- Visualizacion de estado de mensajes salientes.
-- Visualizacion de errores devueltos por Meta.
-- Visualizacion base de adjuntos entrantes.
+- [x] Ruta administrativa `Leads Meta`.
+- [x] Ruta nueva `Inbox Meta` para uso diario tipo bandeja/chat.
+- [x] Lista de conversaciones por canal.
+- [x] Filtro por Instagram, Messenger y WhatsApp.
+- [x] Busqueda por contacto, mensaje, responsable, inmobiliaria o cuenta (incluyendo nombre manual).
+- [x] Vista de conversacion tipo chat.
+- [x] Panel lateral con datos del lead (colapsable con boton "Detalles").
+- [x] Cambio rapido de estado del lead.
+- [x] Asignacion rapida de responsable.
+- [x] Asignacion rapida de inmobiliaria.
+- [x] Conversion del lead Meta a cliente formal desde `Leads Meta`.
+- [x] Conversion del lead Meta a cliente formal desde `Inbox Meta`.
+- [x] Composer para responder mensajes.
+- [x] Visualizacion de estado de mensajes salientes.
+- [x] Visualizacion de errores devueltos por Meta.
+- [x] Visualizacion de adjuntos entrantes.
 
-## Falta para cerrar el MVP funcional
+### Agregado en esta sesion (2026-09-21)
 
-- Guardar token real de Messenger en Parameter Store.
-- Guardar token real de WhatsApp en Parameter Store cuando Meta permita usar el numero/WABA.
-- Probar conversion de lead Meta a cliente formal con un caso real desde `Inbox Meta`.
-- Probar mensaje real entrante de Instagram y respuesta real desde Inbox Meta.
-- Probar mensaje real entrante de Messenger y respuesta real desde Inbox Meta.
-- Probar mensaje real entrante de WhatsApp y respuesta real desde Inbox Meta.
-- Confirmar que los webhooks de produccion quedan configurados con la URL final.
-- Confirmar que el dominio final `crm.jamconstrucciones.com` queda activo si se usara para revision/produccion.
+- [x] Boton adjuntar archivos con subida a S3 y envio multimedia por WhatsApp.
+- [x] Reproductor de audio inline (sin abrir nueva ventana).
+- [x] Imagenes y videos inline en la burbuja.
+- [x] Nombre editable por contacto con boton de edicion en la cabecera.
+- [x] Separadores de fecha (Hoy / Ayer / fecha) entre mensajes de dias distintos.
+- [x] Hora discreta en cada burbuja (no fecha completa repetida).
+- [x] Burbujas con esquinas redondeadas asimetricas (estilo chat).
+- [x] Polling incremental: solo pide mensajes nuevos (after), no recarga toda la conversacion.
+- [x] Backoff en el polling ante fallos de API.
+- [x] Envio optimista: el mensaje aparece al instante sin esperar la respuesta del backend.
+- [x] Auto-scroll al mensaje mas reciente al abrir un chat.
+- [x] Cargar mensajes anteriores mantiene la posicion del scroll (no salta al inicio).
+- [x] Tags de canal sin fondo (solo color de texto).
+- [x] Layout full-width sin margenes laterales (ocupa toda la pantalla como WhatsApp Web).
+- [x] Header del inbox compacto con titulo dentro del panel de lista.
+- [x] Panel Lead colapsable con boton "Detalles".
+- [x] Boton "Conectar WhatsApp" oculto si ya hay una conexion activa.
+- [x] Sin contador de mensajes recibidos/enviados ni seccion de actividad reciente.
 
-## Bloqueado por Meta o cliente
+## Pendiente para cerrar el MVP en PROD
 
-- Aprobacion de permisos avanzados de Instagram.
-- Aprobacion de permisos avanzados de Messenger.
-- Aprobacion de permisos avanzados de WhatsApp.
-- Verificacion del negocio en Meta Business.
-- Liberacion o vinculacion correcta del numero de WhatsApp `+1 849-477-7000`.
-- Confirmacion de tokens permanentes o de larga duracion para produccion.
+- [ ] Confirmar que los webhooks de produccion quedan configurados con la URL final.
+- [ ] Confirmar que el dominio `crm.jamconstrucciones.com` queda activo en prod.
+- [ ] Tokens de Instagram en SSM prod (JAM y CANEY).
+- [ ] Verificacion del numero de WhatsApp en Meta (hoy `NOT_VERIFIED`).
+- [ ] Metodo de pago en Meta para escalar conversaciones.
+- [ ] Probar conversion de lead Meta a cliente formal con un caso real (pendiente confirmacion).
 
-## Recomendado despues del MVP
+## Diferido / fuera del MVP actual
 
-- Descargar medios de Instagram/Messenger a S3 cuando Meta entregue URLs persistentes o endpoints autorizados.
-- Enviar archivos desde el CRM, no solo texto.
+- Messenger (Facebook): diferido hasta que IG este estable en prod.
+- Plantillas de WhatsApp para iniciar conversaciones fuera de la ventana de 24h.
+- Rate-limiting del endpoint publico `/channels/whatsapp/connect`.
 - Reintento manual de mensajes fallidos desde la interfaz.
-- Refresco automatico de la bandeja cada cierto tiempo.
-- Unificacion de duplicados entre canales cuando se identifique que una misma persona escribio por mas de un canal.
-- Mostrar nombre real/username/foto del contacto cuando Meta lo permita.
 - Dashboard de rendimiento por canal y tasa de respuesta.
+- Unificacion de duplicados entre canales.
+
+## Canales en DEV — estado actual
+
+| Canal | Recepcion | Envio texto | Envio multimedia | Token |
+|-------|-----------|-------------|-----------------|-------|
+| WhatsApp | ✅ | ✅ | ✅ | Token permanente (System User) |
+| Instagram JAM | ✅ | ✅ | ✅ | Token valido en SSM dev |
+| Instagram CANEY | ✅ | ✅ | ✅ | Token valido en SSM dev |
+| Messenger | ⏸ diferido | ⏸ diferido | ⏸ diferido | Pendiente |

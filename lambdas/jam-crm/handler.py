@@ -41,6 +41,8 @@ def handler(event, context):
             return meta_routes.ver_conversacion(event)
         if query.get('tipo') == 'meta-media-upload':
             return meta_routes.get_media_upload_url(event)
+        if query.get('tipo') == 'meta-facebook-oauth-url':
+            return meta_routes.facebook_oauth_url(event)
         return estatus_routes.listar_todos_procesos(event)
 
     if method == 'PUT' and path == '/admin/procesos':
@@ -49,6 +51,8 @@ def handler(event, context):
         query = event.get('queryStringParameters') or {}
         if query.get('tipo') == 'meta-lead' and query.get('accion') == 'convertir':
             return meta_routes.convertir_lead(event)
+        if query.get('tipo') == 'meta-lead' and query.get('accion') == 'asociar-cliente':
+            return meta_routes.asociar_cliente_existente(event)
         if query.get('tipo') == 'meta-contacto-nombre':
             return meta_routes.renombrar_contacto(event)
         if query.get('tipo') == 'meta-lead':
@@ -60,6 +64,8 @@ def handler(event, context):
         query = event.get('queryStringParameters') or {}
         if query.get('tipo') == 'meta-mensaje':
             return meta_routes.enviar_mensaje(event)
+        if query.get('tipo') == 'meta-facebook-callback':
+            return meta_routes.facebook_oauth_callback(event)
 
     # El resto de endpoints solo para admin/coordinador/supervisor
     if not es_admin:
@@ -78,6 +84,9 @@ def handler(event, context):
         return bad_request('cedula, proyecto_id y unidad_id son requeridos')
 
     query = event.get('queryStringParameters') or {}
+
+    if method == 'PUT' and query.get('accion') == 'eliminar' and rol != 'admin':
+        return forbidden('Solo administrador puede eliminar')
 
     # Reutiliza el recurso /estatus para no aumentar los recursos de API Gateway.
     if (

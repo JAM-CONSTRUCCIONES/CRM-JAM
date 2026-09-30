@@ -19,7 +19,8 @@ import {
   Typography,
   message,
 } from 'antd';
-import { ArrowLeftOutlined, AudioOutlined, DeleteOutlined, EditOutlined, FileOutlined, LinkOutlined, PauseOutlined, PaperClipOutlined, PlayCircleFilled, ReloadOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, AudioOutlined, CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, FileOutlined, LinkOutlined, PauseOutlined, PaperClipOutlined, PlayCircleFilled, PlusOutlined, ReloadOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import {
   convertirMetaLead,
   enviarMetaMensaje,
@@ -37,6 +38,7 @@ import { buscarClientesAdmin } from '../../services/clientes.service';
 import { getInmobiliarias, type Inmobiliaria } from '../../services/inmobiliarias.service';
 import { getProyectos, getUnidades } from '../../services/proyectos.service';
 import { getUsuariosSistema, type UsuarioSistema } from '../../services/sistema.service';
+import { actualizarTarea, crearTarea, getTareas, type TareaJam } from '../../services/tareas.service';
 import type { Cliente, Proyecto, Unidad } from '../../types';
 import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
 import { clienteFieldNormalizers, clienteFormRules, validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
@@ -121,6 +123,33 @@ const diaKey = (value?: string) => {
 };
 
 const toNumber = (value: unknown) => Number(value || 0);
+
+const todayKey = () => new Date().toISOString().slice(0, 10);
+
+const nextHourKey = () => {
+  const date = new Date();
+  date.setHours(date.getHours() + 1, 0, 0, 0);
+  return `${String(date.getHours()).padStart(2, '0')}:00`;
+};
+
+const prioridadColor: Record<string, string> = {
+  baja: 'default',
+  media: 'gold',
+  alta: 'red',
+};
+
+const estadoTareaColor: Record<string, string> = {
+  pendiente: 'gold',
+  en_progreso: 'blue',
+  completada: 'green',
+  cancelada: 'default',
+};
+
+const isTareaVencida = (tarea: TareaJam) => {
+  if (!['pendiente', 'en_progreso'].includes(tarea.estado)) return false;
+  const date = new Date(`${tarea.fecha}T${tarea.hora}:00`);
+  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+};
 
 const motivosCierre = [
   'No interesado',
@@ -443,6 +472,7 @@ const errorVisibleMensajeMeta = (mensaje: MetaMensaje) => {
 };
 
 export default function MetaInboxPage() {
+  const navigate = useNavigate();
   const [leads, setLeads] = useState<MetaLead[]>([]);
   const [leadsCursor, setLeadsCursor] = useState('');
   const [hasMoreLeads, setHasMoreLeads] = useState(false);
@@ -475,6 +505,10 @@ export default function MetaInboxPage() {
   const [nombreEditando, setNombreEditando] = useState('');
   const [guardandoNombre, setGuardandoNombre] = useState(false);
   const [leadPanelOpen, setLeadPanelOpen] = useState(false);
+  const [tareasLead, setTareasLead] = useState<TareaJam[]>([]);
+  const [tareasLoading, setTareasLoading] = useState(false);
+  const [tareaOpen, setTareaOpen] = useState(false);
+  const [savingTarea, setSavingTarea] = useState(false);
   const CONVERSATION_PAGE_SIZE = 50;
   const MAX_MEDIA_MB = 16;
   const [loadingUnidades, setLoadingUnidades] = useState(false);
@@ -501,6 +535,7 @@ export default function MetaInboxPage() {
   const [reenvioSeleccionOpen, setReenvioSeleccionOpen] = useState(false);
   const [reenvioDestinoPks, setReenvioDestinoPks] = useState<string[]>([]);
   const [form] = Form.useForm();
+  const [tareaForm] = Form.useForm();
   const [convertForm] = Form.useForm();
   const mensajesPanelRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -533,6 +568,12 @@ export default function MetaInboxPage() {
   const conversaciones = useMemo(() => {
     return leads;
   }, [leads]);
+
+  const resumenTareas = useMemo(() => {
+    const pendientes = tareasLead.filter((tarea) => ['pendiente', 'en_progreso'].includes(tarea.estado));
+    const vencidas = pendientes.filter(isTareaVencida);
+    return { pendientes: pendientes.length, vencidas: vencidas.length };
+  }, [tareasLead]);
 
   const clientesAgrupados = useMemo<ClienteGrupo[]>(() => {
     const groups = new Map<string, ClienteGrupo>();
@@ -847,6 +888,21 @@ export default function MetaInboxPage() {
     }
   };
 
+  const cargarTareasLead = async (lead: MetaLead) => {
+    setTareasLoading(true);
+    try {
+      const data = await getTareas({
+        relacion_tipo: 'meta_lead',
+        relacion_id: lead.pk,
+      });
+      setTareasLead(data || []);
+    } catch (error: any) {
+      message.warning(error?.message || 'No se pudieron cargar las tareas del lead');
+    } finally {
+      setTareasLoading(false);
+    }
+  };
+
   const abrirConversacion = async (lead: MetaLead, clearText = true) => {
     setSelectedLead(lead);
     if (clearText) setRespuesta('');
@@ -862,6 +918,7 @@ export default function MetaInboxPage() {
       setSelectedLead(currentLead);
       setMensajes(data.mensajes || []);
       setHasMoreMensajes(Boolean(data.has_more));
+      await cargarTareasLead(currentLead);
       form.setFieldsValue({
         estado: currentLead.estado || 'nuevo',
         responsable_id: currentLead.responsable_id,
@@ -870,6 +927,7 @@ export default function MetaInboxPage() {
       });
     } catch (error: any) {
       setMensajes([]);
+      setTareasLead([]);
       setHasMoreMensajes(false);
       message.error(error?.message || 'No se pudo abrir la conversacion');
     } finally {
@@ -1016,6 +1074,65 @@ export default function MetaInboxPage() {
       message.error(error?.message || 'No se pudo enviar el mensaje');
     } finally {
       setSending(false);
+    }
+  };
+
+  const abrirNuevaTareaLead = () => {
+    if (!selectedLead) return;
+    tareaForm.resetFields();
+    tareaForm.setFieldsValue({
+      titulo: 'Dar seguimiento a lead Meta',
+      descripcion: selectedLead.ultimo_mensaje_texto || '',
+      trabajador_id: selectedLead.responsable_id?.replace('USUARIO#', '') || undefined,
+      fecha: todayKey(),
+      hora: nextHourKey(),
+      prioridad: 'media',
+      recordatorio_minutos_antes: 60,
+    });
+    setTareaOpen(true);
+  };
+
+  const guardarTareaLead = async () => {
+    if (!selectedLead) return;
+    const values = await tareaForm.validateFields();
+    setSavingTarea(true);
+    try {
+      await crearTarea({
+        ...values,
+        estado: 'pendiente',
+        relacion_tipo: 'meta_lead',
+        relacion_id: selectedLead.pk,
+        relacion_nombre: `${canalLabel[selectedLead.channel] || selectedLead.channel} - ${selectedLead.external_contact_id}`,
+      });
+      await gestionarMetaLead(selectedLead.pk, {
+        nota: `Tarea creada: ${values.titulo} (${values.fecha} ${values.hora})`,
+      });
+      message.success('Tarea creada para el lead');
+      setTareaOpen(false);
+      await abrirConversacion(selectedLead, false);
+      await cargarLeads();
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo crear la tarea');
+    } finally {
+      setSavingTarea(false);
+    }
+  };
+
+  const completarTareaLead = async (tarea: TareaJam) => {
+    if (!selectedLead) return;
+    setTareasLoading(true);
+    try {
+      await actualizarTarea(tarea.tarea_id, { estado: 'completada' });
+      await gestionarMetaLead(selectedLead.pk, {
+        nota: `Tarea completada: ${tarea.titulo}`,
+      });
+      message.success('Tarea completada');
+      await abrirConversacion(selectedLead, false);
+      await cargarLeads();
+    } catch (error: any) {
+      message.error(error?.message || 'No se pudo completar la tarea');
+    } finally {
+      setTareasLoading(false);
     }
   };
 
@@ -1543,6 +1660,11 @@ export default function MetaInboxPage() {
     mensajesPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const irADetalleLead = () => {
+    if (!selectedLead) return;
+    navigate(`/meta-leads?lead=${encodeURIComponent(selectedLead.pk)}`);
+  };
+
   const cargarUnidadesProyecto = async (proyectoId?: string) => {
     convertForm.setFieldsValue({ unidad_id: undefined });
     setUnidades([]);
@@ -1690,7 +1812,10 @@ export default function MetaInboxPage() {
                     type="text"
                     size="small"
                     icon={<ArrowLeftOutlined />}
-                    onClick={() => setSelectedLead(null)}
+                    onClick={() => {
+                      setSelectedLead(null);
+                      setTareasLead([]);
+                    }}
                     className="md:!hidden"
                     title="Volver a conversaciones"
                   />
@@ -2176,6 +2301,9 @@ export default function MetaInboxPage() {
                   {selectedLead.inmobiliaria_nombre || 'Sin asignar'}
                 </Paragraph>
               </div>
+              <Button block onClick={irADetalleLead}>
+                Mirar mas detalles
+              </Button>
               {selectedLead.cliente_asociado && (
                 <div className="rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] p-3">
                   <Text strong>Cliente asociado</Text>
@@ -2217,6 +2345,75 @@ export default function MetaInboxPage() {
                   </Button>
                 </Space>
               )}
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <Space size={8}>
+                    <Text strong>Tareas y recordatorios</Text>
+                    <Tag color={resumenTareas.vencidas ? 'red' : resumenTareas.pendientes ? 'gold' : 'default'}>
+                      {resumenTareas.vencidas ? `${resumenTareas.vencidas} vencida(s)` : `${resumenTareas.pendientes} pendiente(s)`}
+                    </Tag>
+                  </Space>
+                  <Space size={4}>
+                    <Button size="small" icon={<ReloadOutlined />} onClick={() => cargarTareasLead(selectedLead)} loading={tareasLoading} />
+                    <Button size="small" type="primary" icon={<PlusOutlined />} onClick={abrirNuevaTareaLead}>
+                      Crear
+                    </Button>
+                  </Space>
+                </div>
+                {tareasLead.length ? (
+                  <div className="space-y-2">
+                    {tareasLead.slice(0, 5).map((tarea) => (
+                      <div
+                        key={tarea.tarea_id}
+                        className="rounded-md border border-[var(--app-border)] bg-[var(--panel-soft-bg)] p-3"
+                      >
+                        <Space direction="vertical" size={4} className="w-full">
+                          <div className="flex items-start justify-between gap-2">
+                            <Text strong className="min-w-0 flex-1">{tarea.titulo}</Text>
+                            <Tag color={estadoTareaColor[tarea.estado] || 'default'} bordered={false} style={{ background: 'transparent' }}>
+                              {tarea.estado}
+                            </Tag>
+                          </div>
+                          <Text type="secondary" className="text-xs">
+                            <ClockCircleOutlined /> {tarea.fecha} {tarea.hora}
+                            {isTareaVencida(tarea) ? ' - Vencida' : ''}
+                          </Text>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Tag color={prioridadColor[tarea.prioridad]} bordered={false} style={{ background: 'transparent' }}>
+                              {tarea.prioridad}
+                            </Tag>
+                            {tarea.recordatorio_minutos_antes && (
+                              <Tag bordered={false} style={{ background: 'transparent' }}>
+                                Recordatorio {tarea.recordatorio_minutos_antes} min
+                              </Tag>
+                            )}
+                          </div>
+                          {tarea.descripcion && (
+                            <Paragraph ellipsis={{ rows: 2 }} className="!mb-0 text-sm">
+                              {tarea.descripcion}
+                            </Paragraph>
+                          )}
+                          <Button
+                            size="small"
+                            icon={<CheckCircleOutlined />}
+                            disabled={tarea.estado === 'completada' || tarea.estado === 'cancelada'}
+                            onClick={() => completarTareaLead(tarea)}
+                          >
+                            Completar
+                          </Button>
+                        </Space>
+                      </div>
+                    ))}
+                    {tareasLead.length > 5 && (
+                      <Text type="secondary" className="text-xs">
+                        Mostrando 5 de {tareasLead.length} tareas. Mira mas detalles para ver todo.
+                      </Text>
+                    )}
+                  </div>
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin tareas de seguimiento" />
+                )}
+              </div>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <Text strong>Oportunidades registradas</Text>
@@ -2370,6 +2567,82 @@ export default function MetaInboxPage() {
             Dejalo vacio para volver a mostrar el nombre de perfil o el numero.
           </Text>
         </Space>
+      </Modal>
+
+      <Modal
+        title="Crear tarea de seguimiento"
+        open={tareaOpen}
+        onCancel={() => setTareaOpen(false)}
+        onOk={guardarTareaLead}
+        okText="Crear tarea"
+        cancelText="Cancelar"
+        confirmLoading={savingTarea}
+        width={640}
+        destroyOnClose
+      >
+        <Form form={tareaForm} layout="vertical">
+          <Form.Item
+            name="titulo"
+            label="Titulo"
+            rules={[{ required: true, message: 'Ingresa el titulo de la tarea' }]}
+          >
+            <Input placeholder="Ej: Dar seguimiento a lead Meta" />
+          </Form.Item>
+          <Form.Item
+            name="trabajador_id"
+            label="Responsable"
+            rules={[{ required: true, message: 'Selecciona un responsable' }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Seleccionar usuario"
+              options={usuarios.map((usuario) => ({
+                value: usuario.pk.replace('USUARIO#', ''),
+                label: `${usuario.nombre || usuario.cognito_username} (${usuario.rol})`,
+              }))}
+            />
+          </Form.Item>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Form.Item
+              name="fecha"
+              label="Fecha"
+              rules={[{ required: true, message: 'Selecciona fecha' }]}
+            >
+              <Input type="date" />
+            </Form.Item>
+            <Form.Item
+              name="hora"
+              label="Hora"
+              rules={[{ required: true, message: 'Selecciona hora' }]}
+            >
+              <Input type="time" />
+            </Form.Item>
+            <Form.Item name="prioridad" label="Prioridad">
+              <Select
+                options={[
+                  { value: 'baja', label: 'Baja' },
+                  { value: 'media', label: 'Media' },
+                  { value: 'alta', label: 'Alta' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="recordatorio_minutos_antes" label="Recordatorio">
+              <Select
+                allowClear
+                placeholder="Sin recordatorio"
+                options={[
+                  { value: 30, label: '30 minutos antes' },
+                  { value: 60, label: '1 hora antes' },
+                  { value: 1440, label: '1 dia antes' },
+                ]}
+              />
+            </Form.Item>
+          </div>
+          <Form.Item name="descripcion" label="Descripcion">
+            <TextArea rows={3} maxLength={500} showCount placeholder="Detalle para el seguimiento" />
+          </Form.Item>
+        </Form>
       </Modal>
 
       <Modal

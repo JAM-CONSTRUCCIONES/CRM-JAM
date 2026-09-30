@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -230,6 +230,7 @@ export default function MetaLeadsPage() {
   const [form] = Form.useForm();
   const [convertForm] = Form.useForm();
   const [tareaForm] = Form.useForm();
+  const autoOpenedLeadRef = useRef('');
   const estadoGestion = Form.useWatch('estado', form);
 
   const stats = useMemo(() => {
@@ -246,6 +247,11 @@ export default function MetaLeadsPage() {
     const vencidas = pendientes.filter(isTareaVencida);
     return { pendientes: pendientes.length, vencidas: vencidas.length };
   }, [tareasLead]);
+
+  const timelineGestion = useMemo(
+    () => timeline.filter((item) => item.categoria !== 'mensaje'),
+    [timeline],
+  );
 
   const leadsFiltrados = useMemo(() => {
     const text = busqueda.trim().toLowerCase();
@@ -345,7 +351,16 @@ export default function MetaLeadsPage() {
         responsable_id: responsableFiltro,
         inmobiliaria_id: inmobiliariaFiltro,
       });
-      setLeads(data.items || []);
+      const items = data.items || [];
+      setLeads(items);
+      const targetPk = new URLSearchParams(window.location.search).get('lead');
+      if (targetPk && autoOpenedLeadRef.current !== targetPk) {
+        const target = items.find((lead) => lead.pk === targetPk);
+        if (target) {
+          autoOpenedLeadRef.current = targetPk;
+          await abrirConversacion(target);
+        }
+      }
     } catch (error: any) {
       message.error(error?.message || 'No se pudieron cargar los leads Meta');
     } finally {
@@ -1459,14 +1474,14 @@ export default function MetaLeadsPage() {
               title={
                 <Space>
                   <span>Historial del lead</span>
-                  <Tag>{timeline.length}</Tag>
+                  <Tag>{timelineGestion.length}</Tag>
                 </Space>
               }
               size="small"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Text type="secondary">
-                  {timeline.length ? 'Historial disponible para revision.' : 'Sin historial registrado.'}
+                  {timelineGestion.length ? 'Historial disponible para revision.' : 'Sin historial registrado.'}
                 </Text>
                 <Space wrap>
                   <Button icon={<ClockCircleOutlined />} onClick={() => setHistorialOpen(true)}>
@@ -1489,9 +1504,9 @@ export default function MetaLeadsPage() {
         footer={null}
         width={760}
       >
-        {timeline.length ? (
+        {timelineGestion.length ? (
           <Space direction="vertical" className="max-h-[68vh] w-full overflow-y-auto pr-1">
-            {timeline.slice().reverse().map((item) => (
+            {timelineGestion.slice().reverse().map((item) => (
               <div key={item.id} className="rounded-md border border-[var(--app-border)] p-3">
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                   <Space size={8}>

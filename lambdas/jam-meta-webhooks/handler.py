@@ -1190,7 +1190,6 @@ def _fetch_leadgen_details(page_id, leadgen_id):
         'campaign_id',
         'campaign_name',
         'form_id',
-        'form_name',
         'platform',
         'is_organic',
         'custom_disclaimer_responses',

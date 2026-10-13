@@ -233,6 +233,7 @@ const mergeMensajePreservandoContexto = (base: MetaMensaje, nuevo: MetaMensaje):
 
 const mensajesMismoEnvio = (a: MetaMensaje, b: MetaMensaje) => {
   if (a.external_event_id && b.external_event_id && a.external_event_id === b.external_event_id) return true;
+  if (esEventoAuxiliarWhatsapp(a) || esEventoAuxiliarWhatsapp(b)) return false;
   if (a.direction !== b.direction || a.direction !== 'outgoing') return false;
 
   const timeA = new Date(a.event_timestamp || a.created_at || 0).getTime();
@@ -266,6 +267,16 @@ const nombreContacto = (lead: MetaLead) =>
   || (lead.contact_profile_name || '').trim()
   || (lead.contact_username ? `@${lead.contact_username}` : '')
   || lead.external_contact_id;
+
+const numeroWhatsappContacto = (lead?: MetaLead | null) => {
+  if (!lead || lead.channel !== 'whatsapp') return '';
+  const value = String(lead.external_contact_id || '').trim();
+  if (!value) return '';
+  if (/^1\d{10}$/.test(value)) {
+    return `+${value.slice(0, 1)} ${value.slice(1, 4)} ${value.slice(4, 7)} ${value.slice(7)}`;
+  }
+  return value.startsWith('+') ? value : `+${value}`;
+};
 
 const mergeRecentLeadsByPk = (actuales: MetaLead[], nuevos: MetaLead[]) => {
   const map = new Map<string, MetaLead>();
@@ -1759,6 +1770,7 @@ export default function MetaInboxPage() {
                 {conversaciones.map((lead) => {
                   const active = selectedLead?.pk === lead.pk;
                   const pending = toNumber(lead.mensajes_recibidos) > toNumber(lead.mensajes_enviados);
+                  const numeroWhatsapp = numeroWhatsappContacto(lead);
                   return (
                     <button
                       key={lead.pk}
@@ -1771,6 +1783,11 @@ export default function MetaInboxPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <Text strong className="block max-w-[240px] truncate md:max-w-[200px]">{nombreContacto(lead)}</Text>
+                          {numeroWhatsapp && numeroWhatsapp !== nombreContacto(lead) && (
+                            <Text type="secondary" className="block max-w-[240px] truncate text-xs md:max-w-[200px]">
+                              {numeroWhatsapp}
+                            </Text>
+                          )}
                           <Text type="secondary" className="block max-w-[240px] truncate text-xs md:max-w-[200px]">
                             {lead.account_alias || canalLabel[lead.channel] || 'Meta'}
                           </Text>
@@ -1819,7 +1836,14 @@ export default function MetaInboxPage() {
                     className="md:!hidden"
                     title="Volver a conversaciones"
                   />
-                  <Text strong className="truncate text-sm">{nombreContacto(selectedLead)}</Text>
+                  <div className="min-w-0">
+                    <Text strong className="block truncate text-sm">{nombreContacto(selectedLead)}</Text>
+                    {numeroWhatsappContacto(selectedLead) && numeroWhatsappContacto(selectedLead) !== nombreContacto(selectedLead) && (
+                      <Text type="secondary" className="block truncate text-xs">
+                        {numeroWhatsappContacto(selectedLead)}
+                      </Text>
+                    )}
+                  </div>
                   <Button
                     type="text"
                     size="small"

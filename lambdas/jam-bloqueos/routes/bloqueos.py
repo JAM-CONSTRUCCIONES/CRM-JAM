@@ -19,6 +19,7 @@ SQS_URL = os.environ.get('SQS_URL', '')
 HORAS_BLOQUEO = 48
 HORAS_ALERTA = 43  # alerta 5 horas antes del vencimiento
 HORAS_REBLOQUEO = 24
+EXCLUSIVIDAD_ACTIVA = False
 
 
 def _normalizar_inmo_id(value: str | None) -> str:
@@ -145,7 +146,7 @@ def bloquear(event):
         inmo_nombre = inmo_info.get('nombre', inmo_id_real)
 
     # Validar exclusividad del cliente ANTES de bloquear (solo si NO es forzar_admin)
-    if tiene_cliente and not forzar_admin:
+    if tiene_cliente and not forzar_admin and EXCLUSIVIDAD_ACTIVA:
         clientes_table_name = os.environ.get('CLIENTES_TABLE')
         if clientes_table_name:
             clientes_t = dynamodb.Table(clientes_table_name)

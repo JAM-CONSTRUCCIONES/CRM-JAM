@@ -16,6 +16,7 @@ clientes = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 usuarios = dynamodb.Table(os.environ['USUARIOS_TABLE'])
 procesos = dynamodb.Table(os.environ['PROCESOS_TABLE'])
 MESES_EXCLUSIVIDAD = 3
+EXCLUSIVIDAD_ACTIVA = False
 CLIENTE_DUPLICADO_MSG = 'Ya existe un cliente registrado con esta cedula en este proyecto para esta inmobiliaria'
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
@@ -377,7 +378,7 @@ def registrar(event):
         KeyConditionExpression=Key('cedula').eq(cedula) & Key('sk').eq(sk),
         FilterExpression=Attr('exclusividad_activa').eq(True),
     )
-    for item in resultado.get('Items', []):
+    for item in resultado.get('Items', []) if EXCLUSIVIDAD_ACTIVA else []:
         # Normalizar ambos lados para comparar sin prefijo INMOBILIARIA#
         item_inmo = item.get('inmobiliaria_id', '').replace('INMOBILIARIA#', '')
         if item_inmo != inmobiliaria_id:
@@ -454,7 +455,7 @@ def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id):
         'pais_residencia': body.get('pais_residencia', ''),
         'fecha_nacimiento': body.get('fecha_nacimiento', ''),
         'edad': edad,
-        'exclusividad_activa': True,
+        'exclusividad_activa': EXCLUSIVIDAD_ACTIVA,
         'fecha_captacion': fecha_captacion,
         'fecha_vencimiento': fecha_vencimiento,
     }
@@ -479,7 +480,8 @@ def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id):
             proceso_item['fecha_liberacion_unidad'] = fecha_liberacion_unidad
         procesos.put_item(Item=proceso_item)
 
-    sched.crear_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id, ts_venc_eb)
+    if EXCLUSIVIDAD_ACTIVA:
+        sched.crear_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id, ts_venc_eb)
 
     _publicar_evento('cliente_captado', proyecto_id, inmobiliaria_id, {
         'cedula': cedula,
@@ -559,8 +561,9 @@ def _recaptar(pk, sk, body, existing, cedula, inmobiliaria_id, proyecto_id):
         ExpressionAttributeValues=values,
         **({"ExpressionAttributeNames": names} if names else {}),
     )
-    sched.eliminar_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id)
-    sched.crear_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id, ts_venc_eb)
+    if EXCLUSIVIDAD_ACTIVA:
+        sched.eliminar_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id)
+        sched.crear_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id, ts_venc_eb)
     return ok({'message': 'Cliente re-captado con nueva exclusividad'})
 
 
@@ -974,7 +977,7 @@ def registrar_publico(event):
         KeyConditionExpression=Key('cedula').eq(cedula) & Key('sk').eq(sk),
         FilterExpression=Attr('exclusividad_activa').eq(True),
     )
-    for item in resultado.get('Items', []):
+    for item in resultado.get('Items', []) if EXCLUSIVIDAD_ACTIVA else []:
         item_inmo = item.get('inmobiliaria_id', '').replace('INMOBILIARIA#', '')
         if item_inmo != inmobiliaria_id:
             _publicar_evento('intento_duplicado', proyecto_id, inmobiliaria_id, {

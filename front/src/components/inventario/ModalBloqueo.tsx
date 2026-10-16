@@ -20,7 +20,7 @@ interface Props {
 
 const ModalBloqueo = ({ open, unidad, proyectoId, guardando, onCancel, onBloquear }: Props) => {
   const [form] = Form.useForm();
-  const [modoCliente, setModoCliente] = useState<'existente' | 'nuevo' | 'sin_cliente'>('existente');
+  const [modoCliente, setModoCliente] = useState<'existente' | 'nuevo'>('existente');
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [clientesEncontrados, setClientesEncontrados] = useState<Cliente[]>([]);
   const [buscandoClientes, setBuscandoClientes] = useState(false);
@@ -102,11 +102,6 @@ const ModalBloqueo = ({ open, unidad, proyectoId, guardando, onCancel, onBloquea
   };
 
   const handleSubmit = async () => {
-    if (modoCliente === 'sin_cliente') {
-      onBloquear(true);
-      return;
-    }
-
     if (modoCliente === 'existente' && clienteSeleccionado) {
       onBloquear(false, {
         cedula: clienteSeleccionado.cedula,
@@ -184,14 +179,11 @@ const ModalBloqueo = ({ open, unidad, proyectoId, guardando, onCancel, onBloquea
             buttonStyle="solid"
             style={{ width: '100%' }}
           >
-            <Radio.Button value="existente" style={{ width: '33.33%', textAlign: 'center' }}>
+            <Radio.Button value="existente" style={{ width: '50%', textAlign: 'center' }}>
               <SearchOutlined /> Cliente existente
             </Radio.Button>
-            <Radio.Button value="nuevo" style={{ width: '33.33%', textAlign: 'center' }}>
+            <Radio.Button value="nuevo" style={{ width: '50%', textAlign: 'center' }}>
               <UserAddOutlined /> Nuevo cliente
-            </Radio.Button>
-            <Radio.Button value="sin_cliente" style={{ width: '33.33%', textAlign: 'center' }}>
-              <LockOutlined /> Sin cliente
             </Radio.Button>
           </Radio.Group>
         </div>
@@ -329,16 +321,6 @@ const ModalBloqueo = ({ open, unidad, proyectoId, guardando, onCancel, onBloquea
               </Col>
             </Row>
           </div>
-        )}
-
-        {modoCliente === 'sin_cliente' && (
-          <Alert
-            type="warning"
-            message="Bloqueo sin cliente"
-            description="Se creara un bloqueo temporal sin cliente asignado. Podras asignar un cliente mas tarde desde la vista de Procesos."
-            showIcon
-            style={{ marginTop: 12 }}
-          />
         )}
 
         {modoCliente === 'existente' && !clienteSeleccionado && (

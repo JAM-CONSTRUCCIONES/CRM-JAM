@@ -104,6 +104,12 @@ def bloquear(event):
     es_admin = require_admin(event)
     forzar_admin = es_admin and solicita_forzar_admin
 
+    # Las inmobiliarias deben crear los bloqueos con un cliente asignado.
+    # Los usuarios internos mantienen la posibilidad de crear bloqueos
+    # temporales sin cliente para gestionarlos posteriormente.
+    if not es_admin and not tiene_cliente:
+        return bad_request('Las inmobiliarias deben crear el bloqueo con un cliente')
+
     # Si es admin y especifica inmobiliaria_id, usar esa; sino, usar la del usuario
     if es_admin and body.get('inmobiliaria_id'):
         inmo_id = body.get('inmobiliaria_id').replace('INMOBILIARIA#', '')

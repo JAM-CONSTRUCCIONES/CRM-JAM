@@ -15,4 +15,11 @@ describe('bloqueos admin', () => {
     expect(bloqueos).toContain('if tiene_cliente and not forzar_admin:');
     expect(bloqueos).toContain('if not ya_bloqueada_propia and not forzar_admin:');
   });
+
+  test('las inmobiliarias deben enviar un cliente para crear bloqueos', () => {
+    const bloqueos = read('lambdas/jam-bloqueos/routes/bloqueos.py');
+
+    expect(bloqueos).toContain("if not es_admin and not tiene_cliente:");
+    expect(bloqueos).toContain("Las inmobiliarias deben crear el bloqueo con un cliente");
+  });
 });

@@ -454,10 +454,6 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
     pais_residencia = _normalizar_texto_catalogo(fila.get('pais_residencia'))
     fecha_historica_dt = _parse_dt(fila.get('fecha_bloqueo')) or _parse_dt(ahora) or datetime.now(timezone.utc)
     fecha_captacion = fecha_historica_dt.isoformat()
-    fecha_vencimiento_dt = _add_months(fecha_historica_dt, MESES_EXCLUSIVIDAD)
-    fecha_vencimiento = fecha_vencimiento_dt.isoformat()
-    exclusividad_activa = fecha_vencimiento_dt > datetime.now(timezone.utc)
-
     item_cliente = {
         'pk':                f'CLIENTE#{cedula}#{inmo_id}',
         'sk':                f'PROYECTO#{proyecto_id}',
@@ -473,9 +469,11 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
         'pais_residencia':   pais_residencia,
         'fecha_nacimiento':  fecha_nacimiento,
         'edad':              edad,
-        'exclusividad_activa': exclusividad_activa,
+        # La exclusividad fue retirada del sistema; las migraciones históricas
+        # deben conservar el cliente sin activar una restricción nueva.
+        'exclusividad_activa': False,
         'fecha_captacion':   fecha_captacion,
-        'fecha_vencimiento': fecha_vencimiento,
+        'fecha_vencimiento': '',
         'creado_en':         ahora,
         'origen':            'migracion',
     }
@@ -483,9 +481,6 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
         item_cliente['fecha_bloqueo_historica'] = fecha_captacion
 
     clientes_t.put_item(Item=item_cliente)
-
-    if exclusividad_activa:
-        _crear_schedule_exclusividad(cedula, inmo_id, proyecto_id, fecha_vencimiento)
 
     estado_proceso = fila.get('estado_proceso')
     if estado_proceso:

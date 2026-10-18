@@ -73,8 +73,7 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
         const resultados = await buscarClientesAdmin(
           busquedaCliente.trim(),
           tipo,
-          proyectoId,
-          inmobiliariaSeleccionada
+          proyectoId
         );
         
         setClientesEncontrados(resultados || []);

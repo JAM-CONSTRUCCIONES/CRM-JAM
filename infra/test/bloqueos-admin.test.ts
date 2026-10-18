@@ -12,7 +12,7 @@ describe('bloqueos admin', () => {
 
     expect(bloqueos).toContain("solicita_forzar_admin = bool(body.get('forzar_admin', False))");
     expect(bloqueos).toContain('forzar_admin = es_admin and solicita_forzar_admin');
-    expect(bloqueos).toContain('if tiene_cliente and not forzar_admin and EXCLUSIVIDAD_ACTIVA:');
+    expect(bloqueos).toContain('if tiene_cliente and not forzar_admin:');
     expect(bloqueos).toContain('if not ya_bloqueada_propia and not forzar_admin:');
   });
 

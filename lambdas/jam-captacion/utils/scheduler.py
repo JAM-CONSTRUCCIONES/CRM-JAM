@@ -6,7 +6,6 @@ scheduler = boto3.client('scheduler')
 
 CAPTACION_LAMBDA_ARN = os.environ.get('CAPTACION_LAMBDA_ARN', '')
 SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
-EXCLUSIVIDAD_ACTIVA = False
 
 
 def _schedule_name(cedula, inmobiliaria_id, proyecto_id):
@@ -18,8 +17,6 @@ def _schedule_name(cedula, inmobiliaria_id, proyecto_id):
 
 def crear_schedule_vencimiento(cedula, inmobiliaria_id, proyecto_id, ts_vencimiento_iso):
     """Crea un schedule one-time para vencer la exclusividad a los 3 meses."""
-    if not EXCLUSIVIDAD_ACTIVA:
-        return
     if not CAPTACION_LAMBDA_ARN or not SCHEDULER_ROLE_ARN:
         print(f'⚠ crear_schedule_vencimiento: ARNs no configurados, omitiendo schedule para {cedula}')
         print(f'  CAPTACION_LAMBDA_ARN: {CAPTACION_LAMBDA_ARN}')

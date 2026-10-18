@@ -10,7 +10,6 @@ dynamodb = boto3.resource('dynamodb')
 scheduler_client = boto3.client('scheduler')
 
 MESES_EXCLUSIVIDAD = 3
-EXCLUSIVIDAD_ACTIVA = False
 EMAIL_RE = re.compile(r'^[^\s@]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$')
 DOCUMENTO_RE = re.compile(r'^[A-Z0-9]+$')
 CATALOGO_TEXTO_RE = re.compile(r'^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ .-]+$')
@@ -200,7 +199,7 @@ def registrar_cliente_y_proceso(
             KeyConditionExpression=Key('cedula').eq(cedula) & Key('sk').eq(sk),
             FilterExpression=Attr('exclusividad_activa').eq(True),
         )
-        for item in resultado.get('Items', []) if EXCLUSIVIDAD_ACTIVA else []:
+        for item in resultado.get('Items', []):
             if item.get('inmobiliaria_id') != inmobiliaria_id:
                 return False, 'Este cliente tiene exclusividad activa con otra inmobiliaria en este proyecto'
     edad = _calcular_edad(datos_cliente.get('fecha_nacimiento'))
@@ -220,14 +219,13 @@ def registrar_cliente_y_proceso(
             'pais_residencia': datos_cliente.get('pais_residencia', ''),
             'fecha_nacimiento': datos_cliente.get('fecha_nacimiento', ''),
             'edad': edad,
-            'exclusividad_activa': EXCLUSIVIDAD_ACTIVA,
+            'exclusividad_activa': True,
             'fecha_captacion': ahora,
             'fecha_vencimiento': fecha_vencimiento,
             'creado_en': ahora,
         })
         # Programar vencimiento de exclusividad
-        if EXCLUSIVIDAD_ACTIVA:
-            _crear_schedule_exclusividad(cedula, inmobiliaria_id, proyecto_id, fecha_vencimiento)
+        _crear_schedule_exclusividad(cedula, inmobiliaria_id, proyecto_id, fecha_vencimiento)
     else:
         # Actualizar datos si ya existe (con o sin exclusividad)
         updates = ['actualizado_en = :ts']

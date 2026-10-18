@@ -428,9 +428,7 @@ def _escribir_cliente_proceso(proyecto_id, id_unidad, fila, cedula, nombres, ape
         'pais_residencia':   '',
         'fecha_nacimiento':  '',
         'edad':              None,
-        # La exclusividad fue retirada del sistema; las migraciones históricas
-        # deben conservar el cliente sin activar una restricción nueva.
-        'exclusividad_activa': False,
+        'exclusividad_activa': True,
         'fecha_captacion':   ahora,
         'fecha_vencimiento': '',
         'creado_en':         ahora,

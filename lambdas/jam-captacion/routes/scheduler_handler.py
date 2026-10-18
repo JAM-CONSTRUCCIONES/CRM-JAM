@@ -11,7 +11,6 @@ clientes = dynamodb.Table(os.environ['CLIENTES_TABLE'])
 sqs_client = boto3.client('sqs')
 scheduler = boto3.client('scheduler')
 SQS_URL = os.environ.get('SQS_URL')
-EXCLUSIVIDAD_ACTIVA = False
 
 
 def _publicar_evento(tipo, proyecto_id, inmobiliaria_id, metadata=None):
@@ -35,8 +34,6 @@ def _publicar_evento(tipo, proyecto_id, inmobiliaria_id, metadata=None):
 
 def handle(event):
     accion = event.get('accion')
-    if accion == 'vencer_exclusividad' and not EXCLUSIVIDAD_ACTIVA:
-        return
     if accion == 'vencer_exclusividad':
         cedula = event.get('cedula')
         inmobiliaria_id = event.get('inmobiliaria_id')

@@ -27,7 +27,6 @@ inventario_table = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 serializer = TypeSerializer()
 CAPTACION_LAMBDA_ARN = os.environ.get('CAPTACION_LAMBDA_ARN', '')
 SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
-EXCLUSIVIDAD_ACTIVA = False
 
 ESTADOS_PERMITIDOS = {
     'captacion', 'reserva', 'separacion', 'pagos_atrasados',
@@ -204,11 +203,10 @@ def traspasar_cliente(event, cedula_actual, proyecto_id, unidad_id):
     if crear_cliente and cliente_destino_existente:
         return conflict('Ya existe un cliente con esa cedula; seleccionelo como cliente existente')
 
-    if EXCLUSIVIDAD_ACTIVA:
-        try:
-            _validar_exclusividad(cedula_destino, inmobiliaria_id, proyecto_id)
-        except ValueError as exc:
-            return conflict(str(exc))
+    try:
+        _validar_exclusividad(cedula_destino, inmobiliaria_id, proyecto_id)
+    except ValueError as exc:
+        return conflict(str(exc))
 
     inventario_key = {'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'}
     unidad = inventario_table.get_item(Key=inventario_key).get('Item')
@@ -268,7 +266,7 @@ def traspasar_cliente(event, cedula_actual, proyecto_id, unidad_id):
             'sk': f'PROYECTO#{proyecto_id}',
             'inmobiliaria_id': inmobiliaria_id,
             'proyecto_id': proyecto_id,
-            'exclusividad_activa': EXCLUSIVIDAD_ACTIVA,
+            'exclusividad_activa': True,
             'fecha_captacion': ahora,
             'fecha_vencimiento': _sumar_meses(ahora_dt, 3).isoformat(),
             'creado_en': ahora,
@@ -300,7 +298,7 @@ def traspasar_cliente(event, cedula_actual, proyecto_id, unidad_id):
         raise
 
     advertencias = []
-    if crear_cliente and EXCLUSIVIDAD_ACTIVA:
+    if crear_cliente:
         try:
             programado = _programar_vencimiento_exclusividad(
                 cedula_destino, inmobiliaria_id, proyecto_id,

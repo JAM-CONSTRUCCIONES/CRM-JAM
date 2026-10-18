@@ -30,7 +30,6 @@ INVENTARIO_TABLE = os.environ.get('INVENTARIO_TABLE', '')
 clientes_table = dynamodb.Table(CLIENTES_TABLE) if CLIENTES_TABLE else None
 procesos_table = dynamodb.Table(PROCESOS_TABLE) if PROCESOS_TABLE else None
 inventario_table = dynamodb.Table(INVENTARIO_TABLE) if INVENTARIO_TABLE else None
-EXCLUSIVIDAD_ACTIVA = False
 
 INSTAGRAM_TOKEN_PARAMS = {
     'jamconstruccionessrl': os.environ.get('INSTAGRAM_TOKEN_PARAM_JAM', ''),
@@ -789,7 +788,7 @@ def convertir_lead(event):
         KeyConditionExpression=Key('cedula').eq(cedula) & Key('sk').eq(sk_cliente),
         FilterExpression=Attr('exclusividad_activa').eq(True),
     )
-    for item in exclusividad.get('Items', []) if EXCLUSIVIDAD_ACTIVA else []:
+    for item in exclusividad.get('Items', []):
         if _normalizar_inmo_id(item.get('inmobiliaria_id')) != inmobiliaria_id:
             return conflict('Este cliente tiene exclusividad activa con otra inmobiliaria en este proyecto')
 
@@ -842,7 +841,7 @@ def convertir_lead(event):
         'nacionalidad': _clean(body.get('nacionalidad')),
         'pais_residencia': _clean(body.get('pais_residencia')),
         'fecha_nacimiento': _clean(body.get('fecha_nacimiento')),
-        'exclusividad_activa': EXCLUSIVIDAD_ACTIVA,
+        'exclusividad_activa': True,
         'fecha_captacion': ahora,
         'fecha_vencimiento': fecha_vencimiento,
         'fuente': lead.get('fuente') or 'Meta',

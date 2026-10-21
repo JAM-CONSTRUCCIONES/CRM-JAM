@@ -7,11 +7,11 @@ import {
   Empty,
   Input,
   Space,
-  Table,
   Tag,
   Typography,
   message,
 } from 'antd';
+import Table from '../../components/common/ResponsiveTable';
 import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -157,7 +157,7 @@ export default function MetaFormsPage() {
           <Title level={3} className="!mb-1">Formularios Meta</Title>
           <Text type="secondary">Respuestas recibidas desde formularios de campañas Meta.</Text>
         </div>
-        <Space wrap>
+        <Space className="page-toolbar" wrap>
           <Search
             allowClear
             placeholder="Buscar contacto, campaña, anuncio o respuesta"
@@ -172,7 +172,7 @@ export default function MetaFormsPage() {
         </Space>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="form-summary grid gap-3 md:grid-cols-3">
         <Card size="small">
           <Text type="secondary">Formularios cargados</Text>
           <div className="text-2xl font-semibold">{stats.total}</div>

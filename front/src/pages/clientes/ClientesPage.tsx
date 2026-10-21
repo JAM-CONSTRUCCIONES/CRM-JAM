@@ -712,7 +712,7 @@ const ClientesPage = () => {
               {vista === 'proyectos' ? 'Clientes' : proyectoSeleccionado?.nombre ?? 'Clientes'}
             </Title>
           </div>
-          <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
+          <Space className="page-toolbar" wrap style={{ width: isMobile ? '100%' : undefined }}>
             {vista === 'proyectos' && (
               <Select
                 allowClear
@@ -729,7 +729,7 @@ const ClientesPage = () => {
               <>
                 <Tooltip title="Exportar clientes en Excel">
                   <Button icon={<DownloadOutlined />} onClick={handleExportarClientes} loading={exportando} style={{ flex: isMobile ? '1 1 120px' : undefined }}>
-                    {isMobile ? '' : 'Exportar clientes'}
+                    Exportar clientes
                   </Button>
                 </Tooltip>
                 <Tooltip title="Actualizar">
@@ -739,13 +739,13 @@ const ClientesPage = () => {
             )}
             {!isAdmin && vista === 'clientes' && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.setFieldsValue({ proyecto_id: proyectoFiltro }); setModalOpen(true); }} style={{ flex: isMobile ? '1 1 140px' : undefined }}>
-                {isMobile ? '' : 'Registrar cliente'}
+                Registrar cliente
               </Button>
             )}
           </Space>
         </div>
         {vista === 'clientes' && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+        <div className="filter-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
           <Select 
             value={tipoBusqueda} 
             onChange={setTipoBusqueda}
@@ -988,7 +988,7 @@ const ClientesPage = () => {
                   </Space>
                 </div>
                 <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                  <div className="detail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                     <div>
                       <Text type="secondary" style={{ fontSize: 11 }}>CÉDULA</Text>
                       <div><Text strong>{reg.cedula}</Text></div>
@@ -1033,7 +1033,7 @@ const ClientesPage = () => {
                 </div>
                 <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
                   <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>Datos completos</Title>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                  <div className="detail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                     <DetalleCampo label="Nombres" value={reg.nombres} strong />
                     <DetalleCampo label="Apellidos" value={reg.apellidos} strong />
                     <DetalleCampo label="Documento" value={reg.cedula} strong />
@@ -1172,7 +1172,7 @@ const ClientesPage = () => {
         {drawerCliente && (
           <div>
             <div style={{ background: 'var(--panel-soft-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+              <div className="detail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                 <div>
                   <Text type="secondary" style={{ fontSize: 11 }}>CÉDULA</Text>
                   <div><Text strong>{drawerCliente.cedula}</Text></div>
@@ -1229,7 +1229,7 @@ const ClientesPage = () => {
             </div>
             <div style={{ background: 'var(--panel-bg)', border: '1px solid var(--app-border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
               <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>Datos completos</Title>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+              <div className="detail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
                 <DetalleCampo label="Nombres" value={drawerCliente.nombres} strong />
                 <DetalleCampo label="Apellidos" value={drawerCliente.apellidos} strong />
                 <DetalleCampo label="Documento" value={drawerCliente.cedula} strong />

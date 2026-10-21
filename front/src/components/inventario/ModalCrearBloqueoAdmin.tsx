@@ -363,12 +363,12 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 </Form.Item>
                 
                 <Row gutter={12}>
-                  <Col span={12}>
+                  <Col xs={24} sm={12}>
                     <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}>
                       <Input />
                     </Form.Item>
                   </Col>
-                  <Col span={12}>
+                  <Col xs={24} sm={12}>
                     <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}>
                       <Input />
                     </Form.Item>
@@ -376,12 +376,12 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 </Row>
                 
                 <Row gutter={12}>
-                  <Col span={12}>
+                  <Col xs={24} sm={12}>
                     <Form.Item name="correo" label="Correo" rules={clienteFormRules.correo} normalize={clienteFieldNormalizers.correo}>
                       <Input type="email" placeholder="correo@ejemplo.com" />
                     </Form.Item>
                   </Col>
-                  <Col span={12}>
+                  <Col xs={24} sm={12}>
                     <Form.Item name="telefono" label="Teléfono" rules={clienteFormRules.telefono}>
                       <Input inputMode="numeric" placeholder="584120000000" />
                     </Form.Item>
@@ -397,12 +397,12 @@ const ModalCrearBloqueoAdmin = ({ open, unidad, proyectoId, inmobiliarias, onCan
                 </Form.Item>
                 
                 <Row gutter={12}>
-                  <Col span={12}>
+                  <Col xs={24} sm={12}>
                     <Form.Item name="nacionalidad" label="Nacionalidad">
                       <NacionalidadSelect />
                     </Form.Item>
                   </Col>
-                  <Col span={12}>
+                  <Col xs={24} sm={12}>
                     <Form.Item name="pais_residencia" label="País de residencia">
                       <PaisResidenciaSelect />
                     </Form.Item>

@@ -265,7 +265,7 @@ export default function TareasPage() {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="agenda-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
         <div>
           <Title level={3} style={{ marginBottom: 4 }}>Agenda / Tareas</Title>
@@ -355,9 +355,9 @@ export default function TareasPage() {
                 gap: 8,
                 width: isSmallMobile ? '100%' : undefined,
               }}>
-                <Button size={isMobile ? 'small' : 'middle'} icon={<LeftOutlined />} onClick={() => cambiarMes(-1)} />
+                <Button aria-label="Mes anterior" size={isMobile ? 'small' : 'middle'} icon={<LeftOutlined />} onClick={() => cambiarMes(-1)} />
                 <Button size={isMobile ? 'small' : 'middle'} onClick={irAHoy}>Hoy</Button>
-                <Button size={isMobile ? 'small' : 'middle'} icon={<RightOutlined />} onClick={() => cambiarMes(1)} />
+                <Button aria-label="Mes siguiente" size={isMobile ? 'small' : 'middle'} icon={<RightOutlined />} onClick={() => cambiarMes(1)} />
               </div>
             </div>
             <Spin spinning={loading}>
@@ -479,8 +479,11 @@ export default function TareasPage() {
                     </Space>
                     <Space wrap>
                       <Button size="small" icon={<EditOutlined />} onClick={() => abrirEditarTarea(tarea)} disabled={!puedeAsignar}>Editar</Button>
-                      <Button size="small" icon={<ClockCircleOutlined />} onClick={() => cambiarEstado(tarea, 'en_progreso')} disabled={!puedeAsignar || tarea.estado === 'en_progreso'} />
+                      <Button aria-label="Marcar en progreso" size="small" icon={<ClockCircleOutlined />} onClick={() => cambiarEstado(tarea, 'en_progreso')} disabled={!puedeAsignar || tarea.estado === 'en_progreso'} />
                       <Button size="small" icon={<CheckCircleOutlined />} onClick={() => cambiarEstado(tarea, 'completada')} disabled={!puedeAsignar || tarea.estado === 'completada'}>Completar</Button>
+                      {isMobile && usuario?.rol === 'admin' && (
+                        <Button size="small" danger icon={<StopOutlined />} onClick={() => cancelar(tarea)} disabled={tarea.estado === 'cancelada'}>Cancelar tarea</Button>
+                      )}
                     </Space>
                   </Space>
                 </Card>

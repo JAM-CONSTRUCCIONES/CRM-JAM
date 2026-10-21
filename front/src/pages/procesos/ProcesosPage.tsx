@@ -8,7 +8,7 @@ import {
   ReloadOutlined, SwapOutlined, HistoryOutlined,
   SearchOutlined, MoreOutlined, UserOutlined, LockOutlined,
   FieldTimeOutlined, UserAddOutlined, ClockCircleOutlined, UnlockOutlined,
-  ArrowLeftOutlined, AppstoreOutlined, InfoCircleOutlined, UserSwitchOutlined,
+  ArrowLeftOutlined, AppstoreOutlined, InfoCircleOutlined, UserSwitchOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { listarTodosProcesos, cambiarEstatus, getMisProcesos, traspasarClienteProceso, type ProcesoEnriquecido } from '../../services/crm.service';
@@ -728,14 +728,14 @@ const ProcesosPage = () => {
       <div key={`${p.pk}#${p.sk}`} style={{ background: 'var(--panel-bg)', borderRadius: 12, border: '1px solid var(--app-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginBottom: 10, padding: '14px 16px' }}>
         {vencida && (
           <div style={{ background: 'var(--danger-soft-bg)', border: '1px solid var(--danger-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#ff7875', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 14 }}>⚠️</span>
+            <WarningOutlined aria-hidden="true" style={{ fontSize: 14 }} />
             <span style={{ flex: 1 }}>Reserva vencida (30 dias)</span>
             {puedeAvanzar && <Button size="small" type="link" danger style={{ padding: 0, height: 'auto', fontSize: 11 }} onClick={() => setEstatusModal(p)}>Cambiar estatus</Button>}
           </div>
         )}
         {proxima && (
           <div style={{ background: 'var(--warning-soft-bg)', border: '1px solid var(--warning-soft-border)', borderRadius: 6, padding: '6px 10px', marginBottom: 8, fontSize: 12, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 14 }}>⏰</span>
+            <ClockCircleOutlined aria-hidden="true" style={{ fontSize: 14 }} />
             <span>Vence en {30 - dias!} día{30 - dias! !== 1 ? 's' : ''}</span>
           </div>
         )}
@@ -815,8 +815,8 @@ const ProcesosPage = () => {
                 <ClockCircleOutlined style={{ marginRight: 4 }} />{formatTiempo(tiempoRestante)}
               </Text>
             )}
-            {vencida && <Tooltip title="Reserva vencida (30 dias sin separacion)"><span style={{ fontSize: 12, color: '#cf1322' }}>⚠️</span></Tooltip>}
-            {proxima && <Tooltip title="Próximo a vencer"><span style={{ fontSize: 12, color: '#d46b08' }}>⏰</span></Tooltip>}
+            {vencida && <Tooltip title="Reserva vencida (30 dias sin separacion)"><WarningOutlined aria-label="Reserva vencida" style={{ fontSize: 14, color: '#cf1322' }} /></Tooltip>}
+            {proxima && <Tooltip title="Próximo a vencer"><ClockCircleOutlined aria-label="Próximo a vencer" style={{ fontSize: 14, color: '#d46b08' }} /></Tooltip>}
           </Space>
         } />
         {!esInmobiliaria && <Text style={{ fontSize: 12 }}>{inmoNombre(p.inmobiliaria_id)}</Text>}
@@ -1015,7 +1015,7 @@ const ProcesosPage = () => {
             {vista === 'proyectos' ? 'Proyectos' : proyectoSeleccionado?.nombre ?? 'Procesos de venta'}
           </Title>
         </div>
-        <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
+        <Space className="page-toolbar" wrap style={{ width: isMobile ? '100%' : undefined }}>
           {vista === 'proyectos' && (
             <Select
               allowClear
@@ -1094,7 +1094,7 @@ const ProcesosPage = () => {
       {vista === 'procesos' && (
         <>
           {/* Filtros */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          <div className="filter-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
             <Select
               allowClear
               showSearch

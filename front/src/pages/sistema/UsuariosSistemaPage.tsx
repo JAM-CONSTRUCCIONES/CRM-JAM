@@ -223,14 +223,14 @@ const UsuariosSistemaPage = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 12 }}>
         <Title level={4} style={{ margin: 0 }}>Usuarios del sistema</Title>
         <Space>
           <Tooltip title="Actualizar">
-            <Button icon={<ReloadOutlined />} onClick={cargar} loading={loading} />
+            <Button aria-label="Actualizar usuarios" icon={<ReloadOutlined />} onClick={cargar} loading={loading} />
           </Tooltip>
           <Button type="primary" icon={<PlusOutlined />} onClick={abrirCrear}>
-            {isMobile ? '' : 'Nuevo usuario'}
+            Nuevo usuario
           </Button>
         </Space>
       </div>

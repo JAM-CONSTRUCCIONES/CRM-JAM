@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert, Button, Card, Col, Divider, Empty, Form, Input, Modal, Row, Select,
-  Space, Statistic, Table, Tabs, Tag, Typography, Upload, message, Grid,
+  Space, Statistic, Tabs, Tag, Typography, Upload, message, Grid,
 } from 'antd';
+import Table from '../../components/common/ResponsiveTable';
 import {
   CopyOutlined, EyeOutlined, HistoryOutlined, MailOutlined, PlusOutlined,
   SaveOutlined, SendOutlined, UploadOutlined,

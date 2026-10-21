@@ -42,7 +42,7 @@ const MfaSetupPage = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', padding: 16 }}>
+    <div className="responsive-content" style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--app-bg)', padding: 16 }}>
       <Card style={{ width: '100%', maxWidth: 460, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <Title level={3} style={{ textAlign: 'center', marginBottom: 24 }}>JAM Construcciones</Title>
 
@@ -76,7 +76,7 @@ const MfaSetupPage = () => {
               </div>
             )}
 
-            <div style={{ background: '#f5f5f5', borderRadius: 6, padding: '10px 14px', marginBottom: 20 }}>
+            <div style={{ background: 'var(--panel-soft-bg)', borderRadius: 8, padding: '10px 14px', marginBottom: 20 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>Clave manual:</Text>
               <div style={{ marginTop: 4, wordBreak: 'break-all', fontFamily: 'monospace', fontSize: 13, userSelect: 'all' }}>
                 {secretCode}

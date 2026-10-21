@@ -15,11 +15,11 @@ import {
   Space,
   Statistic,
   Tabs,
-  Table,
   Tag,
   Typography,
   message,
 } from 'antd';
+import Table from '../../components/common/ResponsiveTable';
 import {
   Bar,
   BarChart,
@@ -779,7 +779,7 @@ export default function MetaLeadsPage() {
               <Space direction="vertical" size={16} className="w-full">
                 <Card>
                   <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <Space wrap>
+                    <Space className="page-toolbar" wrap>
                       <Select
                         allowClear
                         placeholder="Canal"
@@ -838,7 +838,7 @@ export default function MetaLeadsPage() {
                         ]}
                       />
                     </Space>
-                    <Space wrap>
+                    <Space className="page-toolbar" wrap>
                       <Search
                         allowClear
                         placeholder="Buscar contacto, mensaje o responsable"

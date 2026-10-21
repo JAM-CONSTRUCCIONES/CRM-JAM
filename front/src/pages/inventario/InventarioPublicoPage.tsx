@@ -125,7 +125,7 @@ const InventarioPublicoPage = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--app-bg)', color: 'var(--text-main)' }}>
+    <div className="responsive-content" style={{ minHeight: '100vh', background: 'var(--app-bg)', color: 'var(--text-main)' }}>
       <div style={{ maxWidth: 1320, margin: '0 auto', padding: isMobile ? 16 : 24 }}>
 
         {/* Header con toggle de tema */}
@@ -185,7 +185,7 @@ const InventarioPublicoPage = () => {
           description="Solo se muestran unidades disponibles y bloqueadas. Esta vista no permite bloquear, editar, cambiar estatus ni ver informacion interna."
         />
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+        <div className="filter-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           <Select
             allowClear
             placeholder="Etapa"

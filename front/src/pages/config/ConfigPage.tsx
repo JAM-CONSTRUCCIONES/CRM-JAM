@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Button, Drawer, Form, Input, Space,
-  Tag, Tooltip, message, Spin, Popconfirm, Alert, Divider, Table, Switch,
+  Tag, Tooltip, message, Spin, Popconfirm, Alert, Divider, Switch,
   Card, Row, Col, Statistic,
 } from 'antd';
+import Table from '../../components/common/ResponsiveTable';
 import { EditOutlined, UndoOutlined, SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
@@ -178,7 +179,7 @@ const ConfigPage = () => {
                     dataIndex: 'label',
                     render: (_: unknown, tpl: EmailTemplate) => (
                       <Space direction="vertical" size={2}>
-                        <Space>
+                        <Space wrap>
                           <Text strong>{tpl.label}</Text>
                           {tpl.tipo === 'exclusividad_vencida' && (
                             <Switch

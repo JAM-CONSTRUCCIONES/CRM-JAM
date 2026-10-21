@@ -162,7 +162,7 @@ const Sidebar = ({ onSelect, collapsed = false }: Props) => {
   ];
 
   return (
-    <div className={cn('flex h-full flex-col bg-card text-card-foreground', collapsed ? 'px-2 py-3' : 'px-4 py-5')}>
+    <div className={cn('app-navigation flex h-full flex-col bg-card text-card-foreground', collapsed ? 'px-2 py-3' : 'px-4 py-5')}>
       <div className={cn('flex flex-col items-center', collapsed ? 'pb-3' : 'pb-7')}>
         <img
           src="/Jam-Construcciones.png"
@@ -172,7 +172,7 @@ const Sidebar = ({ onSelect, collapsed = false }: Props) => {
         {!collapsed && <div className="mt-2 text-sm font-semibold text-foreground">JAM Construcciones</div>}
       </div>
 
-      <nav className={cn('flex-1 overflow-y-auto', collapsed ? 'pr-0' : 'pr-1')}>
+      <nav aria-label="Menú principal" className={cn('min-h-0 flex-1 overflow-y-auto', collapsed ? 'pr-0' : 'pr-1')}>
         {sections.map((section, si) => (
           <div key={si} className={cn(collapsed ? 'mb-1.5' : 'mb-4')}>
             {section.title && !collapsed && (
@@ -199,6 +199,7 @@ const Sidebar = ({ onSelect, collapsed = false }: Props) => {
                       onSelect();
                     }}
                     aria-label={item.label}
+                    aria-current={active ? 'page' : undefined}
                   >
                     <span className="[&_svg]:size-4">{item.icon}</span>
                     {!collapsed && <span className="truncate">{item.label}</span>}

@@ -316,7 +316,7 @@ const BloqueosPage = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 8 }}>
         <Title level={4} style={{ margin: 0 }}>Bloqueos</Title>
-        <Space wrap>
+        <Space className="page-toolbar" wrap>
           <Select allowClear placeholder="Filtrar por proyecto" style={{ width: isMobile ? '100%' : 200 }}
             value={proyectoFiltro} onChange={setProyectoFiltro}>
             {proyectos.map(p => <Select.Option key={p.proyecto_id} value={p.proyecto_id}>{p.nombre}</Select.Option>)}

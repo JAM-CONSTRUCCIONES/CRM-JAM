@@ -58,7 +58,7 @@
   --app-border-strong: #d8dee8;
   --text-main: #111827;
   --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
+  --text-muted: #64748b;
   --action-bg: #1677ff;
   --action-hover: #0958d9;
   --action-border: #adc6ff;
@@ -108,7 +108,7 @@
   --app-border-strong: #475569;
   --text-main: #f8fafc;
   --text-secondary: #cbd5e1;
-  --text-muted: #64748b;
+  --text-muted: #94a3b8;
   --action-bg: #38bdf8;
   --action-hover: #0ea5e9;
   --action-border: #256f91;
@@ -153,7 +153,8 @@ a {
 .app-content-frame {
   width: 100%;
   max-width: 1760px;
-  margin: 0;
+  margin: 0 auto;
+  min-width: 0;
 }
 
 .surface-panel,
@@ -167,7 +168,7 @@ a {
 .ant-list,
 .ant-collapse,
 .ant-descriptions {
-  box-shadow: var(--panel-shadow);
+  box-shadow: none;
 }
 
 .ant-card {
@@ -239,8 +240,8 @@ a {
 }
 
 .ant-table-wrapper .ant-pagination {
-  margin: 14px 0 0 !important;
-  padding: 0 2px;
+  margin: 0 !important;
+  padding: 14px 16px;
 }
 
 .ant-table-wrapper .ant-pagination-total-text {
@@ -335,15 +336,28 @@ a {
 
 /* ── Modales centrados en desktop ── */
 .ant-modal {
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  padding-bottom: 0 !important;
+  top: 24px;
+  padding-bottom: 24px;
 }
 
-.ant-modal-content {
+:is(.ant-modal-content, .ant-modal-container) {
   border-radius: 16px !important;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35) !important;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+}
+
+.ant-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ant-modal-header,
+.ant-modal-footer {
+  flex-shrink: 0;
 }
 
 .ant-modal-header {
@@ -361,7 +375,7 @@ a {
   border-top: 1px solid var(--app-border) !important;
 }
 
-:root[data-theme='dark'] .ant-modal-content,
+:root[data-theme='dark'] :is(.ant-modal-content, .ant-modal-container),
 :root[data-theme='dark'] .ant-modal-header,
 :root[data-theme='dark'] .ant-modal-footer,
 :root[data-theme='dark'] .ant-modal-confirm-body-wrapper {
@@ -376,13 +390,13 @@ a {
   color: var(--text-main) !important;
 }
 
-:root[data-theme='dark'] .ant-modal-confirm .ant-modal-content,
+:root[data-theme='dark'] .ant-modal-confirm :is(.ant-modal-content, .ant-modal-container),
 :root[data-theme='dark'] .ant-modal-confirm .ant-modal-confirm-body-wrapper,
 :root[data-theme='dark'] .ant-modal-confirm .ant-modal-confirm-btns {
   background: var(--panel-bg) !important;
 }
 
-html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm .ant-modal-content,
+html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm :is(.ant-modal-content, .ant-modal-container),
 html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm .ant-modal-confirm-body,
 html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm .ant-modal-confirm-body-wrapper,
 html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm .ant-modal-confirm-paragraph,
@@ -391,7 +405,7 @@ html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm .ant-modal-confi
   background-image: none !important;
 }
 
-html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm .ant-modal-content {
+html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm :is(.ant-modal-content, .ant-modal-container) {
   border: 1px solid var(--app-border) !important;
 }
 
@@ -497,9 +511,9 @@ html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm .ant-modal-confi
     padding-bottom: 0 !important;
   }
 
-  .ant-modal-content {
+  :is(.ant-modal-content, .ant-modal-container) {
     border-radius: 0 !important;
-    min-height: 100dvh;
+    max-height: 100dvh;
     box-shadow: none !important;
   }
 
@@ -508,7 +522,7 @@ html[data-theme='dark'] body .ant-modal-root .ant-modal-confirm .ant-modal-confi
   }
 
   .ant-modal-wrap {
-    overflow: hidden;
+    overflow-y: auto;
   }
 }
 

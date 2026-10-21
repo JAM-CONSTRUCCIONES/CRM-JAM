@@ -1726,9 +1726,9 @@ export default function MetaInboxPage() {
   };
 
   return (
-    <div className="-mx-3 -mt-3 flex h-[calc(100dvh-64px)] min-h-[520px] flex-col overflow-hidden lg:-mx-7 lg:-mt-4">
-      <div className={`grid min-h-0 flex-1 gap-0 ${leadPanelOpen ? 'lg:grid-cols-[300px_minmax(0,1fr)_280px]' : 'lg:grid-cols-[300px_minmax(0,1fr)]'} grid-cols-1`}>
-        <div ref={mensajesPanelRef} className={`${selectedLead ? 'hidden md:flex' : 'flex'} min-h-0 flex-col border-r border-[var(--app-border)] bg-[var(--panel-bg)]`}>
+    <div className="inbox-workspace -mx-3 -mt-3 flex flex-col overflow-hidden lg:-mx-7 lg:-mt-4">
+      <div className={`grid min-h-0 flex-1 gap-0 ${leadPanelOpen ? 'xl:grid-cols-[280px_minmax(0,1fr)_280px]' : ''} lg:grid-cols-[280px_minmax(0,1fr)] grid-cols-1`}>
+        <div ref={mensajesPanelRef} className={`${selectedLead ? 'hidden lg:flex' : 'flex'} min-h-0 min-w-0 flex-col border-r border-[var(--app-border)] bg-[var(--panel-bg)]`}>
           {/* Header del panel izquierdo — titulo + boton actualizar */}
           <div className="flex items-center justify-between border-b border-[var(--app-border)] px-3 py-2.5">
             <Text strong>Inbox Meta</Text>
@@ -1820,10 +1820,10 @@ export default function MetaInboxPage() {
           </div>
         </div>
 
-        <div className={`${selectedLead ? 'flex' : 'hidden md:flex'} min-h-0 flex-col bg-[var(--panel-bg)]`}>
+        <div className={`${selectedLead ? 'flex' : 'hidden lg:flex'} min-h-0 min-w-0 flex-col bg-[var(--panel-bg)]`}>
           {selectedLead ? (
             <div className="flex h-full flex-col">
-              <div className="flex min-h-[48px] items-center justify-between gap-2 border-b border-[var(--app-border)] px-2 py-2 sm:px-3">
+              <div className="inbox-conversation-header flex min-h-[48px] flex-wrap items-center justify-between gap-2 border-b border-[var(--app-border)] px-2 py-2 sm:px-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <Button
                     type="text"
@@ -1833,7 +1833,7 @@ export default function MetaInboxPage() {
                       setSelectedLead(null);
                       setTareasLead([]);
                     }}
-                    className="md:!hidden"
+                    className="lg:!hidden"
                     title="Volver a conversaciones"
                   />
                   <div className="min-w-0">
@@ -2230,8 +2230,8 @@ export default function MetaInboxPage() {
                     }
                   }}
                 />
-                <div className="flex items-center justify-between gap-2">
-                  <Text type="secondary" className="text-[11px]">Enter envia · Shift+Enter nueva linea</Text>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Text type="secondary" className="mr-auto hidden text-[11px] sm:block">Enter envia · Shift+Enter nueva linea</Text>
                   {grabandoAudio && (
                     <Text type="secondary" className="text-[11px]">
                       Grabando {formatDuracionAudio(duracionAudio)}
@@ -2302,7 +2302,7 @@ export default function MetaInboxPage() {
 
         {leadPanelOpen && (
         <Card
-          className="fixed inset-0 z-50 flex min-h-0 flex-col overflow-hidden border-l lg:static lg:z-auto"
+          className="inbox-lead-panel fixed inset-0 z-[110] flex min-h-0 flex-col overflow-hidden border-l xl:static xl:z-auto"
           title="Lead"
           extra={(
             <Button size="small" onClick={() => setLeadPanelOpen(false)}>

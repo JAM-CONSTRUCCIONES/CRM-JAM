@@ -357,7 +357,7 @@ const InventarioPage = () => {
               )}
             </div>
           </div>
-          <Space wrap direction="horizontal" align="center">
+          <Space className="page-toolbar" wrap direction="horizontal" align="center">
             {inv.vista === 'proyectos' && (
               <Input
                 allowClear
@@ -532,7 +532,7 @@ const InventarioPage = () => {
       {inv.vista === 'unidades' && (
         <>
           {/* Barra de filtros */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          <div className="filter-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
             <Select allowClear placeholder="Etapa" style={{ width: isMobile ? '100%' : 150 }}
               value={inv.filtroEtapa || undefined} 
               onChange={v => { 

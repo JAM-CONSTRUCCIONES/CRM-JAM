@@ -234,7 +234,7 @@ const InmobiliariasPage = () => {
         <Title level={4} style={{ margin: 0, wordBreak: 'normal', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
           Inmobiliarias
         </Title>
-        <Space wrap style={{ width: isMobile ? '100%' : undefined }}>
+        <Space className="page-toolbar" wrap style={{ width: isMobile ? '100%' : undefined }}>
           <Input
             allowClear
             prefix={<SearchOutlined />}

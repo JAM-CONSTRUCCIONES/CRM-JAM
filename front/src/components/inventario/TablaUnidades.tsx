@@ -1,5 +1,6 @@
+import { useState, useMemo, useEffect } from 'react';
 import { Table, Tag, Button, Space, Tooltip, Popconfirm, Typography, Grid, Popover } from 'antd';
-import { EditOutlined, DeleteOutlined, LockOutlined, ClockCircleOutlined, InfoCircleOutlined, MessageOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, LockOutlined, ClockCircleOutlined, InfoCircleOutlined, MessageOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import type { Unidad, Etapa } from '../../types';
 import { ESTADO_UNIDAD_CONFIG } from '../../constants/estados';
 
@@ -149,8 +150,66 @@ const UnidadCard = ({ u, etapas, isAdmin, isInmobiliaria, canEdit, canDelete, re
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
+const PAGE_SIZE = 30;
+
 const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, canEdit, canDelete, readOnlyPublic, inmoNombre, onEditar, onEliminar, onBloquear, onCrearBloqueoAdmin }: Props) => {
   const { md } = useBreakpoint();
+  const isMobile = !md;
+
+  // ── Paginación local (mismo estilo que Procesos) ────────────────────────────
+  const [paginaActual, setPaginaActual] = useState(0);
+  const totalPaginas = Math.max(1, Math.ceil(unidades.length / PAGE_SIZE));
+
+  // Si cambia el conjunto (nuevo proyecto/etapa/filtro) y la página queda fuera de rango, ajustar.
+  useEffect(() => {
+    if (paginaActual > totalPaginas - 1) setPaginaActual(0);
+  }, [totalPaginas, paginaActual]);
+
+  // Al cambiar de página, llevar la vista al inicio de la página completa.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [paginaActual]);
+
+  const unidadesPagina = useMemo(
+    () => unidades.slice(paginaActual * PAGE_SIZE, paginaActual * PAGE_SIZE + PAGE_SIZE),
+    [unidades, paginaActual],
+  );
+
+  // Paginador ◀ Anterior | Página N de M | Siguiente ▶ (idéntico a Procesos).
+  const renderPaginador = (variante: 'top' | 'bottom' = 'bottom') => {
+    if (totalPaginas <= 1) return null;
+    const esTop = variante === 'top';
+    const size = esTop ? 'small' : 'middle';
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: esTop ? 'flex-end' : 'center',
+        alignItems: 'center',
+        gap: esTop ? 8 : 12,
+        marginTop: esTop ? 0 : 20,
+        marginBottom: esTop ? 10 : 8,
+      }}>
+        <Button
+          size={size}
+          icon={<ArrowLeftOutlined />}
+          disabled={paginaActual === 0 || loading}
+          onClick={() => setPaginaActual(p => Math.max(0, p - 1))}
+        >
+          {!isMobile && 'Anterior'}
+        </Button>
+        <Text strong style={{ minWidth: esTop ? 90 : 110, textAlign: 'center', fontSize: esTop ? 12 : undefined }}>
+          Página {paginaActual + 1} de {totalPaginas}
+        </Text>
+        <Button
+          size={size}
+          disabled={paginaActual >= totalPaginas - 1 || loading}
+          onClick={() => setPaginaActual(p => p + 1)}
+        >
+          {!isMobile && 'Siguiente'} <span style={{ marginLeft: 4 }}>▶</span>
+        </Button>
+      </div>
+    );
+  };
 
   // Móvil → cards
   if (!md) {
@@ -158,12 +217,14 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
     if (!unidades.length) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Sin unidades</div>;
     return (
       <div>
-        {unidades.map(u => (
+        {renderPaginador('top')}
+        {unidadesPagina.map(u => (
           <UnidadCard key={u.unidad_id} u={u} etapas={etapas}
             isAdmin={isAdmin} isInmobiliaria={isInmobiliaria} canEdit={canEdit} canDelete={canDelete} inmoNombre={inmoNombre}
             readOnlyPublic={readOnlyPublic}
             onEditar={onEditar} onEliminar={onEliminar} onBloquear={onBloquear} onCrearBloqueoAdmin={onCrearBloqueoAdmin} />
         ))}
+        {renderPaginador('bottom')}
       </div>
     );
   }
@@ -278,14 +339,18 @@ const TablaUnidades = ({ unidades, etapas, loading, isAdmin, isInmobiliaria, can
   ];
 
   return (
-    <Table dataSource={unidades} columns={columnas} rowKey="unidad_id"
-      className="inventario-unidades-table"
-      loading={loading} pagination={{ pageSize: 30, showSizeChanger: false }}
-      locale={{ emptyText: 'Sin unidades' }}
-      scroll={{ x: true }}
-      rowClassName={(r) => `row-estado-${r.estado}`}
-      size="middle"
-    />
+    <div>
+      {renderPaginador('top')}
+      <Table dataSource={unidadesPagina} columns={columnas} rowKey="unidad_id"
+        className="inventario-unidades-table"
+        loading={loading} pagination={false}
+        locale={{ emptyText: 'Sin unidades' }}
+        scroll={{ x: true }}
+        rowClassName={(r) => `row-estado-${r.estado}`}
+        size="middle"
+      />
+      {renderPaginador('bottom')}
+    </div>
   );
 };
 

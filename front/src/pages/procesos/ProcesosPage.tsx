@@ -32,7 +32,7 @@ import { confirmarExclusividadCliente } from '../../components/common/ConfirmarE
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
-type TabProcesos = 'procesos' | 'historial';
+type TabProcesos = 'procesos' | 'desvinculados' | 'historial';
 
 const UNIDAD_COLLATOR = new Intl.Collator('es', {
   sensitivity: 'variant',
@@ -286,12 +286,21 @@ const ProcesosPage = () => {
     setProcesos(pagEnriquecida);
   }, [esInmobiliaria]);
 
-  // Conjunto COMPLETO filtrado por inmobiliaria (local), sobre el que se pagina.
+  // Conjunto COMPLETO filtrado por inmobiliaria y por pestaña (local), sobre el que se pagina.
+  // - Pestaña "procesos": todos MENOS los desvinculados.
+  // - Pestaña "desvinculados": solo los desvinculados.
   const procesosFiltradosTotal = useMemo(() => {
-    if (!inmoFiltro) return procesosCrudos;
-    const inmoNorm = inmoFiltro.replace('INMOBILIARIA#', '');
-    return procesosCrudos.filter(p => (p.inmobiliaria_id?.replace('INMOBILIARIA#', '')) === inmoNorm);
-  }, [procesosCrudos, inmoFiltro]);
+    let base = procesosCrudos;
+    if (inmoFiltro) {
+      const inmoNorm = inmoFiltro.replace('INMOBILIARIA#', '');
+      base = base.filter(p => (p.inmobiliaria_id?.replace('INMOBILIARIA#', '')) === inmoNorm);
+    }
+    if (tabActiva === 'desvinculados') {
+      return base.filter(p => p.estado === 'desvinculado');
+    }
+    // 'procesos' (y cualquier otra): excluir desvinculados.
+    return base.filter(p => p.estado !== 'desvinculado');
+  }, [procesosCrudos, inmoFiltro, tabActiva]);
 
   const totalPaginas = Math.max(1, Math.ceil(procesosFiltradosTotal.length / PAGE_SIZE));
 
@@ -1063,8 +1072,8 @@ const ProcesosPage = () => {
               {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
             </div>
           )}
-          {/* Bloqueos sin cliente primero (destacados), solo en la primera página */}
-          {paginaActual === 0 && bloqueosFiltrados.map(renderFilaBloqueo)}
+          {/* Bloqueos sin cliente primero (destacados), solo en la primera página y no en Desvinculados */}
+          {paginaActual === 0 && tabActiva !== 'desvinculados' && bloqueosFiltrados.map(renderFilaBloqueo)}
           {/* Todos los procesos en una sola lista */}
           {isMobile ? procesosLista.map(renderTarjetaProceso) : procesosLista.map(renderFilaProceso)}
           {procesosLista.length === 0 && bloqueosFiltrados.length === 0 && (
@@ -1220,20 +1229,23 @@ const ProcesosPage = () => {
             <Select allowClear placeholder="Estatus" style={{ width: isMobile ? '100%' : 150 }}
               value={estadoFiltro} options={opcionesEstado}
               onChange={v => {
-                // El cambio de estatus recarga con paginación independiente por estado
-                // (ver useEffect sobre estadoFiltro). La vista se mantiene en "Procesos".
+                // El cambio de estatus recarga con paginación independiente por estado.
                 setEstadoFiltro(v);
-                if (tabActiva !== 'procesos') setTabActiva('procesos');
+                setPaginaActual(0);
+                // Llevar a la pestaña adecuada según el estatus elegido.
+                const tabDestino: TabProcesos = v === 'desvinculado' ? 'desvinculados' : 'procesos';
+                if (tabActiva !== tabDestino) setTabActiva(tabDestino);
               }} />
             <Button onClick={limpiarFiltros}>Limpiar</Button>
           </div>
 
-          {/* Tabs: solo Procesos e Historial */}
+          {/* Tabs: Procesos | Desvinculados | Historial */}
           <Tabs
             activeKey={tabActiva}
             onChange={key => {
               const t = key as TabProcesos;
               setTabActiva(t);
+              setPaginaActual(0); // reiniciar paginación al cambiar de pestaña
               if (t === 'historial') {
                 cargarHistorialBloqueos();
               }
@@ -1242,6 +1254,11 @@ const ProcesosPage = () => {
               {
                 key: 'procesos',
                 label: 'Procesos',
+                children: renderTablaProcesos(),
+              },
+              {
+                key: 'desvinculados',
+                label: 'Desvinculados',
                 children: renderTablaProcesos(),
               },
               ...(!esInmobiliaria ? [{

@@ -184,7 +184,7 @@ const ProcesosPage = () => {
   const [loadingHistorialBloqueos, setLoadingHistorialBloqueos] = useState(false);
 
   // ── Carga de datos (traer todo crudo + paginar localmente + enriquecer página) ─
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 50;
   // Conjunto COMPLETO de procesos del proyecto (crudo, sin enriquecer).
   const [procesosCrudos, setProcesosCrudos] = useState<ProcesoEnriquecido[]>([]);
   const [paginaActual, setPaginaActual] = useState(0); // índice 0-based
@@ -304,14 +304,17 @@ const ProcesosPage = () => {
 
   const totalPaginas = Math.max(1, Math.ceil(procesosFiltradosTotal.length / PAGE_SIZE));
 
-  // Cada vez que cambia el conjunto filtrado o la página, recomponer/enriquecer la vista.
+  // Cada vez que cambia el conjunto filtrado, la página o la pestaña, recomponer/enriquecer la vista.
   useEffect(() => {
-    // Si la página actual quedó fuera de rango (p.ej. tras filtrar), ajustar.
+    // Si la página actual quedó fuera de rango (p.ej. tras cambiar de pestaña o filtrar), ajustar
+    // y re-enriquecer esa página válida en la misma pasada (no solo hacer return).
     const paginaValida = Math.min(paginaActual, totalPaginas - 1);
-    if (paginaValida !== paginaActual) { setPaginaActual(paginaValida); return; }
-    enriquecerPagina(paginaActual, procesosFiltradosTotal);
+    if (paginaValida !== paginaActual) {
+      setPaginaActual(paginaValida);
+    }
+    enriquecerPagina(paginaValida, procesosFiltradosTotal);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [procesosFiltradosTotal, paginaActual]);
+  }, [procesosFiltradosTotal, paginaActual, tabActiva]);
 
   const irPaginaSiguiente = useCallback(() => {
     setPaginaActual(p => p + 1);
@@ -1244,6 +1247,12 @@ const ProcesosPage = () => {
             activeKey={tabActiva}
             onChange={key => {
               const t = key as TabProcesos;
+              // Al cambiar de pestaña, limpiar filtros activos (búsqueda, inmobiliaria, estatus)
+              // para empezar limpio en la nueva pestaña.
+              setInmoFiltro(undefined);
+              setEstadoFiltro(undefined);
+              setBusqueda('');
+              busquedaServidorRef.current = '';
               setTabActiva(t);
               setPaginaActual(0); // reiniciar paginación al cambiar de pestaña
               if (t === 'historial') {

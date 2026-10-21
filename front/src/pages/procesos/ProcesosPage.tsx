@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   Typography, Tag, Button, Space, Select, message,
   Badge, Tooltip, Grid, Input, Dropdown, Tabs, Modal, Form, InputNumber,
@@ -11,7 +11,7 @@ import {
   ArrowLeftOutlined, AppstoreOutlined, InfoCircleOutlined, UserSwitchOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { listarTodosProcesos, cambiarEstatus, getMisProcesos, traspasarClienteProceso, type ProcesoEnriquecido } from '../../services/crm.service';
+import { listarTodosProcesos, enriquecerProcesos, cambiarEstatus, getMisProcesos, traspasarClienteProceso, type ProcesoEnriquecido } from '../../services/crm.service';
 import { getProyectos, getUnidad, getEtapas } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import { extenderBloqueo, getBloquesActivos, bloquearUnidad, liberarBloqueo, getHistorialBloqueos } from '../../services/bloqueos.service';
@@ -32,10 +32,8 @@ import { confirmarExclusividadCliente } from '../../components/common/ConfirmarE
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
-type TabProcesos = 'activos' | 'cerrados' | 'desvinculados' | 'historial';
+type TabProcesos = 'procesos' | 'historial';
 
-const ESTADOS_ACTIVOS = ['captacion', 'reserva', 'separacion', 'pagos_atrasados', 'inicial', 'contra_entrega'];
-const ESTADOS_CERRADOS = ['vendida'];
 const UNIDAD_COLLATOR = new Intl.Collator('es', {
   sensitivity: 'variant',
   numeric: true,
@@ -73,7 +71,7 @@ const ProcesosPage = () => {
   const [inmoFiltro, setInmoFiltro] = useState<string | undefined>();
   const [estadoFiltro, setEstadoFiltro] = useState<string | undefined>();
   const [busqueda, setBusqueda] = useState('');
-  const [tabActiva, setTabActiva] = useState<TabProcesos>('activos');
+  const [tabActiva, setTabActiva] = useState<TabProcesos>('procesos');
   const procesosCompletosRef = useRef(false);
 
   // ── Modales procesos ──────────────────────────────────────────────────────
@@ -185,50 +183,158 @@ const ProcesosPage = () => {
   const [historialBloqueoNextToken, setHistorialBloqueoNextToken] = useState<string | undefined>();
   const [loadingHistorialBloqueos, setLoadingHistorialBloqueos] = useState(false);
 
-  // ── Carga de datos ────────────────────────────────────────────────────────
+  // ── Carga de datos (traer todo crudo + paginar localmente + enriquecer página) ─
+  const PAGE_SIZE = 100;
+  // Conjunto COMPLETO de procesos del proyecto (crudo, sin enriquecer).
+  const [procesosCrudos, setProcesosCrudos] = useState<ProcesoEnriquecido[]>([]);
+  const [paginaActual, setPaginaActual] = useState(0); // índice 0-based
+  const [enriqueciendo, setEnriqueciendo] = useState(false);
+  // Cache de procesos ya enriquecidos por clave pk#sk, para no re-pedir al volver a una página.
+  const enriquecidosRef = useRef<Map<string, ProcesoEnriquecido>>(new Map());
+  // Ref al inicio de la tabla para hacer scroll al cambiar de página.
+  const tablaTopRef = useRef<HTMLDivElement>(null);
+  // Término con el que se consultó el backend ('' = sin búsqueda).
+  const busquedaServidorRef = useRef<string>('');
+
+  const claveProceso = (p: ProcesoEnriquecido) => `${p.pk}#${p.sk}`;
+
+  // Carga el conjunto completo de procesos del proyecto (crudo) y lo guarda.
   const cargar = useCallback(async (opts: {
     proyecto?: string;
     incluirCerrados?: boolean;
+    /** Texto de búsqueda server-side; '' = sin búsqueda. */
+    q?: string;
+    /** Estado para filtrar en el servidor; '' o undefined = todos. */
+    estado?: string;
   } = {}) => {
     if (opts.incluirCerrados !== undefined) {
       procesosCompletosRef.current = opts.incluirCerrados;
     }
-    // Requerir proyecto seleccionado
     const proyectoId = opts.proyecto ?? proyectoFiltro ?? proyectoSeleccionado?.proyecto_id;
     if (!proyectoId) {
+      setProcesosCrudos([]);
       setProcesos([]);
+      setPaginaActual(0);
       return;
     }
+
+    const termino = opts.q !== undefined ? opts.q.trim() : busquedaServidorRef.current;
+    if (opts.q !== undefined) busquedaServidorRef.current = termino;
+    const estadoServidor = opts.estado !== undefined ? opts.estado : (estadoFiltro || '');
 
     setLoading(true);
     try {
       if (esInmobiliaria) {
+        // Inmobiliaria: endpoint propio, ya viene con nombre embebido.
         const items = await getMisProcesos(proyectoId);
         const enriched: ProcesoEnriquecido[] = items.map((p: any) => ({
           ...p,
           cliente: p.nombres ? { nombres: p.nombres, apellidos: p.apellidos ?? '' } : undefined,
         }));
-        setProcesos(enriched.sort(compararPorUnidad));
+        const ordenados = enriched.sort(compararPorUnidad);
+        setProcesosCrudos(ordenados);
+        setPaginaActual(0);
       } else {
-        // Backend ahora devuelve TODOS los procesos del proyecto
         const data = await listarTodosProcesos({
           proyecto_id: proyectoId,
-          incluir_cerrados: opts.incluirCerrados ?? false,
+          incluir_cerrados: opts.incluirCerrados ?? procesosCompletosRef.current,
+          q: termino || undefined,
+          estado: estadoServidor || undefined,
+          // enrich=false (default): el backend devuelve crudo; enriquecemos la página visible aparte.
+          // En búsqueda el backend ya devuelve enriquecido (necesita el nombre para filtrar).
         });
-        setProcesos(data.items.sort(compararPorUnidad));
+        const ordenados = data.items.sort(compararPorUnidad);
+        // Si viene de búsqueda, ya está enriquecido: sembrar la cache.
+        if (termino) {
+          ordenados.forEach(p => { if (p.cliente) enriquecidosRef.current.set(claveProceso(p), p); });
+        }
+        setProcesosCrudos(ordenados);
+        setPaginaActual(0);
       }
     } catch {
       message.error('Error al cargar procesos');
     } finally {
       setLoading(false);
     }
-  }, [proyectoFiltro, esInmobiliaria, proyectoSeleccionado]);
+  }, [proyectoFiltro, esInmobiliaria, proyectoSeleccionado, estadoFiltro]);
 
+  // Enriquece (bajo demanda) la página visible y actualiza `procesos` a mostrar.
+  const enriquecerPagina = useCallback(async (pagina: number, fuente: ProcesoEnriquecido[]) => {
+    const inicio = pagina * PAGE_SIZE;
+    const slice = fuente.slice(inicio, inicio + PAGE_SIZE);
+    if (slice.length === 0) { setProcesos([]); return; }
+
+    // Inmobiliaria ya trae todo enriquecido; mostrar directo.
+    if (esInmobiliaria) { setProcesos(slice); return; }
+
+    // Separar los que ya están en cache de los que faltan enriquecer.
+    const faltantes = slice.filter(p => !enriquecidosRef.current.has(claveProceso(p)));
+    if (faltantes.length > 0) {
+      setEnriqueciendo(true);
+      try {
+        const claves = faltantes.map(p => ({ pk: p.pk, sk: p.sk }));
+        const data = await enriquecerProcesos(claves);
+        data.items.forEach(p => enriquecidosRef.current.set(claveProceso(p), p));
+      } catch {
+        // Si falla el enriquecimiento, mostramos los crudos igual (sin nombre/unidad).
+      } finally {
+        setEnriqueciendo(false);
+      }
+    }
+    // Componer la página con lo enriquecido (o el crudo si no se pudo).
+    const pagEnriquecida = slice.map(p => enriquecidosRef.current.get(claveProceso(p)) ?? p);
+    setProcesos(pagEnriquecida);
+  }, [esInmobiliaria]);
+
+  // Conjunto COMPLETO filtrado por inmobiliaria (local), sobre el que se pagina.
+  const procesosFiltradosTotal = useMemo(() => {
+    if (!inmoFiltro) return procesosCrudos;
+    const inmoNorm = inmoFiltro.replace('INMOBILIARIA#', '');
+    return procesosCrudos.filter(p => (p.inmobiliaria_id?.replace('INMOBILIARIA#', '')) === inmoNorm);
+  }, [procesosCrudos, inmoFiltro]);
+
+  const totalPaginas = Math.max(1, Math.ceil(procesosFiltradosTotal.length / PAGE_SIZE));
+
+  // Cada vez que cambia el conjunto filtrado o la página, recomponer/enriquecer la vista.
   useEffect(() => {
-    const tieneFiltro = Boolean(busqueda.trim() || inmoFiltro || estadoFiltro);
-    if (!proyectoSeleccionado || !tieneFiltro || procesosCompletosRef.current) return;
-    cargar({ incluirCerrados: true });
-  }, [busqueda, inmoFiltro, estadoFiltro, proyectoSeleccionado, cargar]);
+    // Si la página actual quedó fuera de rango (p.ej. tras filtrar), ajustar.
+    const paginaValida = Math.min(paginaActual, totalPaginas - 1);
+    if (paginaValida !== paginaActual) { setPaginaActual(paginaValida); return; }
+    enriquecerPagina(paginaActual, procesosFiltradosTotal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [procesosFiltradosTotal, paginaActual]);
+
+  const irPaginaSiguiente = useCallback(() => {
+    setPaginaActual(p => p + 1);
+  }, []);
+  const irPaginaAnterior = useCallback(() => {
+    setPaginaActual(p => Math.max(0, p - 1));
+  }, []);
+
+  // Al cambiar de página, llevar la vista al inicio de la página completa.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [paginaActual]);
+
+  // Búsqueda con debounce: el backend recorre todo el proyecto y enriquece coincidencias.
+  useEffect(() => {
+    if (!proyectoSeleccionado || esInmobiliaria) return;
+    const termino = busqueda.trim();
+    if (termino === busquedaServidorRef.current) return;
+    const t = setTimeout(() => {
+      cargar({ q: termino });
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda, proyectoSeleccionado, esInmobiliaria]);
+
+  // Cuando cambia el filtro de estatus, recargar el conjunto crudo filtrado por estado.
+  useEffect(() => {
+    if (!proyectoSeleccionado || esInmobiliaria) return;
+    if (busqueda.trim()) return; // en búsqueda el estado se filtra sobre el resultado
+    cargar({ estado: estadoFiltro || '' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoFiltro]);
 
   const cargarBloqueosSinCliente = useCallback(async () => {
     setLoadingBloqueos(true);
@@ -538,7 +644,9 @@ const ProcesosPage = () => {
     setEstadoFiltro(undefined);
     setBusqueda('');
     procesosCompletosRef.current = false;
-    setTabActiva('activos');
+    busquedaServidorRef.current = '';
+    setPaginaActual(0);
+    setTabActiva('procesos');
   };
 
   const seleccionarProyecto = (p: Proyecto) => {
@@ -550,9 +658,11 @@ const ProcesosPage = () => {
     setEstadoFiltro(undefined);
     setBusqueda('');
     procesosCompletosRef.current = false;
-    setTabActiva('activos');
-    // Cargar procesos del proyecto
-    cargar({ proyecto: p.proyecto_id, incluirCerrados: true });
+    busquedaServidorRef.current = '';
+    setPaginaActual(0);
+    setTabActiva('procesos');
+    // Cargar todos los procesos del proyecto (crudo)
+    cargar({ proyecto: p.proyecto_id, incluirCerrados: true, q: '' });
     cargarBloqueosSinCliente();
   };
 
@@ -565,8 +675,11 @@ const ProcesosPage = () => {
     setVista('procesos');
     setProyectoFiltro(proyectoId);
     setProyectoSeleccionado(proyectos.find(p => p.proyecto_id === proyectoId) ?? null);
-    setTabActiva('activos');
-    cargar({ proyecto: proyectoId, incluirCerrados: true });
+    setTabActiva('procesos');
+    setBusqueda('');
+    busquedaServidorRef.current = '';
+    setPaginaActual(0);
+    cargar({ proyecto: proyectoId, incluirCerrados: true, q: '' });
     cargarBloqueosSinCliente();
   };
 
@@ -580,50 +693,19 @@ const ProcesosPage = () => {
     limpiarFiltros();
   };
 
-  // ── Filtrado local ────────────────────────────────────────────────────────
-  // Aplicar todos los filtros localmente
-  let procesosFiltrados = procesos;
-
-  // Filtro por inmobiliaria
-  if (inmoFiltro) {
-    const inmoNorm = inmoFiltro.replace('INMOBILIARIA#', '');
-    procesosFiltrados = procesosFiltrados.filter(p => {
-      const pInmo = p.inmobiliaria_id?.replace('INMOBILIARIA#', '');
-      return pInmo === inmoNorm;
-    });
-  }
-
-  // Filtro por estado
-  if (estadoFiltro) {
-    procesosFiltrados = procesosFiltrados.filter(p => p.estado === estadoFiltro);
-  }
-
-  // Filtro por búsqueda de texto
-  if (busqueda.trim()) {
-    const q = busqueda.toLowerCase();
-    procesosFiltrados = procesosFiltrados.filter(p => {
-      const nombre = nombreCliente(p).toLowerCase();
-      return nombre.includes(q) || p.cedula.includes(q) || (p.unidad_nombre ?? '').toLowerCase().includes(q);
-    });
-  }
-
-  // Separar por listas visibles
-  const procesosActivos = procesosFiltrados.filter(p =>
-    ESTADOS_ACTIVOS.includes(p.estado)
-  );
-  const procesosCerrados = procesosFiltrados.filter(p =>
-    ESTADOS_CERRADOS.includes(p.estado)
-  );
-  const procesosDesvinculados = procesosFiltrados.filter(p =>
-    p.estado === 'desvinculado'
-  );
+  // ── Filtrado ───────────────────────────────────────────────────────────────
+  // El estatus y la búsqueda ya vienen filtrados desde el servidor. El filtro de
+  // inmobiliaria se aplica localmente sobre el CONJUNTO COMPLETO crudo, antes de
+  // paginar, para que las páginas se calculen sobre lo realmente filtrado.
+  // `procesos` (lo que se renderiza) ya es la página visible enriquecida.
+  const procesosLista = procesos;
 
   // Bloqueos sin cliente filtrados por búsqueda/proyecto
   // Solo mostrar cuando NO hay filtro de estado activo
   const proyectoBloqueosFiltro = proyectoFiltro ?? proyectoSeleccionado?.proyecto_id;
   const mostrarBloqueosActivos = !estadoFiltro || estadoFiltro === 'captacion';
   const procesosPorUnidad = new Set(
-    procesosFiltrados.map(p => `${p.proyecto_id?.replace('PROYECTO#', '')}#${p.unidad_id}`)
+    procesosFiltradosTotal.map(p => `${p.proyecto_id?.replace('PROYECTO#', '')}#${p.unidad_id}`)
   );
   const bloqueosBase = estadoFiltro === 'captacion' ? todosBloqueos : bloqueosSinCliente;
   const bloqueosFiltrados = mostrarBloqueosActivos ? bloqueosBase.filter(b => {
@@ -917,77 +999,87 @@ const ProcesosPage = () => {
     );
   };
 
-  const renderTablaActivos = () => (
-    <div>
-      {!isMobile && (procesosActivos.length > 0 || bloqueosFiltrados.length > 0) && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
-          padding: '8px 14px', background: 'var(--panel-soft-bg)', borderRadius: 8,
-          marginBottom: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5,
-        }}>
-          <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
-          {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
-        </div>
-      )}
-      {/* Bloqueos sin cliente primero (destacados) */}
-      {bloqueosFiltrados.map(renderFilaBloqueo)}
-      {/* Procesos activos */}
-      {isMobile ? procesosActivos.map(renderTarjetaProceso) : procesosActivos.map(renderFilaProceso)}
-      {procesosActivos.length === 0 && bloqueosFiltrados.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
-          <UserOutlined style={{ fontSize: 40, marginBottom: 12 }} />
-          <div>No hay procesos activos</div>
-        </div>
-      )}
-    </div>
-  );
+  // Paginador local: ◀ Anterior | Página N de M | Siguiente ▶
+  // variante 'top' = compacto a la derecha (sobre la tabla); 'bottom' = centrado.
+  const renderPaginador = (variante: 'top' | 'bottom' = 'bottom') => {
+    if (totalPaginas <= 1) return null;
+    const esTop = variante === 'top';
+    const size = esTop ? 'small' : 'middle';
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: esTop ? 'flex-end' : 'center',
+        alignItems: 'center',
+        gap: esTop ? 8 : 12,
+        marginTop: esTop ? 0 : 20,
+        marginBottom: esTop ? 10 : 8,
+      }}>
+        <Button
+          size={size}
+          icon={<ArrowLeftOutlined />}
+          disabled={paginaActual === 0 || loading || enriqueciendo}
+          onClick={irPaginaAnterior}
+        >
+          {!isMobile && 'Anterior'}
+        </Button>
+        <Text strong style={{ minWidth: esTop ? 90 : 110, textAlign: 'center', fontSize: esTop ? 12 : undefined }}>
+          Página {paginaActual + 1} de {totalPaginas}
+        </Text>
+        <Button
+          size={size}
+          disabled={paginaActual >= totalPaginas - 1 || loading || enriqueciendo}
+          onClick={irPaginaSiguiente}
+        >
+          {!isMobile && 'Siguiente'} <span style={{ marginLeft: 4 }}>▶</span>
+        </Button>
+      </div>
+    );
+  };
 
-  const renderTablaCerrados = () => (
-    <div>
-      {!isMobile && procesosCerrados.length > 0 && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
-          padding: '8px 14px', background: 'var(--panel-soft-bg)', borderRadius: 8,
-          marginBottom: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5,
-        }}>
-          <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
-          {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
-        </div>
-      )}
-      {isMobile ? procesosCerrados.map(renderTarjetaProceso) : procesosCerrados.map(renderFilaProceso)}
-      {procesosCerrados.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
-          <UserOutlined style={{ fontSize: 40, marginBottom: 12 }} />
-          <div>No hay procesos cerrados</div>
-        </div>
-      )}
-    </div>
-  );
+  const renderTablaProcesos = () => {
+    // Mientras se carga el conjunto o se enriquece la página, mostrar "Cargando..."
+    // y NO mostrar filas a medias.
+    const cargandoPagina = loading || enriqueciendo;
+    return (
+    <div ref={tablaTopRef}>
+      {/* Paginador superior (compacto, a la derecha) */}
+      {!cargandoPagina && renderPaginador('top')}
 
-  const renderTablaDesvinculados = () => (
-    <div>
-      {!isMobile && procesosDesvinculados.length > 0 && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
-          padding: '8px 14px', background: 'var(--panel-soft-bg)', borderRadius: 8,
-          marginBottom: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5,
-        }}>
-          <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
-          {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
+      {cargandoPagina ? (
+        <div style={{ textAlign: 'center', padding: 80, color: 'var(--text-muted)' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 16 }}>Cargando procesos...</div>
         </div>
-      )}
-      {isMobile ? procesosDesvinculados.map(renderTarjetaProceso) : procesosDesvinculados.map(renderFilaProceso)}
-      {procesosDesvinculados.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
-          <UserOutlined style={{ fontSize: 40, marginBottom: 12 }} />
-          <div>No hay procesos desvinculados</div>
-        </div>
+      ) : (
+        <>
+          {!isMobile && (procesosLista.length > 0 || bloqueosFiltrados.length > 0) && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: esInmobiliaria ? '1.2fr 2fr 1.6fr 80px' : '1.2fr 2fr 1.6fr 1.2fr 80px',
+              padding: '8px 14px', background: 'var(--panel-soft-bg)', borderRadius: 8,
+              marginBottom: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5,
+            }}>
+              <span>UNIDAD</span><span>CLIENTE</span><span>ESTATUS</span>
+              {!esInmobiliaria && <span>INMOBILIARIA</span>}<span />
+            </div>
+          )}
+          {/* Bloqueos sin cliente primero (destacados), solo en la primera página */}
+          {paginaActual === 0 && bloqueosFiltrados.map(renderFilaBloqueo)}
+          {/* Todos los procesos en una sola lista */}
+          {isMobile ? procesosLista.map(renderTarjetaProceso) : procesosLista.map(renderFilaProceso)}
+          {procesosLista.length === 0 && bloqueosFiltrados.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
+              <UserOutlined style={{ fontSize: 40, marginBottom: 12 }} />
+              <div>No hay procesos</div>
+            </div>
+          )}
+          {/* Paginador inferior (centrado) */}
+          {renderPaginador('bottom')}
+        </>
       )}
     </div>
-  );
+    );
+  };
 
   const opcionesEstado = ['captacion', 'reserva', 'separacion', 'inicial', 'pagos_atrasados', 'contra_entrega', 'vendida', 'desvinculado'].map(e => ({
     value: e,
@@ -1029,7 +1121,19 @@ const ProcesosPage = () => {
             />
           )}
           {vista === 'procesos' && (
-            <Button icon={<ReloadOutlined />} loading={loading || loadingBloqueos} onClick={() => { cargar(); cargarBloqueosSinCliente(); }}>
+            <Button
+              icon={<ReloadOutlined />}
+              loading={loading || loadingBloqueos}
+              onClick={() => {
+                // Refrescar respetando el estado actual (filtros + búsqueda activa),
+                // reiniciando a la primera página. La cache de enriquecidos se limpia
+                // para traer datos frescos.
+                enriquecidosRef.current.clear();
+                setPaginaActual(0);
+                cargar();
+                cargarBloqueosSinCliente();
+              }}
+            >
               {!isMobile && 'Actualizar'}
             </Button>
           )}
@@ -1116,24 +1220,15 @@ const ProcesosPage = () => {
             <Select allowClear placeholder="Estatus" style={{ width: isMobile ? '100%' : 150 }}
               value={estadoFiltro} options={opcionesEstado}
               onChange={v => {
+                // El cambio de estatus recarga con paginación independiente por estado
+                // (ver useEffect sobre estadoFiltro). La vista se mantiene en "Procesos".
                 setEstadoFiltro(v);
-                const siguienteTab: TabProcesos = v === 'desvinculado'
-                  ? 'desvinculados'
-                  : v && ESTADOS_CERRADOS.includes(v)
-                    ? 'cerrados'
-                    : 'activos';
-                // Cambiar a la lista que corresponde al estatus seleccionado.
-                if (tabActiva !== siguienteTab) {
-                  setTabActiva(siguienteTab);
-                  if (!procesosCompletosRef.current && siguienteTab !== 'activos') {
-                    cargar({ incluirCerrados: true });
-                  }
-                }
+                if (tabActiva !== 'procesos') setTabActiva('procesos');
               }} />
             <Button onClick={limpiarFiltros}>Limpiar</Button>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs: solo Procesos e Historial */}
           <Tabs
             activeKey={tabActiva}
             onChange={key => {
@@ -1141,25 +1236,13 @@ const ProcesosPage = () => {
               setTabActiva(t);
               if (t === 'historial') {
                 cargarHistorialBloqueos();
-              } else if (!procesosCompletosRef.current && t !== 'activos') {
-                cargar({ incluirCerrados: true });
               }
             }}
             items={[
               {
-                key: 'activos',
-                label: `Activos (${procesosActivos.length})`,
-                children: renderTablaActivos(),
-              },
-              {
-                key: 'cerrados',
-                label: `Cerrados (${procesosCerrados.length})`,
-                children: renderTablaCerrados(),
-              },
-              {
-                key: 'desvinculados',
-                label: `Desvinculados (${procesosDesvinculados.length})`,
-                children: renderTablaDesvinculados(),
+                key: 'procesos',
+                label: 'Procesos',
+                children: renderTablaProcesos(),
               },
               ...(!esInmobiliaria ? [{
                 key: 'historial',
@@ -1246,6 +1329,7 @@ const ProcesosPage = () => {
               }] : []),
             ]}
           />
+
         </>
       )}
 

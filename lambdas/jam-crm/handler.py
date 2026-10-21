@@ -61,9 +61,14 @@ def handler(event, context):
             return meta_routes.gestionar_lead(event)
 
     if method == 'POST' and path == '/admin/procesos':
+        query = event.get('queryStringParameters') or {}
+        # Enriquecer un lote de procesos (página visible). Accesible a internos e inmobiliaria.
+        if query.get('tipo') == 'enriquecer-procesos':
+            if not es_admin and get_rol(event) != 'inmobiliaria':
+                return forbidden()
+            return estatus_routes.enriquecer_lote(event)
         if not es_admin:
             return forbidden()
-        query = event.get('queryStringParameters') or {}
         if query.get('tipo') == 'meta-mensaje':
             return meta_routes.enviar_mensaje(event)
         if query.get('tipo') == 'meta-facebook-callback':

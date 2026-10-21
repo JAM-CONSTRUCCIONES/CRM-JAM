@@ -1,4 +1,4 @@
-import { apiGet, apiPut } from './api';
+import { apiGet, apiPut, apiPost } from './api';
 import type { Proceso } from '../types';
 import type { RegistrarClientePayload } from './clientes.service';
 import type { ModoNotificacion } from '../components/common/CambiarEstatusModal';
@@ -30,17 +30,31 @@ export const listarTodosProcesos = (params?: {
   inmobiliaria_id?: string;
   estado?: string;
   incluir_cerrados?: boolean;
-  next_token?: string;
+  /** Texto de búsqueda. Cuando se envía, el backend recorre todo el proyecto. */
+  q?: string;
+  /** true = el backend enriquece todos (lento). Por defecto devuelve crudo. */
+  enrich?: boolean;
 }): Promise<ProcesosResponse> => {
   const entries: Record<string, string> = {};
   if (params?.proyecto_id) entries.proyecto_id = params.proyecto_id;
   if (params?.inmobiliaria_id) entries.inmobiliaria_id = params.inmobiliaria_id;
   if (params?.estado) entries.estado = params.estado;
   if (params?.incluir_cerrados) entries.incluir_cerrados = 'true';
-  if (params?.next_token) entries.next_token = params.next_token;
+  if (params?.q && params.q.trim()) entries.q = params.q.trim();
+  if (params?.enrich) entries.enrich = 'true';
   const qs = Object.keys(entries).length ? '?' + new URLSearchParams(entries).toString() : '';
   return apiGet<ProcesosResponse>(`/admin/procesos${qs}`);
 };
+
+/**
+ * Enriquece un lote de procesos (la página visible, ~100) con datos de cliente
+ * y estado de unidad. Se usa junto con el listado crudo: traer todo liviano y
+ * enriquecer solo lo que se muestra.
+ */
+export const enriquecerProcesos = (
+  claves: Array<{ pk: string; sk: string }>,
+): Promise<ProcesosResponse> =>
+  apiPost<ProcesosResponse>('/admin/procesos?tipo=enriquecer-procesos', { claves });
 
 export const getProcesosCliente = (cedula: string, inmobiliariaId?: string): Promise<Proceso[]> => {
   const qs = inmobiliariaId ? `?inmobiliaria_id=${encodeURIComponent(inmobiliariaId)}` : '';

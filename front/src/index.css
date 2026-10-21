@@ -300,6 +300,8 @@ a {
 .ant-tag {
   border-radius: 999px;
   font-weight: 600;
+  background: transparent !important;
+  border-color: transparent !important;
 }
 
 .ant-alert {

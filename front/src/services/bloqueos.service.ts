@@ -8,6 +8,7 @@ export const bloquearUnidad = (data: {
   unidad_id: string;
   inmobiliaria_id?: string; // Para que el admin pueda especificar la inmobiliaria
   forzar_admin?: boolean; // Para que el admin pueda saltarse validaciones de exclusividad
+  notificar?: ModoNotificacion;
   // Datos del cliente — opcionales si se bloquea sin cliente
   cedula?: string;
   nombres?: string;

@@ -72,6 +72,9 @@ def bloquear(event):
     proyecto_id = body.get('proyecto_id')
     unidad_id = body.get('unidad_id')
     solicita_forzar_admin = bool(body.get('forzar_admin', False))
+    notificar = body.get('notificar', 'todos')
+    if notificar not in (False, 'admin', 'todos'):
+        notificar = False
 
     # Datos del cliente (opcionales — puede bloquearse sin cliente)
     cedula = (body.get('cedula') or '').strip()
@@ -263,6 +266,7 @@ def bloquear(event):
                     'cliente_cedula': cedula,
                     'horas': HORAS_BLOQUEO,
                 },
+                'notificar': notificar,
             }),
         )
 

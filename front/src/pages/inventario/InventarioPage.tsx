@@ -16,6 +16,8 @@ import type { Unidad } from '../../types';
 import { message } from 'antd';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef } from 'react';
+import { seleccionarNotificacionBloqueo } from '../../components/common/ConfirmarCrearBloqueo';
+import { confirmarExclusividadCliente } from '../../components/common/ConfirmarExclusividadCliente';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -136,14 +138,31 @@ const InventarioPage = () => {
 
   const handleBloquear = async (omitir: boolean, values?: any) => {
     if (!unidadABloquear) return;
+    const notificar = inv.isAdmin || inv.isCoordinador
+      ? await seleccionarNotificacionBloqueo(unidadABloquear.id_unidad)
+      : false;
+    if (notificar === undefined) return;
     setGuardandoBloqueo(true);
     try {
-      const payload: any = { proyecto_id: inv.proyectoId, unidad_id: unidadABloquear.unidad_id, ...(!omitir ? values : {}) };
+      const payload: any = { proyecto_id: inv.proyectoId, unidad_id: unidadABloquear.unidad_id, notificar, ...(!omitir ? values : {}) };
       let intentos = 0;
       while (intentos < 2) {
-        try { await bloquearUnidad(payload); break; }
+        try {
+          const result = await bloquearUnidad(payload);
+          if (result.advertencia_cliente) message.warning(result.advertencia_cliente);
+          break;
+        }
         catch (err: any) {
           const s = err?.response?.statusCode ?? err?.response?.status;
+          const msg = err?.response?.data?.message || err?.message || '';
+          if (s === 409 && (inv.isAdmin || inv.isCoordinador) && !payload.forzar_admin && msg.toLowerCase().includes('exclusividad')) {
+            if (await confirmarExclusividadCliente(msg)) {
+              payload.forzar_admin = true;
+              continue;
+            }
+            message.info('Operación cancelada');
+            return;
+          }
           if ((s === 502 || s === 503) && intentos === 0) { intentos++; await new Promise(r => setTimeout(r, 1500)); continue; }
           throw err;
         }
@@ -154,7 +173,7 @@ const InventarioPage = () => {
     } catch (err: any) {
       const s = err?.response?.statusCode ?? err?.response?.status;
       const msg = err?.response?.data?.message || err?.message;
-      if (s === 409) message.error(msg || 'La unidad ya no está disponible o el cliente tiene exclusividad con otra inmobiliaria');
+      if (s === 409) message.warning(msg || 'La unidad ya no está disponible o el cliente tiene exclusividad con otra inmobiliaria');
       else if (s === 429) message.warning(msg || 'No puedes re-bloquear esta unidad antes de 24h');
       else message.error(msg || 'Error al procesar la operación');
     } finally { setGuardandoBloqueo(false); }
@@ -162,20 +181,35 @@ const InventarioPage = () => {
 
   const handleCrearBloqueoAdmin = async (values: any) => {
     if (!unidadParaBloqueoAdmin) return;
+    const notificar = await seleccionarNotificacionBloqueo(unidadParaBloqueoAdmin.id_unidad);
+    if (notificar === undefined) return;
     setGuardandoBloqueo(true);
     try {
       const payload: any = {
         proyecto_id: inv.proyectoId,
         unidad_id: unidadParaBloqueoAdmin.unidad_id,
-        forzar_admin: true, // El admin puede saltarse validaciones de exclusividad
+        notificar,
         ...values,
       };
       
       let intentos = 0;
       while (intentos < 2) {
-        try { await bloquearUnidad(payload); break; }
+        try {
+          const result = await bloquearUnidad(payload);
+          if (result.advertencia_cliente) message.warning(result.advertencia_cliente);
+          break;
+        }
         catch (err: any) {
           const s = err?.response?.statusCode ?? err?.response?.status;
+          const msg = err?.response?.data?.message || err?.message || '';
+          if (s === 409 && (inv.isAdmin || inv.isCoordinador) && !payload.forzar_admin && msg.toLowerCase().includes('exclusividad')) {
+            if (await confirmarExclusividadCliente(msg)) {
+              payload.forzar_admin = true;
+              continue;
+            }
+            message.info('Operación cancelada');
+            return;
+          }
           if ((s === 502 || s === 503) && intentos === 0) { intentos++; await new Promise(r => setTimeout(r, 1500)); continue; }
           throw err;
         }
@@ -194,7 +228,7 @@ const InventarioPage = () => {
     } catch (err: any) {
       const s = err?.response?.statusCode ?? err?.response?.status;
       const msg = err?.response?.data?.message || err?.message;
-      if (s === 409) message.error(msg || 'La unidad ya no está disponible');
+      if (s === 409) message.warning(msg || 'La unidad ya no está disponible');
       else if (s === 429) message.warning(msg || 'No puedes re-bloquear esta unidad antes de 24h');
       else message.error(msg || 'Error al procesar la operación');
     } finally { setGuardandoBloqueo(false); }

@@ -11,8 +11,11 @@ from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found, conflict, forbidden
 from utils.helpers import now
 
-inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
+dynamodb = boto3.resource('dynamodb')
+inventario = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 _procesos_table_name = os.environ.get('PROCESOS_TABLE', '')
+_clientes_table_name = os.environ.get('CLIENTES_TABLE', '')
+_historial_table_name = os.environ.get('HISTORIAL_TABLE', '')
 _usuarios_table_name = os.environ.get('USUARIOS_TABLE', '')
 
 _TEXT_ALLOWED_CHARS = set(' -./#')
@@ -116,6 +119,75 @@ def _normalizar_body_unidad(body, require_base=False):
             data['cuota_meses'] = number
 
     return data
+
+
+def _actualizar_nombre_en_tabla(table, proyecto_id, unidad_id, nuevo_nombre):
+    actualizados = 0
+    ultimo_evaluado = None
+    filtro = Attr('proyecto_id').eq(proyecto_id) & Attr('unidad_id').eq(unidad_id)
+
+    while True:
+        kwargs = {'FilterExpression': filtro}
+        if ultimo_evaluado:
+            kwargs['ExclusiveStartKey'] = ultimo_evaluado
+        respuesta = table.scan(**kwargs)
+        for item in respuesta.get('Items', []):
+            table.update_item(
+                Key={'pk': item['pk'], 'sk': item['sk']},
+                UpdateExpression='SET unidad_nombre = :nombre',
+                ExpressionAttributeValues={':nombre': nuevo_nombre},
+            )
+            actualizados += 1
+        ultimo_evaluado = respuesta.get('LastEvaluatedKey')
+        if not ultimo_evaluado:
+            break
+
+    return actualizados
+
+
+def _actualizar_nombre_historial(table, proyecto_id, unidad_id, nuevo_nombre):
+    actualizados = 0
+    ultimo_evaluado = None
+    while True:
+        kwargs = {'KeyConditionExpression': Key('pk').eq(f'UNIDAD#{unidad_id}')}
+        if ultimo_evaluado:
+            kwargs['ExclusiveStartKey'] = ultimo_evaluado
+        respuesta = table.query(**kwargs)
+        for item in respuesta.get('Items', []):
+            if item.get('proyecto_id') != proyecto_id:
+                continue
+            table.update_item(
+                Key={'pk': item['pk'], 'sk': item['sk']},
+                UpdateExpression='SET unidad_nombre = :nombre',
+                ExpressionAttributeValues={':nombre': nuevo_nombre},
+            )
+            actualizados += 1
+        ultimo_evaluado = respuesta.get('LastEvaluatedKey')
+        if not ultimo_evaluado:
+            break
+
+    return actualizados
+
+
+def _sincronizar_nombre_unidad(proyecto_id, unidad_id, nuevo_nombre):
+    resultado = {'procesos': 0, 'clientes': 0, 'historial': 0, 'errores': []}
+    tablas = [
+        ('procesos', _procesos_table_name, _actualizar_nombre_en_tabla),
+        ('clientes', _clientes_table_name, _actualizar_nombre_en_tabla),
+        ('historial', _historial_table_name, _actualizar_nombre_historial),
+    ]
+
+    for nombre, tabla_nombre, actualizador in tablas:
+        if not tabla_nombre:
+            continue
+        try:
+            tabla = dynamodb.Table(tabla_nombre)
+            resultado[nombre] = actualizador(tabla, proyecto_id, unidad_id, nuevo_nombre)
+        except Exception as error:
+            print(f'Error sincronizando nombre de unidad en {nombre}: {error}')
+            resultado['errores'].append(nombre)
+
+    return resultado
 
 
 def _normalizar_inmo_id(value):
@@ -419,6 +491,7 @@ def actualizar(proyecto_id, unidad_id, event):
         return bad_request(str(e))
 
     updates, values, names = [], {}, {}
+    nombre_unidad_actualizado = None
 
     if 'id_unidad' in body:
         nuevo_id = (body['id_unidad'] or '').strip()
@@ -439,6 +512,7 @@ def actualizar(proyecto_id, unidad_id, event):
             # Actualizar ambos campos
             values[':id_unidad'] = nuevo_id
             values[':proyecto_id_unidad'] = proyecto_id_unidad
+            nombre_unidad_actualizado = nuevo_id
             updates.append('id_unidad = :id_unidad')
             updates.append('proyecto_id_unidad = :proyecto_id_unidad')
         else:
@@ -493,7 +567,12 @@ def actualizar(proyecto_id, unidad_id, event):
             ExpressionAttributeValues=values,
             **({"ExpressionAttributeNames": names} if names else {})
         )
-        return ok({'message': 'Unidad actualizada'})
+        respuesta = {'message': 'Unidad actualizada'}
+        if nombre_unidad_actualizado is not None:
+            respuesta['sincronizacion_nombre'] = _sincronizar_nombre_unidad(
+                proyecto_id, unidad_id, nombre_unidad_actualizado
+            )
+        return ok(respuesta)
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
             return not_found('Unidad no encontrada')

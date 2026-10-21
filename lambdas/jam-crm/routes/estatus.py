@@ -1,6 +1,7 @@
 import json
 import boto3
 import os
+import time
 from datetime import datetime, timezone, timedelta
 from boto3.dynamodb.conditions import Key, Attr
 from utils.response import ok, created, bad_request, not_found, conflict
@@ -388,27 +389,47 @@ def listar_todos_procesos(event):
             estados_activos = {'captacion', 'reserva', 'separacion', 'pagos_atrasados', 'inicial', 'contra_entrega'}
             items = [i for i in items if i.get('estado') in estados_activos]
 
-    # Enriquecer con datos del cliente (con cache por cedula+inmo+proyecto)
-    cache = {}
+    # Enriquecer con datos del cliente usando BatchGetItem para evitar una consulta por proceso.
+    cliente_keys = {}
     for item in items:
         cedula = item.get('cedula', '')
         inmo_id = item.get('inmobiliaria_id', '')
         proy_id = item.get('proyecto_id', '')
-        key = f'{cedula}#{inmo_id}#{proy_id}'
-        if key not in cache:
-            try:
-                c = clientes_table.get_item(
-                    Key={'pk': f'CLIENTE#{cedula}#{inmo_id}', 'sk': f'PROYECTO#{proy_id}'}
-                ).get('Item', {})
-                cache[key] = {
-                    'nombres': c.get('nombres', ''),
-                    'apellidos': c.get('apellidos', ''),
-                    'correo': c.get('correo', ''),
-                    'telefono': c.get('telefono', ''),
-                }
-            except Exception:
-                cache[key] = {}
-        item['cliente'] = cache[key]
+        if cedula and inmo_id and proy_id:
+            key = f'{cedula}#{inmo_id}#{proy_id}'
+            cliente_keys[key] = {
+                'pk': f'CLIENTE#{cedula}#{inmo_id}',
+                'sk': f'PROYECTO#{proy_id}',
+            }
+
+    clientes_por_clave = {}
+    keys = list(cliente_keys.values())
+    try:
+        for inicio in range(0, len(keys), 100):
+            pendientes = {clientes_table.name: {'Keys': keys[inicio:inicio + 100]}}
+            intentos = 0
+            while pendientes and intentos < 4:
+                respuesta = dynamodb.meta.client.batch_get_item(RequestItems=pendientes)
+                for cliente in respuesta.get('Responses', {}).get(clientes_table.name, []):
+                    clave = f"{cliente.get('pk', '')}#{cliente.get('sk', '').replace('PROYECTO#', '')}"
+                    clientes_por_clave[clave] = {
+                        'nombres': cliente.get('nombres', ''),
+                        'apellidos': cliente.get('apellidos', ''),
+                        'correo': cliente.get('correo', ''),
+                        'telefono': cliente.get('telefono', ''),
+                    }
+                pendientes = respuesta.get('UnprocessedKeys', {})
+                if pendientes:
+                    intentos += 1
+                    time.sleep(0.05 * (2 ** intentos))
+                else:
+                    break
+    except Exception as e:
+        print(f'[clientes] batch_get_item error: {e}')
+
+    for item in items:
+        key = f"CLIENTE#{item.get('cedula', '')}#{item.get('inmobiliaria_id', '')}#{item.get('proyecto_id', '')}"
+        item['cliente'] = clientes_por_clave.get(key, {})
 
     # Enriquecer con estado actual de la unidad en inventario (batch get)
     unidad_keys = [

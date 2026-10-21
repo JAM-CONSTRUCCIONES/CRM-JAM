@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Typography, Tag, Button, Space, Select, message,
   Badge, Tooltip, Grid, Input, Dropdown, Tabs, Modal, Form, InputNumber,
@@ -26,6 +26,8 @@ import { useAuthContext } from '../../context/AuthContext';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
 import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
 import { confirmarLiberarBloqueo } from '../../components/common/ConfirmarLiberarBloqueo';
+import { seleccionarNotificacionBloqueo } from '../../components/common/ConfirmarCrearBloqueo';
+import { confirmarExclusividadCliente } from '../../components/common/ConfirmarExclusividadCliente';
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -72,6 +74,7 @@ const ProcesosPage = () => {
   const [estadoFiltro, setEstadoFiltro] = useState<string | undefined>();
   const [busqueda, setBusqueda] = useState('');
   const [tabActiva, setTabActiva] = useState<TabProcesos>('activos');
+  const procesosCompletosRef = useRef(false);
 
   // ── Modales procesos ──────────────────────────────────────────────────────
   const [estatusModal, setEstatusModal] = useState<ProcesoEnriquecido | null>(null);
@@ -110,9 +113,30 @@ const ProcesosPage = () => {
 
   const handleCrearBloqueoAdmin = async (payload: any) => {
     if (!unidadDrawer) return;
+    const notificar = await seleccionarNotificacionBloqueo(unidadDrawer.id_unidad);
+    if (notificar === undefined) return;
     setGuardandoBloqueoAdmin(true);
     try {
-      await bloquearUnidad({ ...payload, proyecto_id: drawerProyectoId, unidad_id: unidadDrawer.unidad_id });
+      let bloqueoPayload = { ...payload, notificar, proyecto_id: drawerProyectoId, unidad_id: unidadDrawer.unidad_id };
+      let result;
+      try {
+        result = await bloquearUnidad(bloqueoPayload);
+      } catch (err: any) {
+        const status = err?.response?.statusCode ?? err?.response?.status;
+        const msg = err?.response?.data?.message || err?.message || '';
+        if (status === 409 && (usuario?.rol === 'admin' || usuario?.rol === 'coordinador') && msg.toLowerCase().includes('exclusividad')) {
+          if (await confirmarExclusividadCliente(msg)) {
+            bloqueoPayload = { ...bloqueoPayload, forzar_admin: true };
+            result = await bloquearUnidad(bloqueoPayload);
+          } else {
+            message.info('Operación cancelada');
+            return;
+          }
+        } else {
+          throw err;
+        }
+      }
+      if (result.advertencia_cliente) message.warning(result.advertencia_cliente);
       message.success(`Unidad ${unidadDrawer.id_unidad} bloqueada`);
       setModalBloqueoAdmin(false);
       // Recargar unidad para reflejar el nuevo estado
@@ -120,7 +144,7 @@ const ProcesosPage = () => {
     } catch (err: any) {
       const s = err?.response?.statusCode ?? err?.response?.status;
       const msg = err?.response?.data?.message || err?.message;
-      if (s === 409) message.error(msg || 'La unidad ya no está disponible');
+      if (s === 409) message.warning(msg || 'La unidad ya no está disponible');
       else if (s === 429) message.warning(msg || 'No puedes re-bloquear esta unidad antes de 24h');
       else message.error(msg || 'Error al bloquear');
     } finally {
@@ -164,7 +188,11 @@ const ProcesosPage = () => {
   // ── Carga de datos ────────────────────────────────────────────────────────
   const cargar = useCallback(async (opts: {
     proyecto?: string;
+    incluirCerrados?: boolean;
   } = {}) => {
+    if (opts.incluirCerrados !== undefined) {
+      procesosCompletosRef.current = opts.incluirCerrados;
+    }
     // Requerir proyecto seleccionado
     const proyectoId = opts.proyecto ?? proyectoFiltro ?? proyectoSeleccionado?.proyecto_id;
     if (!proyectoId) {
@@ -185,8 +213,7 @@ const ProcesosPage = () => {
         // Backend ahora devuelve TODOS los procesos del proyecto
         const data = await listarTodosProcesos({
           proyecto_id: proyectoId,
-          // No enviar filtros de inmobiliaria ni estado - se filtran en frontend
-          incluir_cerrados: true, // Traer todos para filtrar localmente
+          incluir_cerrados: opts.incluirCerrados ?? false,
         });
         setProcesos(data.items.sort(compararPorUnidad));
       }
@@ -196,6 +223,12 @@ const ProcesosPage = () => {
       setLoading(false);
     }
   }, [proyectoFiltro, esInmobiliaria, proyectoSeleccionado]);
+
+  useEffect(() => {
+    const tieneFiltro = Boolean(busqueda.trim() || inmoFiltro || estadoFiltro);
+    if (!proyectoSeleccionado || !tieneFiltro || procesosCompletosRef.current) return;
+    cargar({ incluirCerrados: true });
+  }, [busqueda, inmoFiltro, estadoFiltro, proyectoSeleccionado, cargar]);
 
   const cargarBloqueosSinCliente = useCallback(async () => {
     setLoadingBloqueos(true);
@@ -364,7 +397,7 @@ const ProcesosPage = () => {
     } catch (err: any) {
       const status = err?.response?.status ?? err?.response?.statusCode;
       const msg = err?.response?.data?.message || err?.message;
-      if (status === 409) message.error(msg || 'Este cliente tiene exclusividad activa con otra inmobiliaria en este proyecto');
+      if (status === 409) message.warning(msg || 'Este cliente tiene exclusividad activa con otra inmobiliaria en este proyecto');
       else message.error(msg || 'Error al asignar cliente');
     } finally { setGuardandoAsignar(false); }
   };
@@ -504,6 +537,7 @@ const ProcesosPage = () => {
     setInmoFiltro(undefined);
     setEstadoFiltro(undefined);
     setBusqueda('');
+    procesosCompletosRef.current = false;
     setTabActiva('activos');
   };
 
@@ -515,9 +549,10 @@ const ProcesosPage = () => {
     setInmoFiltro(undefined);
     setEstadoFiltro(undefined);
     setBusqueda('');
+    procesosCompletosRef.current = false;
     setTabActiva('activos');
     // Cargar procesos del proyecto
-    cargar({ proyecto: p.proyecto_id });
+    cargar({ proyecto: p.proyecto_id, incluirCerrados: true });
     cargarBloqueosSinCliente();
   };
 
@@ -531,7 +566,7 @@ const ProcesosPage = () => {
     setProyectoFiltro(proyectoId);
     setProyectoSeleccionado(proyectos.find(p => p.proyecto_id === proyectoId) ?? null);
     setTabActiva('activos');
-    cargar({ proyecto: proyectoId });
+    cargar({ proyecto: proyectoId, incluirCerrados: true });
     cargarBloqueosSinCliente();
   };
 
@@ -1082,13 +1117,17 @@ const ProcesosPage = () => {
               value={estadoFiltro} options={opcionesEstado}
               onChange={v => {
                 setEstadoFiltro(v);
+                const siguienteTab: TabProcesos = v === 'desvinculado'
+                  ? 'desvinculados'
+                  : v && ESTADOS_CERRADOS.includes(v)
+                    ? 'cerrados'
+                    : 'activos';
                 // Cambiar a la lista que corresponde al estatus seleccionado.
-                if (v === 'desvinculado' && tabActiva !== 'desvinculados') {
-                  setTabActiva('desvinculados');
-                } else if (v && ESTADOS_CERRADOS.includes(v) && tabActiva !== 'cerrados') {
-                  setTabActiva('cerrados');
-                } else if (v && ESTADOS_ACTIVOS.includes(v) && tabActiva !== 'activos') {
-                  setTabActiva('activos');
+                if (tabActiva !== siguienteTab) {
+                  setTabActiva(siguienteTab);
+                  if (!procesosCompletosRef.current && siguienteTab !== 'activos') {
+                    cargar({ incluirCerrados: true });
+                  }
                 }
               }} />
             <Button onClick={limpiarFiltros}>Limpiar</Button>
@@ -1102,6 +1141,8 @@ const ProcesosPage = () => {
               setTabActiva(t);
               if (t === 'historial') {
                 cargarHistorialBloqueos();
+              } else if (!procesosCompletosRef.current && t !== 'activos') {
+                cargar({ incluirCerrados: true });
               }
             }}
             items={[

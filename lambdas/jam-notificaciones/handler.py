@@ -305,9 +305,13 @@ def _enviar(destinatarios, asunto, cuerpo_html):
 # ─── Handlers por evento ─────────────────────────────────────────────────────
 
 def _bloqueo_registrado(msg):
+    notificar = msg.get('notificar', 'todos')
+    if not notificar:
+        logger.info('bloqueo_registrado sin notificar, omitiendo email')
+        return
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
-    correos = _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
+    correos = [ADMIN_EMAIL] if notificar == 'admin' else _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
     unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id', ''), msg.get('proyecto_id', ''))
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
     inmo_nombre = _nombre_inmobiliaria(inmo_id)
@@ -333,9 +337,13 @@ def _bloqueo_registrado(msg):
 
 
 def _cliente_asignado_bloqueo(msg):
+    notificar = msg.get('notificar', 'todos')
+    if not notificar:
+        logger.info('cliente_asignado_bloqueo sin notificar, omitiendo email')
+        return
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
-    correos = _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
+    correos = [ADMIN_EMAIL] if notificar == 'admin' else _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
     proyecto_id = msg.get('proyecto_id', '')
     unidad = _nombre_unidad(meta.get('unidad_nombre') or meta.get('unidad_id', ''), proyecto_id)
     proyecto = _nombre_proyecto(proyecto_id)

@@ -9,8 +9,10 @@ infra/node_modules/
 # ─── Frontend ────────────────────────────────────────
 front/node_modules/
 front/dist/
+front/.vite/
 front/.env
 front/.env.local
+front/.env.production
 
 # ─── Python / Lambdas ────────────────────────────────
 __pycache__/
@@ -48,3 +50,4 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+*.backup

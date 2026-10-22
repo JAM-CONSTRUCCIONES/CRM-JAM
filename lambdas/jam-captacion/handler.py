@@ -30,6 +30,8 @@ def handler(event, context):
     # ===== INMOBILIARIA =====
 
     if method == 'POST' and path == '/clientes':
+        if require_admin(event):
+            return clientes.registrar_admin(event)
         return clientes.registrar(event)
 
     if method == 'GET' and path == '/clientes':

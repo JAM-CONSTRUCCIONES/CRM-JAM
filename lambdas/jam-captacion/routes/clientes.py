@@ -403,6 +403,67 @@ def registrar(event):
     return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id)
 
 
+def registrar_admin(event):
+    """Registra un cliente desde el panel interno, sin unidad ni bloqueo."""
+    body = json.loads(event.get('body') or '{}')
+    body, error = _normalizar_datos_cliente(body)
+    if error:
+        return bad_request(error)
+
+    cedula = body.get('cedula', '').strip()
+    proyecto_id = body.get('proyecto_id', '').strip().replace('PROYECTO#', '')
+    inmobiliaria_id = _normalizar_inmo_id(body.get('inmobiliaria_id'))
+    forzar_admin = bool(body.get('forzar_admin')) and get_rol(event) in ('admin', 'coordinador')
+    nombres = body.get('nombres', '').strip()
+    apellidos = body.get('apellidos', '').strip()
+
+    if not all([cedula, proyecto_id, inmobiliaria_id, nombres, apellidos]):
+        return bad_request(
+            'cedula, proyecto_id, inmobiliaria_id, nombres y apellidos son requeridos'
+        )
+
+    proyecto = _get_proyecto(proyecto_id)
+    if not proyecto or not proyecto.get('activo', True):
+        return bad_request('El proyecto seleccionado no existe o está inactivo')
+
+    inmobiliaria = usuarios.get_item(
+        Key={'pk': f'INMOBILIARIA#{inmobiliaria_id}', 'sk': 'METADATA'}
+    ).get('Item')
+    if not inmobiliaria or not inmobiliaria.get('activo', True):
+        return bad_request('La inmobiliaria seleccionada no existe o está inactiva')
+
+    pk = f'CLIENTE#{cedula}#{inmobiliaria_id}'
+    sk = f'PROYECTO#{proyecto_id}'
+    existing = clientes.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
+    if existing:
+        return conflict(CLIENTE_DUPLICADO_MSG)
+
+    # Misma regla de exclusividad que el flujo de bloqueo.
+    resultado = clientes.query(
+        IndexName='gsi-cedula-proyecto',
+        KeyConditionExpression=Key('cedula').eq(cedula) & Key('sk').eq(sk),
+        FilterExpression=Attr('exclusividad_activa').eq(True),
+    )
+    for item in resultado.get('Items', []):
+        item_inmo = _normalizar_inmo_id(item.get('inmobiliaria_id'))
+        if item_inmo != inmobiliaria_id and not forzar_admin:
+            _publicar_evento('intento_duplicado', proyecto_id, inmobiliaria_id, {
+                'cedula': cedula,
+                'nombres': item.get('nombres', ''),
+                'apellidos': item.get('apellidos', ''),
+                'inmobiliaria_con_exclusividad': item_inmo,
+                'inmobiliaria_solicitante': inmobiliaria_id,
+            })
+            inmobiliaria_nombre = _get_inmobiliarias_map().get(item_inmo, item_inmo)
+            return conflict(
+                f'Este cliente pertenece a otra inmobiliaria ({inmobiliaria_nombre}) '
+                'y tiene exclusividad activa en este proyecto'
+            )
+
+    # Sin unidad_id, _crear registra cliente/exclusividad sin crear proceso.
+    return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id)
+
+
 def _resolver_unidad(body, proyecto_id):
     """Resuelve unidad_id, unidad_nombre y fecha_liberacion desde el body o inventario."""
     unidad_id = body.get('unidad_id')

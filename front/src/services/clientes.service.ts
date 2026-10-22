@@ -24,6 +24,11 @@ export const buscarClientePorCedula = (cedula: string, proyectoId?: string): Pro
 export const registrarCliente = (data: RegistrarClientePayload): Promise<Cliente> =>
   apiPost<Cliente>('/clientes', validateAndNormalizeClientePayload(data));
 
+export const registrarClienteAdmin = (
+  data: RegistrarClientePayload & { inmobiliaria_id: string; forzar_admin?: boolean }
+): Promise<Cliente> =>
+  apiPost<Cliente>('/clientes', validateAndNormalizeClientePayload(data));
+
 export const getClientes = (proyectoId?: string, vistaProyecto = false): Promise<Cliente[] | ClienteProyecto[]> => {
   const params = new URLSearchParams();
   if (proyectoId) params.append('proyecto_id', proyectoId);

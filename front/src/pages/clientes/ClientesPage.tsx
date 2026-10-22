@@ -13,7 +13,7 @@ import {
 import dayjs from 'dayjs';
 import {
   getClientes, getClientesAdmin, buscarClienteAdmin, buscarClientesAdmin,
-  registrarCliente, actualizarClienteAdmin, transferirClienteInmobiliaria,
+  registrarCliente, registrarClienteAdmin, actualizarClienteAdmin, transferirClienteInmobiliaria,
   eliminarClienteAdmin, cambiarCedula, exportarClientesProyecto,
 } from '../../services/clientes.service';
 import { getProcesosCliente, getMisProcesos, cambiarEstatus } from '../../services/crm.service';
@@ -23,6 +23,7 @@ import type { Inmobiliaria } from '../../services/inmobiliarias.service';
 import { useAuthContext } from '../../context/AuthContext';
 import type { Cliente, Proyecto, Proceso, ClienteProyecto } from '../../types';
 import CambiarEstatusModal, { type ModoNotificacion } from '../../components/common/CambiarEstatusModal';
+import { confirmarExclusividadCliente } from '../../components/common/ConfirmarExclusividadCliente';
 import HistorialEstatusDrawer from '../../components/common/HistorialEstatusDrawer';
 import { ESTADO_PROCESO_COLOR, ESTADO_PROCESO_LABEL, ESTADO_PROCESO_DESCRIPCION, projectGradient } from '../../constants/estados';
 import { clienteFieldNormalizers, clienteFormRules, normalizeClientePayload } from '../../utils/clientesValidation';
@@ -473,11 +474,31 @@ const ClientesPage = () => {
 
   const handleRegistrar = async (values: any) => {
     try {
-      await registrarCliente({
+      const payload = {
         ...normalizeClientePayload(values),
         fecha_nacimiento: values.fecha_nacimiento ? dayjs(values.fecha_nacimiento).format('YYYY-MM-DD') : undefined,
-      });
-      message.success('Cliente registrado');
+      };
+      if (isAdmin) {
+        try {
+          await registrarClienteAdmin(payload);
+        } catch (err: any) {
+          const status = err?.response?.statusCode ?? err?.response?.status;
+          const errorMessage = err?.response?.data?.message || err?.message || '';
+          const puedeForzar = usuario?.rol === 'admin' || usuario?.rol === 'coordinador';
+          if (status === 409 && puedeForzar && errorMessage.toLowerCase().includes('exclusividad')) {
+            if (!await confirmarExclusividadCliente(errorMessage)) {
+              message.info('Operación cancelada');
+              return;
+            }
+            await registrarClienteAdmin({ ...payload, forzar_admin: true });
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        await registrarCliente(payload);
+      }
+      message.success(isAdmin ? 'Cliente añadido' : 'Cliente registrado');
       setModalOpen(false); form.resetFields();
       setNextToken(undefined);
       cargar(proyectoFiltro, inmoFiltro);
@@ -737,9 +758,15 @@ const ClientesPage = () => {
                 </Tooltip>
               </>
             )}
-            {!isAdmin && vista === 'clientes' && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.setFieldsValue({ proyecto_id: proyectoFiltro }); setModalOpen(true); }} style={{ flex: isMobile ? '1 1 140px' : undefined }}>
-                Registrar cliente
+            {((!isAdmin && vista === 'clientes') || isAdmin) && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                form.setFieldsValue({
+                  proyecto_id: proyectoFiltro,
+                  inmobiliaria_id: inmoFiltro,
+                });
+                setModalOpen(true);
+              }} style={{ flex: isMobile ? '1 1 140px' : undefined }}>
+                {isAdmin ? 'Añadir cliente' : 'Registrar cliente'}
               </Button>
             )}
           </Space>
@@ -1264,7 +1291,7 @@ const ClientesPage = () => {
       </Modal>
 
       {/* Modal registro */}
-      <Modal title={<Space><UserOutlined /> Registrar cliente</Space>}
+      <Modal title={<Space><UserOutlined /> {isAdmin ? 'Añadir cliente' : 'Registrar cliente'}</Space>}
         open={modalOpen} onCancel={() => { setModalOpen(false); form.resetFields(); }}
         onOk={() => form.submit()} okText="Registrar" cancelText="Cancelar" width={600}
         centered
@@ -1273,12 +1300,22 @@ const ClientesPage = () => {
         <Form form={form} layout="vertical" onFinish={handleRegistrar}>
           <Form.Item name="proyecto_id" label="Proyecto" rules={[{ required: true }]}>
             <Select placeholder="Selecciona un proyecto">
-              {(usuario?.proyectos ?? proyectos.map(p => p.proyecto_id)).map(id => {
+              {(isAdmin ? proyectos.map(p => p.proyecto_id) : (usuario?.proyectos ?? proyectos.map(p => p.proyecto_id))).map(id => {
                 const p = proyectos.find(x => x.proyecto_id === id);
                 return <Option key={id} value={id}>{p?.nombre ?? id}</Option>;
               })}
             </Select>
           </Form.Item>
+          {isAdmin && (
+            <Form.Item name="inmobiliaria_id" label="Inmobiliaria" rules={[{ required: true, message: 'Selecciona una inmobiliaria' }]}>
+              <Select
+                placeholder="Selecciona una inmobiliaria"
+                showSearch
+                optionFilterProp="label"
+                options={inmobiliarias.filter(i => i.activo).map(i => ({ value: i.pk, label: i.nombre }))}
+              />
+            </Form.Item>
+          )}
           <Form.Item name="cedula" label="Cédula / Pasaporte" rules={clienteFormRules.cedula}><Input placeholder="12345678 o AB123456" /></Form.Item>
           <Form.Item name="nombres" label="Nombres" rules={clienteFormRules.nombres} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>
           <Form.Item name="apellidos" label="Apellidos" rules={clienteFormRules.apellidos} normalize={clienteFieldNormalizers.nombre}><Input /></Form.Item>

@@ -1,126 +1,229 @@
-# JAM Construcciones — Sistema de Gestión Inmobiliaria
+# JAM Construcciones
 
-Stack serverless en AWS (CDK) con frontend React + Vite, Lambdas Python, DynamoDB, Cognito, SQS y CloudFront.
+Sistema de gestión inmobiliaria para administrar proyectos, inventario, clientes, bloqueos, procesos comerciales, inmobiliarias, usuarios, tareas, campañas, reportes y conversaciones provenientes de Meta.
 
----
+## Documentación
+
+- [Documentación técnica final](DOCUMENTACION_FINAL.md)
+- [Guía sencilla para usuarios](GUIA_USUARIO_JAM_CONSTRUCCIONES.md)
+
+## Funcionalidades principales
+
+- Administración de proyectos, etapas, edificios y unidades.
+- Consulta y mantenimiento del inventario inmobiliario.
+- Bloqueos temporales de unidades con liberación automática.
+- Registro, búsqueda, edición, transferencia y eliminación de clientes.
+- Control de exclusividad por cliente y proyecto.
+- Procesos comerciales: captación, reserva, separación, pagos y venta.
+- Migración masiva de inventario y clientes desde Excel.
+- Reportes y analítica comercial.
+- Gestión de inmobiliarias y usuarios.
+- Campañas de correo y plantillas.
+- Tareas y recordatorios internos.
+- Leads, formularios y conversaciones de Meta.
+- Páginas públicas de captura e inventario.
+
+## Roles
+
+| Rol | Alcance |
+|---|---|
+| `admin` | Administración completa del sistema y operaciones especiales. |
+| `coordinador` | Administración operativa y seguimiento comercial. |
+| `supervisor` | Supervisión de clientes, procesos, inventario, campañas y tareas. |
+| `inmobiliaria` | Trabajo con sus proyectos, clientes, bloqueos y procesos. |
+
+Los permisos se controlan en la interfaz y se vuelven a validar en el backend.
+
+## Arquitectura
+
+- Frontend: React, TypeScript, Vite y Ant Design.
+- API: Amazon API Gateway.
+- Autenticación: Amazon Cognito con MFA opcional.
+- Backend: AWS Lambda con Python.
+- Base de datos: Amazon DynamoDB.
+- Archivos y frontend: Amazon S3.
+- Distribución web: Amazon CloudFront.
+- Notificaciones: Amazon SQS, SES y EventBridge Scheduler.
+- Procesos largos: AWS Step Functions.
+- Integraciones: Meta Graph API y Amazon Bedrock.
+
+## Estructura del proyecto
+
+```text
+front/       Aplicación web React/Vite.
+lambdas/     Funciones Lambda y lógica de negocio Python.
+infra/       Infraestructura AWS definida con CDK.
+scripts/     Scripts operativos y de mantenimiento.
+```
+
+### Lambdas principales
+
+| Lambda | Función |
+|---|---|
+| `jam-auth` | Autenticación, MFA, usuarios e inmobiliarias. |
+| `jam-proyectos` | Proyectos, etapas, torres, unidades y Excel. |
+| `jam-captacion` | Clientes, captación y exclusividad. |
+| `jam-bloqueos` | Bloqueos, liberaciones y su historial. |
+| `jam-crm` | Procesos, estatus, historial, analítica y Meta CRM. |
+| `jam-transferir-cliente` | Transferencias y cambio de cédula. |
+| `jam-campanias` | Campañas, plantillas y envíos. |
+| `jam-tareas` | Tareas, trabajadores y recordatorios. |
+| `jam-meta-webhooks` | Webhooks y eventos de Meta. |
+| `jam-notificaciones` | Correos enviados desde la cola de notificaciones. |
 
 ## Ambientes
 
-| Ambiente | Stack CDK | API | CloudFront | Frontend Bucket |
-|----------|-----------|-----|------------|-----------------|
-| **Dev** | `JamConstrucciones` | `https://agfdz17sk6.execute-api.us-east-1.amazonaws.com/api` | `d12nm0khvt8zd9.cloudfront.net` | `jam-frontend-479324457361` |
-| **Prod** | `JamConstruccionesProd` | `https://7lltvhwiu7.execute-api.us-east-1.amazonaws.com/api` | `dcgjiswnwqab6.cloudfront.net` | `jam-frontend-prod-479324457361` |
+| Ambiente | Stack CDK | Frontend | API |
+|---|---|---|---|
+| Dev | `JamConstrucciones` | https://d12nm0khvt8zd9.cloudfront.net | https://agfdz17sk6.execute-api.us-east-1.amazonaws.com/api/ |
+| Prod | `JamConstruccionesProd` | https://dcgjiswnwqab6.cloudfront.net | https://7lltvhwiu7.execute-api.us-east-1.amazonaws.com/api/ |
 
----
+## Requisitos locales
 
-## Cambios recientes — Mayo 2026
+- Node.js y npm.
+- Dependencias instaladas en `front` e `infra`.
+- AWS CLI configurado con permisos para el ambiente correspondiente.
+- CDK instalado localmente como dependencia de `infra`.
 
-### Nuevo stack de producción (`JamConstruccionesProd`)
-Se creó un stack CDK independiente para producción. Todos los recursos tienen el sufijo `-prod` para coexistir con el stack de dev sin conflictos.
-
-Recursos prod creados:
-- **Cognito**: `jam-user-pool-prod` — User Pool ID: `us-east-1_LanuU6JeX`
-- **DynamoDB**: `jam-usuarios-prod`, `jam-inventario-prod`, `jam-clientes-prod`, `jam-procesos-prod`, `jam-historial-bloqueos-prod`, `jam-historial-estatus-prod`
-- **Lambdas**: `jam-auth-prod`, `jam-proyectos-prod`, `jam-bloqueos-prod`, `jam-captacion-prod`, `jam-crm-prod`, `jam-notificaciones-prod`, `jam-excel-parser-prod`, `jam-transferir-cliente-prod`, `jam-iniciar-transferencia-prod`
-- **SQS**: `jam-notificaciones-queue-prod`, `jam-notificaciones-dlq-prod`
-- **S3**: `jam-frontend-prod-479324457361`, `jam-assets-prod-479324457361`, `jam-archivos-prod-479324457361`
-- **Backup**: `jam-backup-vault-prod`, `jam-backup-plan-prod`
-- **Step Function**: `jam-transferir-cliente-workflow-prod`
-- **IAM Role**: `jam-scheduler-role-prod`
-
-### Correo de notificaciones actualizado
-`ADMIN_EMAIL` y `FROM_EMAIL` cambiados a `Venta@jamconstruccionesrl.com` en la lambda `jam-notificaciones-prod`.
-
-### Usuario admin prod creado
-- **Username**: `jalvarez_methodica`
-- **Rol**: `admin`
-- **Cognito sub**: `c4d83478-7021-701a-f230-23e778091398`
-- Registro creado en `jam-usuarios-prod` vía `scripts/admin-user.json`
-
----
-
-## Cambiar entre ambientes
-
-### Apuntar a Dev
-`infra/bin/infra.ts`:
-```typescript
-new JamStack(app, 'JamConstrucciones', { ... })
-```
-`front/.env`:
-```env
-VITE_API_URL=https://agfdz17sk6.execute-api.us-east-1.amazonaws.com/api
-VITE_COGNITO_USER_POOL_ID=us-east-1_eHBrqYp0h
-VITE_COGNITO_CLIENT_ID=72bh2oh1cma6jgludq9eck6g4h
-VITE_AWS_REGION=us-east-1
-VITE_STAGE=dev
-```
-
-### Apuntar a Prod
-`infra/bin/infra.ts`:
-```typescript
-new JamStack(app, 'JamConstruccionesProd', { ... })
-```
-`front/.env`:
-```env
-VITE_API_URL=https://7lltvhwiu7.execute-api.us-east-1.amazonaws.com/api
-VITE_COGNITO_USER_POOL_ID=us-east-1_LanuU6JeX
-VITE_COGNITO_CLIENT_ID=24jo1ts9lhflo9g449fdrb22k
-VITE_AWS_REGION=us-east-1
-VITE_STAGE=prod
-```
-
----
-
-## Deploy
-
-### Infra
-```bash
-cd infra
-cdk deploy
-```
-
-### Frontend
-```bash
-# 1. Build
-cd front
-npm run build
-
-# 2. Subir index.html y archivos raíz (sin caché)
-aws s3 sync dist/ s3://<FRONTEND_BUCKET>/ --exclude "assets/*" --cache-control "no-cache"
-
-# 3. Subir assets (con caché larga)
-aws s3 sync dist/assets/ s3://<ASSETS_BUCKET>/assets/ --cache-control "public, max-age=31536000, immutable"
-
-# 4. Invalidar CloudFront
-aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths "/*"
-```
-
-#### Buckets y distribuciones por ambiente
-
-| Ambiente | Frontend Bucket | Assets Bucket | CloudFront ID |
-|----------|----------------|---------------|---------------|
-| Dev | `jam-frontend-479324457361` | `jam-assets-479324457361` | `E1WI58DFYF9AST` |
-| Prod | `jam-frontend-prod-479324457361` | `jam-assets-prod-479324457361` | Ver con `aws cloudfront list-distributions` |
-
----
-
-## Crear usuario admin (Cognito + DynamoDB)
+Instalar dependencias:
 
 ```powershell
-# 1. Crear en Cognito
-aws cognito-idp admin-create-user --user-pool-id <USER_POOL_ID> --username <USERNAME> --temporary-password "Temp123!" --message-action SUPPRESS
+cd front
+npm.cmd install
 
-# 2. Contraseña permanente
-aws cognito-idp admin-set-user-password --user-pool-id <USER_POOL_ID> --username <USERNAME> --password "<PASSWORD>" --permanent
-
-# 3. Agregar al grupo admin
-aws cognito-idp admin-add-user-to-group --user-pool-id <USER_POOL_ID> --username <USERNAME> --group-name admin
-
-# 4. Obtener sub
-aws cognito-idp admin-get-user --user-pool-id <USER_POOL_ID> --username <USERNAME> --query "UserAttributes[?Name=='sub'].Value" --output text
-
-# 5. Crear registro en DynamoDB (editar scripts/admin-user.json con el sub obtenido)
-aws dynamodb put-item --table-name <USUARIOS_TABLE> --region us-east-1 --item file://C:/Users/Andre/Documents/GitHub/JAM-Construcciones/scripts/admin-user.json
+cd ..\infra
+npm.cmd install
 ```
 
-> El registro en DynamoDB es obligatorio. El endpoint `/me` lo busca por `USUARIO#{sub}` y si no existe el frontend no deja pasar.
+## Ejecutar el frontend localmente
+
+```powershell
+cd front
+npm.cmd run dev
+```
+
+La configuración de API, Cognito, región y ambiente se obtiene de los archivos `.env` y `.env.production`.
+
+## Validar el proyecto
+
+Frontend de desarrollo:
+
+```powershell
+cd front
+npm.cmd run build
+```
+
+Frontend de producción:
+
+```powershell
+cd front
+npm.cmd run build:prod
+```
+
+Infraestructura:
+
+```powershell
+cd infra
+npm.cmd run build
+```
+
+## Desplegar infraestructura
+
+### Dev
+
+```powershell
+cd infra
+$env:CDK_DEFAULT_ACCOUNT='479324457361'
+$env:CDK_DEFAULT_REGION='us-east-1'
+npm.cmd run cdk -- deploy JamConstrucciones -c stage=dev --require-approval never
+```
+
+### Prod
+
+```powershell
+cd infra
+$env:CDK_DEFAULT_ACCOUNT='479324457361'
+$env:CDK_DEFAULT_REGION='us-east-1'
+npm.cmd run cdk -- deploy JamConstruccionesProd -c stage=prod --require-approval never
+```
+
+## Publicar el frontend
+
+El frontend se publica separando los archivos principales de los assets porque CloudFront sirve `/assets/*` desde un bucket diferente.
+
+### Dev
+
+```powershell
+cd front
+npm.cmd run build
+aws s3 sync dist/ s3://jam-frontend-479324457361/ --exclude "assets/*" --cache-control "no-cache"
+aws s3 sync dist/assets/ s3://jam-assets-479324457361/assets/ --cache-control "public, max-age=31536000, immutable"
+aws cloudfront create-invalidation --distribution-id E1WI58DFYF9AST --paths "/*"
+```
+
+### Prod
+
+```powershell
+cd front
+npm.cmd run build:prod
+aws s3 sync dist/ s3://jam-frontend-prod-479324457361/ --exclude "assets/*" --cache-control "no-cache"
+aws s3 sync dist/assets/ s3://jam-assets-prod-479324457361/assets/ --cache-control "public, max-age=31536000, immutable"
+aws cloudfront create-invalidation --distribution-id EQD4J2QTY0PV8 --paths "/*"
+```
+
+### Buckets
+
+| Ambiente | Frontend | Assets |
+|---|---|---|
+| Dev | `jam-frontend-479324457361` | `jam-assets-479324457361` |
+| Prod | `jam-frontend-prod-479324457361` | `jam-assets-prod-479324457361` |
+
+No se debe subir `dist/` completo al bucket principal sin excluir `assets/*`.
+
+## Reglas de negocio importantes
+
+- Las inmobiliarias deben crear bloqueos con cliente.
+- Los usuarios internos pueden crear bloqueos temporales sin cliente.
+- Una unidad no puede ser bloqueada simultáneamente por dos inmobiliarias.
+- Después de liberar una unidad existe una espera de 24 horas antes de volver a bloquearla.
+- La exclusividad se aplica por cliente y proyecto durante tres meses.
+- `admin` y `coordinador` pueden confirmar un bypass de exclusividad.
+- El bypass siempre requiere confirmación en la interfaz y validación del rol en el backend.
+- Añadir un cliente desde Administración no bloquea una unidad ni crea automáticamente una venta.
+- Las operaciones destructivas requieren permisos específicos.
+
+## API principal
+
+La API se publica bajo `/api` y utiliza tokens de Cognito.
+
+Familias principales de rutas:
+
+- `/auth`
+- `/proyectos`
+- `/clientes`
+- `/bloqueos`
+- `/mis-procesos`
+- `/admin/clientes`
+- `/admin/proyectos`
+- `/admin/inventario`
+- `/admin/inmobiliarias`
+- `/admin/sistema/usuarios`
+- `/admin/campanias`
+- `/admin/tareas`
+- `/admin/analytics`
+- `/admin/meta-*`
+- `/webhooks/meta`
+- `/publico/*`
+
+## Consideraciones operativas
+
+- El frontend no se publica automáticamente mediante CDK.
+- Siempre se debe invalidar CloudFront después de publicar cambios del frontend.
+- La infraestructura está cerca del límite de recursos de CloudFormation.
+- Se debe verificar el ambiente antes de ejecutar comandos de despliegue.
+- No guardar contraseñas, tokens ni secretos en el repositorio.
+- Revisar cuidadosamente los comandos que modifiquen o eliminen datos.
+
+## Estado actual
+
+La versión actual se encuentra desplegada en dev y prod, incluyendo el flujo de **Añadir cliente** desde Administración, la confirmación de exclusividad y el bypass autorizado para usuarios `admin` y `coordinador`.

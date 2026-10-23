@@ -1,0 +1,10 @@
+{
+  "pk": {"S": "USUARIO#c4d83478-7021-701a-f230-23e778091398"},
+  "sk": {"S": "METADATA"},
+  "cognito_username": {"S": "jalvarez_methodica"},
+  "nombre": {"S": "Alvarez"},
+  "rol": {"S": "admin"},
+  "activo": {"BOOL": true},
+  "tipo": {"S": "USUARIO"},
+  "creado_en": {"S": "2026-05-13T00:00:00Z"}
+}

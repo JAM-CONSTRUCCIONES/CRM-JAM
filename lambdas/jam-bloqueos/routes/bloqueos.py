@@ -106,6 +106,10 @@ def bloquear(event):
 
     es_admin = require_admin(event)
     forzar_admin = es_admin and solicita_forzar_admin
+    # Los usuarios internos pueden gestionar una unidad inmediatamente después
+    # de una liberación. La confirmación explícita (`forzar_admin`) se conserva
+    # únicamente para saltar la exclusividad del cliente.
+    puede_omitir_rebloqueo = es_admin
 
     # Las inmobiliarias deben crear los bloqueos con un cliente asignado.
     # Los usuarios internos mantienen la posibilidad de crear bloqueos
@@ -177,7 +181,7 @@ def bloquear(event):
     )
 
     now = datetime.now(timezone.utc)
-    if not ya_bloqueada_propia and not forzar_admin:
+    if not ya_bloqueada_propia and not puede_omitir_rebloqueo:
         ts_limite = (now - timedelta(hours=HORAS_REBLOQUEO)).isoformat()
         if _tiene_liberacion_reciente(unidad_id, proyecto_id, inmo_id, ts_limite, now.isoformat()):
             return too_many(f'No puedes re-bloquear la unidad "{unidad_nombre}" antes de 24 horas desde la última liberación')

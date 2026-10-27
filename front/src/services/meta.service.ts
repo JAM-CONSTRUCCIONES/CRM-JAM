@@ -105,6 +105,8 @@ export interface MetaMensaje {
   event_timestamp: string;
   created_at?: string;
   text?: string;
+  enviado_por_sub?: string;
+  enviado_por_nombre?: string;
   quoted_message_id?: string;
   quoted_text?: string;
   quoted_sender?: string;

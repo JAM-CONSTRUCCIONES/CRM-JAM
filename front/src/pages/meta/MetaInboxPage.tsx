@@ -21,6 +21,7 @@ import {
 } from 'antd';
 import { ArrowLeftOutlined, AudioOutlined, CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, FileOutlined, LinkOutlined, PauseOutlined, PaperClipOutlined, PlayCircleFilled, PlusOutlined, ReloadOutlined, SendOutlined, StopOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useAuthContext } from '../../context/AuthContext';
 import {
   convertirMetaLead,
   enviarMetaMensaje,
@@ -484,6 +485,7 @@ const errorVisibleMensajeMeta = (mensaje: MetaMensaje) => {
 
 export default function MetaInboxPage() {
   const navigate = useNavigate();
+  const { usuario } = useAuthContext();
   const [leads, setLeads] = useState<MetaLead[]>([]);
   const [leadsCursor, setLeadsCursor] = useState('');
   const [hasMoreLeads, setHasMoreLeads] = useState(false);
@@ -1040,6 +1042,8 @@ export default function MetaInboxPage() {
       text: texto,
       direction: 'outgoing',
       message_status: 'enviando',
+      enviado_por_sub: usuario?.sub,
+      enviado_por_nombre: usuario?.nombre || usuario?.username,
       quoted_message_id: quotedMessageId,
       quoted_text: quoted ? resumenMensajeCitado(quoted) : undefined,
       quoted_sender: quoted ? (quoted.direction === 'incoming' ? nombreContacto(lead) : 'Tu') : undefined,
@@ -1305,6 +1309,8 @@ export default function MetaInboxPage() {
         text: caption,
         direction: 'outgoing',
         message_status: 'enviando',
+        enviado_por_sub: usuario?.sub,
+        enviado_por_nombre: usuario?.nombre || usuario?.username,
         event_type: mediaTypeEnvio,
         quoted_message_id: quotedMessageId,
         quoted_text: quoted ? resumenMensajeCitado(quoted) : undefined,
@@ -1908,6 +1914,10 @@ export default function MetaInboxPage() {
                     )}
                     {mensajesVisibles.map((mensaje, idx) => {
                       const incoming = mensaje.direction === 'incoming';
+                      const usuarioMensaje = mensaje.enviado_por_sub
+                        ? usuarios.find((item) => item.pk === `USUARIO#${mensaje.enviado_por_sub}` || item.pk === mensaje.enviado_por_sub)
+                        : undefined;
+                      const enviadoPor = mensaje.enviado_por_nombre || usuarioMensaje?.nombre || '';
                       const attachments = attachmentsOf(mensaje);
                       const displayText = textoMensaje(mensaje);
                       const keyReenvio = mensajeKey(mensaje);
@@ -2157,6 +2167,11 @@ export default function MetaInboxPage() {
                                 </Button>
                               )}
                             </div>
+                            {!incoming && enviadoPor && (
+                              <Text type="secondary" className="mt-1 block text-[10px] leading-tight">
+                                Enviado por {enviadoPor}
+                              </Text>
+                            )}
                             {errorVisibleMensajeMeta(mensaje) && (
                               <Text type="secondary" className="mt-0.5 block text-[11px]">
                                 {errorVisibleMensajeMeta(mensaje)}

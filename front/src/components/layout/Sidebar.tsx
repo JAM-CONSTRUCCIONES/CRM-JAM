@@ -141,12 +141,12 @@ const Sidebar = ({ onSelect, collapsed = false }: Props) => {
       title: 'Administracion',
       items: [
         ...(isAdminOrCoordinador ? [
-          { key: '/inmobiliarias', icon: <Building2 />, label: 'Inmobiliarias' },
           { key: '/procesos', icon: <Database />, label: 'Procesos' },
-          { key: '/migracion', icon: <FileSpreadsheet />, label: 'Migracion Excel' },
-          { key: '/tareas', icon: <CalendarDays />, label: 'Agenda / Tareas' },
-          { key: '/sistema/usuarios', icon: <User />, label: 'Usuarios' },
           ...(rol === 'admin' ? [{ key: '/auditoria', icon: <ScrollText />, label: 'Auditoría' }] : []),
+          { key: '/tareas', icon: <CalendarDays />, label: 'Agenda / Tareas' },
+          { key: '/inmobiliarias', icon: <Building2 />, label: 'Inmobiliarias' },
+          { key: '/sistema/usuarios', icon: <User />, label: 'Usuarios' },
+          { key: '/migracion', icon: <FileSpreadsheet />, label: 'Migracion Excel' },
           { key: '/config', icon: <Settings />, label: 'Notificaciones' },
         ] : []),
         { key: '/meta-inbox', icon: <BotMessageSquare />, label: 'Inbox Meta' },

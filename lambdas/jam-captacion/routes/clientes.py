@@ -10,6 +10,7 @@ from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, conflict, not_found
 from utils.auth import get_sub, get_rol, get_claims
 from utils import scheduler as sched
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 clientes = dynamodb.Table(os.environ['CLIENTES_TABLE'])
@@ -611,6 +612,17 @@ def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id, event=None):
         unidad_nombre=unidad_nombre,
         proceso_creado=bool(unidad_id),
         fecha_captacion=fecha_captacion,
+    )
+    registrar_auditoria(
+        event or {}, 'cliente_creado', 'clientes', 'cliente', cedula,
+        detalles={
+            'proyecto_id': proyecto_id,
+            'inmobiliaria_id': inmobiliaria_id,
+            'unidad_id': unidad_id or '',
+            'unidad_nombre': unidad_nombre or '',
+            'proceso_creado': bool(unidad_id),
+        },
+        datos_nuevos={'nombres': item['nombres'], 'apellidos': item['apellidos']},
     )
 
     return created(item)
@@ -1590,6 +1602,15 @@ def eliminar_admin(event, cedula, proyecto_id):
             registros_encontrados=len(registros),
             items_eliminados=len(items_eliminados),
             detalle_items=items_eliminados,
+        )
+        registrar_auditoria(
+            event, 'cliente_eliminado', 'clientes', 'cliente', cedula,
+            detalles={
+                'proyecto_id': proyecto_id,
+                'registros_encontrados': len(registros),
+                'items_eliminados': len(items_eliminados),
+                'detalle_items': items_eliminados,
+            },
         )
         
         return ok({

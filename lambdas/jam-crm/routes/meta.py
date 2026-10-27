@@ -15,6 +15,7 @@ from botocore.exceptions import ClientError
 from utils.response import _build, bad_request, conflict, ok
 from utils.auth import get_nombre, get_sub
 from routes.estatus import _activar_bloqueo_desde_proceso
+from utils.auditoria import registrar_auditoria
 
 
 dynamodb = boto3.resource('dynamodb')
@@ -719,6 +720,16 @@ def enviar_mensaje(event):
         'texto': texto[:500],
         'error_message': mensaje.get('error_message', ''),
     })
+    registrar_auditoria(
+        event, 'mensaje_crm_enviado' if send_result.get('ok') else 'mensaje_crm_fallido',
+        'crm', 'conversacion', lead_pk,
+        resultado='completado' if send_result.get('ok') else 'fallido',
+        detalles={
+            'canal': canal,
+            'message_id': mensaje.get('external_event_id', ''),
+            'message_status': mensaje.get('message_status', ''),
+        },
+    )
 
     status_code = 200 if send_result.get('ok') else 202
     return _build(status_code, {

@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 from boto3.dynamodb.conditions import Key, Attr
 from utils.response import ok, created, bad_request, not_found, conflict
 from utils.auth import get_sub, get_nombre
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 sqs = boto3.client('sqs')
@@ -984,6 +985,18 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
             'unidad_nombre': proceso.get('unidad_nombre', unidad_id),
             'timestamp': ahora,
         }, ensure_ascii=False),
+    )
+
+    registrar_auditoria(
+        event, 'proceso_estado_cambiado', 'procesos', 'proceso',
+        f'{cedula}#{unidad_id}',
+        detalles={
+            'cedula': cedula, 'proyecto_id': proyecto_id,
+            'inmobiliaria_id': inmobiliaria_id, 'unidad_id': unidad_id,
+            'unidad_nombre': proceso.get('unidad_nombre', unidad_id),
+            'estatus_anterior': estatus_actual, 'estatus_nuevo': nuevo_estatus,
+            'notificar': notificar,
+        },
     )
 
     return ok({'message': f'Estatus actualizado a {nuevo_estatus}', 'estatus': nuevo_estatus})

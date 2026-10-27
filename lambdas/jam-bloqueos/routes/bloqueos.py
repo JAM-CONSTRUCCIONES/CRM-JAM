@@ -8,6 +8,7 @@ from utils.response import ok, bad_request, conflict, too_many, not_found
 from utils.auth import get_claims, get_inmobiliaria_id, get_rol, require_admin
 from utils import scheduler as sched
 from utils.clientes import registrar_cliente_y_proceso, _normalizar_datos_cliente
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 inventario = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
@@ -348,6 +349,18 @@ def bloquear(event):
         cliente_registrado=tiene_cliente and not cliente_advertencia,
         bloqueo_nuevo=not ya_bloqueada_propia,
         fecha_bloqueo=ts_bloqueo,
+    )
+    registrar_auditoria(
+        event,
+        'bloqueo_creado' if not ya_bloqueada_propia else 'cliente_asignado_bloqueo',
+        'bloqueos', 'unidad', unidad_id,
+        detalles={
+            'proyecto_id': proyecto_id_clean,
+            'inmobiliaria_id': inmo_id,
+            'cliente_cedula': cedula or '',
+            'unidad_nombre': unidad_nombre,
+            'bloqueo_nuevo': not ya_bloqueada_propia,
+        },
     )
 
     resp = {

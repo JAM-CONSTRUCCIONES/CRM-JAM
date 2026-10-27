@@ -113,6 +113,30 @@ export class JamStack extends cdk.Stack {
       sortKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
     });
 
+    const auditoriaTable = new dynamodb.Table(this, 'JamAuditoriaTable', {
+      tableName: resourceName('jam-auditoria'),
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    auditoriaTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-usuario',
+      partitionKey: { name: 'GSI1PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'GSI1SK', type: dynamodb.AttributeType.STRING },
+    });
+    auditoriaTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-entidad',
+      partitionKey: { name: 'GSI2PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'GSI2SK', type: dynamodb.AttributeType.STRING },
+    });
+    auditoriaTable.addGlobalSecondaryIndex({
+      indexName: 'gsi-accion',
+      partitionKey: { name: 'GSI3PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'GSI3SK', type: dynamodb.AttributeType.STRING },
+    });
+
     const inventarioTable = new dynamodb.Table(this, 'JamInventarioTable', {
       tableName: resourceName('jam-inventario'),
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
@@ -156,10 +180,12 @@ export class JamStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
         USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
         USUARIOS_TABLE: usuariosTable.tableName,
+        AUDIT_TABLE: auditoriaTable.tableName,
       },
     });
 
     usuariosTable.grantReadWriteData(authLambda);
+    auditoriaTable.grantWriteData(authLambda);
     authLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: [
         'cognito-idp:InitiateAuth',
@@ -193,12 +219,14 @@ export class JamStack extends cdk.Stack {
       environment: {
         INVENTARIO_TABLE: inventarioTable.tableName,
         USUARIOS_TABLE: usuariosTable.tableName,
+        AUDIT_TABLE: auditoriaTable.tableName,
       },
     });
 
     inventarioTable.grantReadWriteData(proyectosLambda);
     // Necesita escritura para desvincular el proyecto de las inmobiliarias al eliminar
     usuariosTable.grantReadWriteData(proyectosLambda);
+    auditoriaTable.grantWriteData(proyectosLambda);
 
     // ─── DYNAMODB jam-clientes ───────────────────────────────────────────────
 
@@ -398,6 +426,7 @@ export class JamStack extends cdk.Stack {
         CLIENTES_TABLE: clientesTable.tableName,
         PROCESOS_TABLE: procesosTable.tableName,
         CAPTACION_LAMBDA_ARN: captacionLambdaArn,
+        AUDIT_TABLE: auditoriaTable.tableName,
       },
     });
 
@@ -407,6 +436,7 @@ export class JamStack extends cdk.Stack {
     notificacionesQueue.grantSendMessages(bloqueosLambda);
     clientesTable.grantReadWriteData(bloqueosLambda);
     procesosTable.grantReadWriteData(bloqueosLambda);
+    auditoriaTable.grantWriteData(bloqueosLambda);
 
     bloqueosLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['scheduler:CreateSchedule', 'scheduler:DeleteSchedule'],
@@ -439,6 +469,7 @@ export class JamStack extends cdk.Stack {
         CAPTACION_LAMBDA_ARN: captacionLambdaArn,
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         SQS_URL: notificacionesQueue.queueUrl,
+        AUDIT_TABLE: auditoriaTable.tableName,
       },
     });
 
@@ -446,6 +477,7 @@ export class JamStack extends cdk.Stack {
     usuariosTable.grantReadData(captacionLambda);
     inventarioTable.grantReadWriteData(captacionLambda);  // Necesita escribir para desvincular unidades
     procesosTable.grantReadWriteData(captacionLambda);
+    auditoriaTable.grantWriteData(captacionLambda);
     notificacionesQueue.grantSendMessages(captacionLambda);
 
     // jam-bloqueos también necesita leer/escribir clientes para desvincular unidades
@@ -594,6 +626,7 @@ export class JamStack extends cdk.Stack {
         USUARIOS_TABLE: usuariosTable.tableName,
         HISTORIAL_TABLE: historialTable.tableName,
         META_CONVERSACIONES_TABLE: metaConversacionesTable.tableName,
+        AUDIT_TABLE: auditoriaTable.tableName,
         INSTAGRAM_TOKEN_PARAM_JAM: isProd
           ? '/jam/prod/meta/instagram/jamconstruccionessrl/access-token'
           : '/jam/dev/meta/instagram/jamconstruccionessrl/access-token',
@@ -635,6 +668,8 @@ export class JamStack extends cdk.Stack {
     inventarioTable.grantReadWriteData(crmLambda);
     historialTable.grantReadWriteData(crmLambda);
     metaConversacionesTable.grantReadWriteData(crmLambda);
+    auditoriaTable.grantWriteData(crmLambda);
+    auditoriaTable.grantReadData(crmLambda);
     notificacionesQueue.grantSendMessages(crmLambda);
     crmLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['dynamodb:TransactWriteItems'],
@@ -1687,6 +1722,7 @@ def handler(event, context):
         backup.BackupResource.fromDynamoDbTable(campaniasTable),
         backup.BackupResource.fromDynamoDbTable(metaConversacionesTable),
         backup.BackupResource.fromDynamoDbTable(tareasTable),
+        backup.BackupResource.fromDynamoDbTable(auditoriaTable),
       ],
     });
 

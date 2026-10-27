@@ -1,10 +1,12 @@
 import json
 import os
+import json
 import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found, _build
 from utils.helpers import now
+from utils.auditoria import registrar_auditoria
 
 cognito = boto3.client('cognito-idp')
 dynamodb = boto3.resource('dynamodb')
@@ -69,6 +71,10 @@ def crear(inmo_id, event):
             'creado_en': now(),
         }
         table.put_item(Item=item)
+        registrar_auditoria(
+            event, 'usuario_creado', 'usuarios', 'usuario', sub,
+            detalles={'username_creado': username, 'nombre_creado': nombre, 'inmobiliaria_id': inmo_id},
+        )
         return created({'message': 'Usuario creado', 'sub': sub, 'username': username})
 
     except ClientError as e:
@@ -82,15 +88,15 @@ def crear(inmo_id, event):
         return _build(500, {'message': f'Error al crear usuario en Cognito: {code}'})
 
 
-def deshabilitar(usuario_id):
-    return _set_activo(usuario_id, False)
+def deshabilitar(usuario_id, event):
+    return _set_activo(usuario_id, False, event)
 
 
-def habilitar(usuario_id):
-    return _set_activo(usuario_id, True)
+def habilitar(usuario_id, event):
+    return _set_activo(usuario_id, True, event)
 
 
-def eliminar(usuario_id):
+def eliminar(usuario_id, event):
     table = dynamodb.Table(USUARIOS_TABLE)
     item = table.get_item(Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'}).get('Item')
     if not item:
@@ -100,6 +106,10 @@ def eliminar(usuario_id):
         if username:
             cognito.admin_delete_user(UserPoolId=USER_POOL_ID, Username=username)
         table.delete_item(Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'})
+        registrar_auditoria(
+            event, 'usuario_eliminado', 'usuarios', 'usuario', usuario_id,
+            detalles={'username_eliminado': username, 'inmobiliaria_id': item.get('inmobiliaria_id')},
+        )
         return ok({'message': 'Usuario eliminado'})
     except ClientError as e:
         code = e.response['Error']['Code']
@@ -109,7 +119,7 @@ def eliminar(usuario_id):
         return _build(500, {'message': f'No se pudo eliminar el usuario: {code}'})
 
 
-def _set_activo(usuario_id, activo):
+def _set_activo(usuario_id, activo, event=None):
     table = dynamodb.Table(USUARIOS_TABLE)
     item = table.get_item(Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'}).get('Item')
     if not item:
@@ -137,4 +147,10 @@ def _set_activo(usuario_id, activo):
 
     if errors:
         return _build(500, {'message': f'No se pudo {"habilitar" if activo else "deshabilitar"} el usuario correctamente: {", ".join(errors)}'})
+    registrar_auditoria(
+        event or {},
+        'usuario_habilitado' if activo else 'usuario_deshabilitado',
+        'usuarios', 'usuario', usuario_id,
+        detalles={'username': username, 'activo': activo, 'inmobiliaria_id': item.get('inmobiliaria_id')},
+    )
     return ok({'message': 'OK', 'activo': activo})

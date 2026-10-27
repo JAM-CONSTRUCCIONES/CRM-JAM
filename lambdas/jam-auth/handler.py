@@ -92,10 +92,10 @@ def handler(event, context):
         return sistema.actualizar(sistema_usuario_id, event)
 
     if method == 'PUT' and sistema_usuario_id and '/sistema/usuarios/' in path and path.endswith('/deshabilitar'):
-        return sistema.deshabilitar(sistema_usuario_id)
+        return sistema.deshabilitar(sistema_usuario_id, event)
 
     if method == 'PUT' and sistema_usuario_id and '/sistema/usuarios/' in path and path.endswith('/habilitar'):
-        return sistema.habilitar(sistema_usuario_id)
+        return sistema.habilitar(sistema_usuario_id, event)
 
     if method == 'DELETE' and sistema_usuario_id and '/sistema/usuarios/' in path:
         return sistema.eliminar(sistema_usuario_id, event)
@@ -130,12 +130,12 @@ def handler(event, context):
         return usuarios.crear(inmo_id, event)
 
     if method == 'PUT' and usuario_id and path.endswith('/deshabilitar'):
-        return usuarios.deshabilitar(usuario_id)
+        return usuarios.deshabilitar(usuario_id, event)
 
     if method == 'PUT' and usuario_id and path.endswith('/habilitar'):
-        return usuarios.habilitar(usuario_id)
+        return usuarios.habilitar(usuario_id, event)
 
     if method == 'DELETE' and usuario_id and not '/sistema/' in path:
-        return usuarios.eliminar(usuario_id)
+        return usuarios.eliminar(usuario_id, event)
 
     return not_found('Not found')

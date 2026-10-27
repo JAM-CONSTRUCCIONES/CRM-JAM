@@ -4,6 +4,7 @@ from routes import estatus as estatus_routes
 from routes import analytics as analytics_routes
 from routes import traspaso_cliente as traspaso_cliente_routes
 from routes import meta as meta_routes
+from routes import auditoria as auditoria_routes
 
 
 def handler(event, context):
@@ -43,6 +44,10 @@ def handler(event, context):
             return meta_routes.ver_conversacion(event)
         if query.get('tipo') == 'meta-media-upload':
             return meta_routes.get_media_upload_url(event)
+        if query.get('tipo') == 'auditoria':
+            if not es_admin:
+                return forbidden()
+            return auditoria_routes.listar(event)
         if query.get('tipo') == 'meta-facebook-oauth-url':
             return meta_routes.facebook_oauth_url(event)
         return estatus_routes.listar_todos_procesos(event)

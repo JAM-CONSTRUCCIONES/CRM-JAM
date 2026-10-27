@@ -5,6 +5,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, forbidden, not_found, _build
 from utils.helpers import now
+from utils.auditoria import registrar_auditoria
 
 cognito = boto3.client('cognito-idp')
 dynamodb = boto3.resource('dynamodb')
@@ -101,6 +102,11 @@ def crear(event):
         }
         table.put_item(Item=item)
 
+        registrar_auditoria(
+            event, 'usuario_creado', 'usuarios', 'usuario', sub,
+            detalles={'username_creado': username, 'nombre_creado': nombre, 'rol_creado': rol},
+        )
+
         response = {'message': 'Usuario creado', 'sub': sub, 'username': username, 'rol': rol}
         if mfa_secret:
             response['mfa_secret'] = mfa_secret
@@ -164,17 +170,25 @@ def actualizar(usuario_id, event):
             ExpressionAttributeValues=values,
             ExpressionAttributeNames=names,
         )
+        registrar_auditoria(
+            event, 'usuario_actualizado', 'usuarios', 'usuario', usuario_id,
+            detalles={
+                'username': item.get('cognito_username'),
+                'cambios': {key: body[key] for key in ('nombre', 'rol') if key in body},
+                'rol_anterior': item.get('rol'),
+            },
+        )
         return ok({'message': 'Usuario actualizado'})
     except ClientError as e:
         return _build(500, {'message': f'Error: {e.response["Error"]["Code"]}'})
 
 
-def deshabilitar(usuario_id):
-    return _set_activo(usuario_id, False)
+def deshabilitar(usuario_id, event):
+    return _set_activo(usuario_id, False, event)
 
 
-def habilitar(usuario_id):
-    return _set_activo(usuario_id, True)
+def habilitar(usuario_id, event):
+    return _set_activo(usuario_id, True, event)
 
 
 def eliminar(usuario_id, event):
@@ -192,12 +206,16 @@ def eliminar(usuario_id, event):
         if username:
             cognito.admin_delete_user(UserPoolId=USER_POOL_ID, Username=username)
         table.delete_item(Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'})
+        registrar_auditoria(
+            event, 'usuario_eliminado', 'usuarios', 'usuario', usuario_id,
+            detalles={'username_eliminado': username, 'rol_eliminado': item.get('rol')},
+        )
         return ok({'message': 'Usuario eliminado'})
     except ClientError as e:
         return _build(500, {'message': f'Error: {e.response["Error"]["Code"]}'})
 
 
-def _set_activo(usuario_id, activo):
+def _set_activo(usuario_id, activo, event=None):
     table = dynamodb.Table(USUARIOS_TABLE)
     item = table.get_item(Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'}).get('Item')
     if not item:
@@ -216,6 +234,12 @@ def _set_activo(usuario_id, activo):
             Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'},
             UpdateExpression='SET activo = :activo',
             ExpressionAttributeValues={':activo': activo}
+        )
+        registrar_auditoria(
+            event or {},
+            'usuario_habilitado' if activo else 'usuario_deshabilitado',
+            'usuarios', 'usuario', usuario_id,
+            detalles={'username': username, 'activo': activo, 'rol': item.get('rol')},
         )
         return ok({'message': 'OK', 'activo': activo})
     except ClientError as e:

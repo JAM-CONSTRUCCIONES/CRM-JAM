@@ -10,6 +10,7 @@ from utils.response import ok, bad_request, not_found, forbidden
 from utils.helpers import now
 from utils.excel_parser import parsear_excel  # noqa: F401 — usado por jam-excel-parser
 from utils.excel_writer import escribir_migracion
+from utils.auditoria import registrar_auditoria
 
 s3_client    = boto3.client('s3')
 dynamodb     = boto3.resource('dynamodb')
@@ -163,6 +164,11 @@ def confirmar(job_id, event):
     try:
         stats = escribir_migracion(proyecto_id, filas)
     except ValueError as e:
+        registrar_auditoria(
+            event, 'migracion_fallida', 'inventario', 'migracion', job_id,
+            resultado='fallido',
+            detalles={'proyecto_id': proyecto_id, 'total_filas': len(filas), 'error': str(e)},
+        )
         return bad_request(str(e))
 
     reporte = {
@@ -187,6 +193,15 @@ def confirmar(job_id, event):
     except Exception:
         pass  # No crítico si falla el borrado
 
+    registrar_auditoria(
+        event, 'migracion_completada', 'inventario', 'migracion', job_id,
+        detalles={
+            'proyecto_id': proyecto_id,
+            'total_filas': len(filas),
+            'estadisticas': stats,
+            'archivo': preview.get('archivo', ''),
+        },
+    )
     return ok(reporte)
 
 

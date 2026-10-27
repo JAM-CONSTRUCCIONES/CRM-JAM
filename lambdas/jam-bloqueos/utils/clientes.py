@@ -164,10 +164,12 @@ def registrar_cliente_y_proceso(
     unidad_id: str,
     unidad_nombre: str,
     datos_cliente: dict,
+    omitir_exclusividad: bool = False,
 ):
     """
     Crea o actualiza el cliente en jam-clientes y crea el proceso en jam-procesos.
-    Valida exclusividad antes de escribir.
+    Valida exclusividad antes de escribir, salvo que un usuario interno haya
+    confirmado explícitamente el bypass.
     Retorna (ok: bool, mensaje: str)
     """
     clientes_table = os.environ.get('CLIENTES_TABLE')
@@ -193,7 +195,7 @@ def registrar_cliente_y_proceso(
     sk = f'PROYECTO#{proyecto_id}'
     existing = clientes.get_item(Key={'pk': pk, 'sk': sk}).get('Item')
 
-    if not existing:
+    if not existing and not omitir_exclusividad:
         resultado = clientes.query(
             IndexName='gsi-cedula-proyecto',
             KeyConditionExpression=Key('cedula').eq(cedula) & Key('sk').eq(sk),

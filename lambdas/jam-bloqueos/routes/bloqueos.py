@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 from utils.response import ok, bad_request, conflict, too_many, not_found
-from utils.auth import get_inmobiliaria_id, get_rol, require_admin
+from utils.auth import get_claims, get_inmobiliaria_id, get_rol, require_admin
 from utils import scheduler as sched
 from utils.clientes import registrar_cliente_y_proceso, _normalizar_datos_cliente
 
@@ -19,6 +19,31 @@ SQS_URL = os.environ.get('SQS_URL', '')
 HORAS_BLOQUEO = 48
 HORAS_ALERTA = 43  # alerta 5 horas antes del vencimiento
 HORAS_REBLOQUEO = 24
+
+
+def _log_creation_audit(event, accion, estado, cedula, proyecto_id, inmobiliaria_id, **details):
+    """Registra bloqueos y asignaciones con identidad y contexto de la petición."""
+    claims = get_claims(event)
+    request_context = event.get('requestContext') or {}
+    print(json.dumps({
+        'audit': 'bloqueos_action',
+        'accion': accion,
+        'estado': estado,
+        'actor': {
+            'sub': claims.get('sub'),
+            'username': claims.get('cognito:username') or claims.get('username'),
+            'email': claims.get('email'),
+            'nombre': claims.get('name') or claims.get('custom:nombre'),
+            'rol': get_rol(event),
+        },
+        'request_id': request_context.get('requestId') or request_context.get('extendedRequestId'),
+        'metodo': event.get('httpMethod'),
+        'ruta': event.get('path'),
+        'cedula': cedula,
+        'proyecto_id': proyecto_id,
+        'inmobiliaria_id': inmobiliaria_id,
+        **details,
+    }, ensure_ascii=False, default=str))
 
 
 def _normalizar_inmo_id(value: str | None) -> str:
@@ -65,6 +90,35 @@ def _tiene_liberacion_reciente(unidad_id: str, proyecto_id: str, inmobiliaria_id
         last_key = result.get('LastEvaluatedKey')
         if not last_key:
             return False
+
+
+def _revertir_bloqueo_nuevo(unidad_id: str, proyecto_id: str, inmobiliaria_id: str, ts_bloqueo: str):
+    """Evita dejar inventario/historial bloqueados si falla el registro asociado."""
+    try:
+        inventario.update_item(
+            Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'UNIDAD#{unidad_id}'},
+            UpdateExpression='SET estado = :disponible REMOVE bloqueado_por, fecha_bloqueo, fecha_liberacion, cliente_cedula',
+            ConditionExpression=(
+                'estado = :bloqueada AND bloqueado_por = :inmo AND fecha_bloqueo = :ts'
+            ),
+            ExpressionAttributeValues={
+                ':disponible': 'disponible',
+                ':bloqueada': 'bloqueada',
+                ':inmo': inmobiliaria_id,
+                ':ts': ts_bloqueo,
+            },
+        )
+    except Exception as e:
+        print(f'Error revirtiendo unidad {unidad_id}: {type(e).__name__}: {e}')
+
+    try:
+        historial_table.delete_item(
+            Key={'pk': f'UNIDAD#{unidad_id}', 'sk': f'BLOQUEO#{ts_bloqueo}'},
+        )
+    except Exception as e:
+        print(f'Error revirtiendo historial de {unidad_id}: {type(e).__name__}: {e}')
+
+    sched.eliminar_schedules(unidad_id)
 
 
 def bloquear(event):
@@ -247,10 +301,18 @@ def bloquear(event):
     cliente_advertencia = None
     if tiene_cliente:
         ok_cliente, msg_cliente = registrar_cliente_y_proceso(
-            cedula, inmo_id, proyecto_id_clean, unidad_id, unidad_nombre, datos_cliente_normalizados
+            cedula,
+            inmo_id,
+            proyecto_id_clean,
+            unidad_id,
+            unidad_nombre,
+            datos_cliente_normalizados,
+            omitir_exclusividad=forzar_admin,
         )
         if not ok_cliente:
-            cliente_advertencia = msg_cliente
+            if not ya_bloqueada_propia:
+                _revertir_bloqueo_nuevo(unidad_id, proyecto_id, inmo_id, ts_bloqueo)
+            return conflict(msg_cliente)
 
     # Notificar vía SQS
     if SQS_URL and (not ya_bloqueada_propia or tiene_cliente):
@@ -273,6 +335,20 @@ def bloquear(event):
                 'notificar': notificar,
             }),
         )
+
+    _log_creation_audit(
+        event,
+        'bloqueo_creado' if not ya_bloqueada_propia else 'cliente_asignado_bloqueo',
+        'completada',
+        cedula,
+        proyecto_id_clean,
+        inmo_id,
+        unidad_id=unidad_id,
+        unidad_nombre=unidad_nombre,
+        cliente_registrado=tiene_cliente and not cliente_advertencia,
+        bloqueo_nuevo=not ya_bloqueada_propia,
+        fecha_bloqueo=ts_bloqueo,
+    )
 
     resp = {
         'unidad_id': unidad_id,

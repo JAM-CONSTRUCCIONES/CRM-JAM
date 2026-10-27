@@ -8,7 +8,7 @@ from datetime import datetime, timezone, date
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, conflict, not_found
-from utils.auth import get_sub, get_rol
+from utils.auth import get_sub, get_rol, get_claims
 from utils import scheduler as sched
 
 dynamodb = boto3.resource('dynamodb')
@@ -44,6 +44,58 @@ NACIONALIDADES_VALIDAS = {
 sqs_client = boto3.client('sqs')
 s3_client = boto3.client('s3')
 SQS_URL = os.environ.get('SQS_URL')
+
+
+def _log_creation_audit(event, accion, estado, cedula, proyecto_id, inmobiliaria_id, **details):
+    """Registra creaciones/captaciones con actor y contexto de la petición."""
+    claims = get_claims(event)
+    request_context = event.get('requestContext') or {}
+    audit = {
+        'audit': 'crm_action',
+        'accion': accion,
+        'estado': estado,
+        'actor': {
+            'sub': claims.get('sub'),
+            'username': claims.get('cognito:username') or claims.get('username'),
+            'email': claims.get('email'),
+            'nombre': claims.get('name') or claims.get('custom:nombre'),
+            'rol': get_rol(event),
+        },
+        'request_id': request_context.get('requestId') or request_context.get('extendedRequestId'),
+        'metodo': event.get('httpMethod'),
+        'ruta': event.get('path'),
+        'cedula': cedula,
+        'proyecto_id': proyecto_id,
+        'inmobiliaria_id': inmobiliaria_id,
+        **details,
+    }
+    print(json.dumps(audit, ensure_ascii=False, default=str))
+
+
+def _log_admin_audit(event, estado, cedula, proyecto_id, **details):
+    """Registra la identidad y el resultado de acciones administrativas sensibles."""
+    claims = get_claims(event)
+    request_context = event.get('requestContext') or {}
+    actor = {
+        'sub': claims.get('sub'),
+        'username': claims.get('cognito:username') or claims.get('username'),
+        'email': claims.get('email'),
+        'nombre': claims.get('name') or claims.get('custom:nombre'),
+        'rol': get_rol(event),
+    }
+    audit = {
+        'audit': 'admin_action',
+        'accion': 'eliminar_cliente_completo',
+        'estado': estado,
+        'actor': actor,
+        'request_id': request_context.get('requestId') or request_context.get('extendedRequestId'),
+        'metodo': event.get('httpMethod'),
+        'ruta': event.get('path'),
+        'cedula': cedula,
+        'proyecto_id': proyecto_id,
+        **details,
+    }
+    print(json.dumps(audit, ensure_ascii=False, default=str))
 
 
 def _publicar_evento(tipo, proyecto_id, inmobiliaria_id, metadata=None):
@@ -400,7 +452,7 @@ def registrar(event):
         return conflict(CLIENTE_DUPLICADO_MSG)
 
     # Registrar nuevo cliente
-    return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id)
+    return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id, event)
 
 
 def registrar_admin(event):
@@ -461,7 +513,7 @@ def registrar_admin(event):
             )
 
     # Sin unidad_id, _crear registra cliente/exclusividad sin crear proceso.
-    return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id)
+    return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id, event)
 
 
 def _resolver_unidad(body, proyecto_id):
@@ -491,7 +543,7 @@ def _resolver_unidad(body, proyecto_id):
     return unidad_id, unidad_nombre, fecha_liberacion
 
 
-def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id):
+def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id, event=None):
     ahora = datetime.now(timezone.utc)
     fecha_captacion = ahora.isoformat()
     fecha_vencimiento = _add_months(ahora, MESES_EXCLUSIVIDAD).isoformat()
@@ -547,6 +599,19 @@ def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id):
         'nombres': item['nombres'],
         'apellidos': item['apellidos'],
     })
+
+    _log_creation_audit(
+        event or {},
+        'cliente_captado',
+        'completada',
+        cedula,
+        proyecto_id,
+        inmobiliaria_id,
+        unidad_id=unidad_id,
+        unidad_nombre=unidad_nombre,
+        proceso_creado=bool(unidad_id),
+        fecha_captacion=fecha_captacion,
+    )
 
     return created(item)
 
@@ -1050,7 +1115,7 @@ def registrar_publico(event):
                 'Contacta a JAM Construcciones.'
             )
 
-    return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id)
+    return _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id, event)
 
 
 def listar_inmobiliarias_publico(event):
@@ -1368,6 +1433,8 @@ def buscar_clientes_admin(event):
 
 def eliminar_admin(event, cedula, proyecto_id):
     """DELETE /admin/clientes/{cedula}/proyecto/{id} — admin elimina TODOS los registros del cliente en TODAS las inmobiliarias."""
+
+    _log_admin_audit(event, 'iniciada', cedula, proyecto_id)
     
     print(f'[ELIMINAR] Iniciando eliminación COMPLETA de cliente: cedula={cedula}, proyecto={proyecto_id}')
     
@@ -1384,6 +1451,7 @@ def eliminar_admin(event, cedula, proyecto_id):
         
         if not registros:
             print(f'[ELIMINAR] Cliente no encontrado')
+            _log_admin_audit(event, 'no_encontrada', cedula, proyecto_id)
             return not_found('Cliente no encontrado')
         
         # 2. Para cada registro (cada inmobiliaria)
@@ -1514,6 +1582,15 @@ def eliminar_admin(event, cedula, proyecto_id):
                 print(f'[ELIMINAR] Error eliminando cliente de {inmobiliaria_id}: {e}')
         
         print(f'[ELIMINAR] Eliminación completada. Items eliminados: {len(items_eliminados)}')
+        _log_admin_audit(
+            event,
+            'completada',
+            cedula,
+            proyecto_id,
+            registros_encontrados=len(registros),
+            items_eliminados=len(items_eliminados),
+            detalle_items=items_eliminados,
+        )
         
         return ok({
             'message': f'Cliente {cedula} eliminado completamente de {len(registros)} inmobiliaria(s)',
@@ -1531,4 +1608,5 @@ def eliminar_admin(event, cedula, proyecto_id):
         print(f'[ELIMINAR] Error general: {e}')
         import traceback
         print(traceback.format_exc())
+        _log_admin_audit(event, 'error', cedula, proyecto_id, error=type(e).__name__)
         return bad_request(f'Error eliminando cliente: {str(e)}')

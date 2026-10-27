@@ -140,19 +140,23 @@ const Sidebar = ({ onSelect, collapsed = false }: Props) => {
     ...(isInterno ? [{
       title: 'Administracion',
       items: [
+        { key: '/procesos', icon: <Database />, label: 'Procesos' },
+        { key: '/meta-inbox', icon: <BotMessageSquare />, label: 'Inbox Meta' },
         ...(isAdminOrCoordinador ? [
-          { key: '/procesos', icon: <Database />, label: 'Procesos' },
-          ...(rol === 'admin' ? [{ key: '/auditoria', icon: <ScrollText />, label: 'Auditoría' }] : []),
-          { key: '/tareas', icon: <CalendarDays />, label: 'Agenda / Tareas' },
           { key: '/inmobiliarias', icon: <Building2 />, label: 'Inmobiliarias' },
+        ] : []),
+        { key: '/meta-formularios', icon: <FileText />, label: 'Formularios Meta' },
+        ...(rol === 'admin' ? [{ key: '/auditoria', icon: <ScrollText />, label: 'Auditoría' }] : []),
+        { key: '/meta-leads', icon: <MessageSquareText />, label: 'Leads Meta' },
+        ...(isAdminOrCoordinador ? [
+          { key: '/tareas', icon: <CalendarDays />, label: 'Agenda / Tareas' },
           { key: '/sistema/usuarios', icon: <User />, label: 'Usuarios' },
+        ] : []),
+        { key: '/campanias', icon: <Mail />, label: 'Campanas de correo' },
+        ...(isAdminOrCoordinador ? [
           { key: '/migracion', icon: <FileSpreadsheet />, label: 'Migracion Excel' },
           { key: '/config', icon: <Settings />, label: 'Notificaciones' },
         ] : []),
-        { key: '/meta-inbox', icon: <BotMessageSquare />, label: 'Inbox Meta' },
-        { key: '/meta-leads', icon: <MessageSquareText />, label: 'Leads Meta' },
-        { key: '/meta-formularios', icon: <FileText />, label: 'Formularios Meta' },
-        { key: '/campanias', icon: <Mail />, label: 'Campanas de correo' },
       ],
     }] : []),
     ...(rol === 'inmobiliaria' ? [{

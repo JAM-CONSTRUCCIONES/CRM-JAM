@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+.audit-json {
+  margin: 10px 0 0;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

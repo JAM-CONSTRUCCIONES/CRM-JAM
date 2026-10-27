@@ -24,6 +24,7 @@ import MetaFacebookCallbackPage from './pages/meta/MetaFacebookCallbackPage';
 import MetaInboxPage from './pages/meta/MetaInboxPage';
 import MetaLeadsPage from './pages/meta/MetaLeadsPage';
 import MetaFormsPage from './pages/meta/MetaFormsPage';
+import AuditoriaPage from './pages/auditoria/AuditoriaPage';
 
 const App = () => (
   <BrowserRouter>
@@ -89,6 +90,14 @@ const App = () => (
             element={
               <ProtectedRoute roles={['admin', 'coordinador']}>
                 <UsuariosSistemaPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="auditoria"
+            element={
+              <ProtectedRoute roles={['admin']}>
+                <AuditoriaPage />
               </ProtectedRoute>
             }
           />

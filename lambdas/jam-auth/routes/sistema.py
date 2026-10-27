@@ -173,6 +173,7 @@ def actualizar(usuario_id, event):
         registrar_auditoria(
             event, 'usuario_actualizado', 'usuarios', 'usuario', usuario_id,
             detalles={
+                'entidad_nombre': item.get('nombre') or item.get('cognito_username'),
                 'username': item.get('cognito_username'),
                 'cambios': {key: body[key] for key in ('nombre', 'rol') if key in body},
                 'rol_anterior': item.get('rol'),
@@ -208,7 +209,7 @@ def eliminar(usuario_id, event):
         table.delete_item(Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'})
         registrar_auditoria(
             event, 'usuario_eliminado', 'usuarios', 'usuario', usuario_id,
-            detalles={'username_eliminado': username, 'rol_eliminado': item.get('rol')},
+            detalles={'entidad_nombre': item.get('nombre') or username, 'username_eliminado': username, 'rol_eliminado': item.get('rol')},
         )
         return ok({'message': 'Usuario eliminado'})
     except ClientError as e:
@@ -239,7 +240,7 @@ def _set_activo(usuario_id, activo, event=None):
             event or {},
             'usuario_habilitado' if activo else 'usuario_deshabilitado',
             'usuarios', 'usuario', usuario_id,
-            detalles={'username': username, 'activo': activo, 'rol': item.get('rol')},
+        detalles={'entidad_nombre': item.get('nombre') or username, 'username': username, 'activo': activo, 'rol': item.get('rol')},
         )
         return ok({'message': 'OK', 'activo': activo})
     except ClientError as e:

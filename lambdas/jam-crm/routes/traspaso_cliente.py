@@ -347,6 +347,7 @@ def traspasar_cliente(event, cedula_actual, proyecto_id, unidad_id):
             'cedula_anterior': cedula_actual, 'cedula_nueva': cedula_destino,
             'proyecto_id': proyecto_id, 'inmobiliaria_id': inmobiliaria_id,
             'unidad_id': unidad_id, 'tipo_destino': tipo_destino,
+            'entidad_nombre': f"{nombre_destino} · {proceso.get('unidad_nombre', unidad_id)}".strip(' ·'),
             'justificacion': justificacion,
         },
     )

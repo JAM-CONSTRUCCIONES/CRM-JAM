@@ -128,6 +128,7 @@ def liberar(proyecto_id, unidad_id, event):
         detalles={
             'proyecto_id': proyecto_id, 'inmobiliaria_id': inmobiliaria_id,
             'cliente_cedula': cliente_cedula, 'motivo': 'manual',
+            'entidad_nombre': unidad.get('id_unidad') or unidad_id,
             'forzar': forzar, 'notificar': notificar,
         },
     )
@@ -225,6 +226,7 @@ def extender(proyecto_id, unidad_id, event):
         event, 'bloqueo_extendido', 'bloqueos', 'unidad', unidad_id,
         detalles={
             'proyecto_id': proyecto_id, 'horas_restantes': round(horas_restantes, 2),
+            'entidad_nombre': unidad.get('id_unidad') or unidad_id,
             'justificacion': justificacion, 'nueva_fecha_liberacion': nueva_lib,
         },
     )

@@ -510,7 +510,8 @@ def gestionar_lead(event):
 
     registrar_auditoria(
         event, 'lead_actualizado', 'crm', 'lead', lead_pk,
-        detalles={'estado': nuevo_estado, 'nota': bool(nota), 'actividades_creadas': len(actividades),
+        detalles={'entidad_nombre': lead.get('nombre_manual') or lead.get('contact_profile_name') or lead.get('name') or lead_pk,
+                  'estado': nuevo_estado, 'nota': bool(nota), 'actividades_creadas': len(actividades),
                   'asignacion_responsable': hay_asignacion_responsable,
                   'asignacion_inmobiliaria': hay_asignacion_inmobiliaria},
     )
@@ -1022,6 +1023,7 @@ def convertir_lead(event):
         detalles={
             'cedula': cedula, 'proyecto_id': proyecto_id,
             'inmobiliaria_id': inmobiliaria_id, 'unidad_id': unidad_id,
+            'entidad_nombre': f"{nombres} {apellidos}".strip(),
             'con_unidad': bool(unidad_id), 'cliente_existente': bool(existing),
         },
     )
@@ -1118,7 +1120,7 @@ def asociar_cliente_existente(event):
 
     registrar_auditoria(
         event, 'lead_asociado_cliente', 'crm', 'lead', lead_pk,
-        detalles={'cedula': cedula, 'cliente_nombre': cliente_nombre, 'registros_cliente': len(registros_cliente)},
+        detalles={'entidad_nombre': cliente_nombre, 'cedula': cedula, 'cliente_nombre': cliente_nombre, 'registros_cliente': len(registros_cliente)},
     )
 
     lead_actualizado = meta_table.get_item(

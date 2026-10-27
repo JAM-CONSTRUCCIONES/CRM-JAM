@@ -330,7 +330,7 @@ def guardar_template(event, template_id):
         'actualizado_por': usuario.get('nombre', ''),
     }
     campanias_t.put_item(Item=item)
-    registrar_auditoria(event, 'campania_actualizada', 'campanias', 'campania', template_id, detalles={'cambios': body})
+    registrar_auditoria(event, 'campania_actualizada', 'campanias', 'campania', template_id, detalles={'entidad_nombre': body.get('titulo') or template_id, 'cambios': body})
     return ok(item)
 
 
@@ -433,5 +433,5 @@ def enviar_campania(event):
         'errores_envio': errores_envio,
     }
     campanias_t.put_item(Item=item)
-    registrar_auditoria(event, 'campania_enviada', 'campanias', 'campania', item.get('campania_id'), detalles={'destinatarios': item.get('total_destinatarios'), 'asunto': item.get('asunto')})
+    registrar_auditoria(event, 'campania_enviada', 'campanias', 'campania', item.get('campania_id'), detalles={'entidad_nombre': item.get('asunto') or item.get('campania_id'), 'destinatarios': item.get('total_destinatarios'), 'asunto': item.get('asunto')})
     return created(item)

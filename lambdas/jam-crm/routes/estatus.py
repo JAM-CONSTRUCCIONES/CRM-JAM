@@ -994,6 +994,7 @@ def cambiar_estatus(event, cedula, proyecto_id, unidad_id):
             'cedula': cedula, 'proyecto_id': proyecto_id,
             'inmobiliaria_id': inmobiliaria_id, 'unidad_id': unidad_id,
             'unidad_nombre': proceso.get('unidad_nombre', unidad_id),
+            'entidad_nombre': f"{cliente.get('nombres', '')} {cliente.get('apellidos', '')} · {proceso.get('unidad_nombre', unidad_id)}".strip(' ·'),
             'estatus_anterior': estatus_actual, 'estatus_nuevo': nuevo_estatus,
             'notificar': notificar,
         },

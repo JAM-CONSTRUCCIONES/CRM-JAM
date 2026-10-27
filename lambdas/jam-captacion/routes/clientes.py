@@ -620,6 +620,7 @@ def _crear(pk, sk, body, cedula, inmobiliaria_id, proyecto_id, event=None):
             'inmobiliaria_id': inmobiliaria_id,
             'unidad_id': unidad_id or '',
             'unidad_nombre': unidad_nombre or '',
+            'entidad_nombre': f"{item['nombres']} {item['apellidos']}".strip(),
             'proceso_creado': bool(unidad_id),
         },
         datos_nuevos={'nombres': item['nombres'], 'apellidos': item['apellidos']},
@@ -1024,7 +1025,11 @@ def actualizar_admin(event, cedula, proyecto_id):
     }, ensure_ascii=False))
     registrar_auditoria(
         event, 'cliente_actualizado', 'clientes', 'cliente', cedula,
-        detalles={'proyecto_id': proyecto_id, 'inmobiliaria_id': inmobiliaria_id, 'cambios': body},
+        detalles={
+            'proyecto_id': proyecto_id, 'inmobiliaria_id': inmobiliaria_id,
+            'entidad_nombre': f"{actualizado.get('nombres', '')} {actualizado.get('apellidos', '')}".strip(),
+            'cambios': body,
+        },
     )
     return ok({'message': 'Cliente actualizado', 'cliente': actualizado})
 
@@ -1613,6 +1618,7 @@ def eliminar_admin(event, cedula, proyecto_id):
                 'proyecto_id': proyecto_id,
                 'registros_encontrados': len(registros),
                 'items_eliminados': len(items_eliminados),
+                'entidad_nombre': f"{registros[0].get('nombres', '')} {registros[0].get('apellidos', '')}".strip() if registros else cedula,
                 'detalle_items': items_eliminados,
             },
         )

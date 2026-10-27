@@ -609,7 +609,7 @@ def iniciar_eliminacion(proyecto_id, event=None):
     if not SF_ELIMINAR_ARN:
         logger.warning('[iniciar_eliminacion] SF_ELIMINAR_ARN no configurado, ejecutando síncronamente')
         result = eliminar(proyecto_id)
-        registrar_auditoria(event or {}, 'proyecto_eliminado', 'inventario', 'proyecto', proyecto_id, detalles={'modo': 'sincrono'})
+        registrar_auditoria(event or {}, 'proyecto_eliminado', 'inventario', 'proyecto', proyecto_id, detalles={'modo': 'sincrono', 'entidad_nombre': proyecto.get('nombre', proyecto_id)})
         return result
 
     # Marcar como "en eliminación" para que el frontend pueda hacer polling
@@ -629,7 +629,7 @@ def iniciar_eliminacion(proyecto_id, event=None):
     print(f'[iniciar_eliminacion] SF iniciada proyecto_id={proyecto_id} execution={execution_name}')
     registrar_auditoria(
         event or {}, 'proyecto_eliminacion_iniciada', 'inventario', 'proyecto', proyecto_id,
-        detalles={'execution_arn': execution['executionArn'], 'modo': 'step_function'},
+        detalles={'execution_arn': execution['executionArn'], 'modo': 'step_function', 'entidad_nombre': proyecto.get('nombre', proyecto_id)},
     )
     return ok({
         'message': 'Eliminación iniciada',

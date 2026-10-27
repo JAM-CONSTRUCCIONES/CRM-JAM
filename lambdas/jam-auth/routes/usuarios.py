@@ -108,7 +108,7 @@ def eliminar(usuario_id, event):
         table.delete_item(Key={'pk': f'USUARIO#{usuario_id}', 'sk': 'METADATA'})
         registrar_auditoria(
             event, 'usuario_eliminado', 'usuarios', 'usuario', usuario_id,
-            detalles={'username_eliminado': username, 'inmobiliaria_id': item.get('inmobiliaria_id')},
+            detalles={'entidad_nombre': item.get('nombre') or username, 'username_eliminado': username, 'inmobiliaria_id': item.get('inmobiliaria_id')},
         )
         return ok({'message': 'Usuario eliminado'})
     except ClientError as e:
@@ -151,6 +151,6 @@ def _set_activo(usuario_id, activo, event=None):
         event or {},
         'usuario_habilitado' if activo else 'usuario_deshabilitado',
         'usuarios', 'usuario', usuario_id,
-        detalles={'username': username, 'activo': activo, 'inmobiliaria_id': item.get('inmobiliaria_id')},
+            detalles={'entidad_nombre': item.get('nombre') or username, 'username': username, 'activo': activo, 'inmobiliaria_id': item.get('inmobiliaria_id')},
     )
     return ok({'message': 'OK', 'activo': activo})

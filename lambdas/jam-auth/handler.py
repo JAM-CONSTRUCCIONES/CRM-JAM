@@ -76,7 +76,7 @@ def handler(event, context):
                 from utils.response import bad_request
                 return bad_request('tipo requerido')
             if body_parsed.get('action') == 'reset':
-                return config.restaurar(tipo)
+                return config.restaurar(tipo, event)
             return config.guardar(tipo, event)
 
     # ── Usuarios del sistema ──────────────────────────────────

@@ -509,14 +509,11 @@ def gestionar_lead(event):
     ).get('Item')
 
     registrar_auditoria(
-        event, 'lead_convertido_cliente', 'crm', 'lead', lead_pk,
-        detalles={
-            'cedula': cedula, 'proyecto_id': proyecto_id,
-            'inmobiliaria_id': inmobiliaria_id, 'unidad_id': unidad_id,
-            'con_unidad': bool(unidad_id), 'cliente_existente': bool(existing),
-        },
+        event, 'lead_actualizado', 'crm', 'lead', lead_pk,
+        detalles={'estado': nuevo_estado, 'nota': bool(nota), 'actividades_creadas': len(actividades),
+                  'asignacion_responsable': hay_asignacion_responsable,
+                  'asignacion_inmobiliaria': hay_asignacion_inmobiliaria},
     )
-
     return ok({
         'lead': lead_actualizado,
         'actividades_creadas': len(actividades),
@@ -564,6 +561,7 @@ def renombrar_contacto(event):
         ExpressionAttributeValues={':n': nombre, ':a': _now()},
     )
     lead['nombre_manual'] = nombre
+    registrar_auditoria(event, 'contacto_renombrado', 'crm', 'lead', lead_pk, detalles={'nombre_manual': nombre})
     return ok({'lead': lead})
 
 
@@ -1017,6 +1015,15 @@ def convertir_lead(event):
         'unidad_id': unidad_id,
         'unidad_nombre': unidad_nombre if unidad_id else '',
     })
+
+    registrar_auditoria(
+        event, 'lead_convertido_cliente', 'crm', 'lead', lead_pk,
+        detalles={
+            'cedula': cedula, 'proyecto_id': proyecto_id,
+            'inmobiliaria_id': inmobiliaria_id, 'unidad_id': unidad_id,
+            'con_unidad': bool(unidad_id), 'cliente_existente': bool(existing),
+        },
+    )
 
     lead_actualizado = meta_table.get_item(
         Key={'pk': lead_pk, 'sk': 'METADATA'}

@@ -8,6 +8,7 @@ import json
 import re
 import boto3
 from utils.response import ok, bad_request, not_found
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 _table = None
@@ -229,10 +230,11 @@ def guardar(tipo, event):
         UpdateExpression='SET ' + ', '.join(updates),
         ExpressionAttributeValues=values,
     )
+    registrar_auditoria(event, 'configuracion_notificacion_actualizada', 'configuracion', 'template', tipo, detalles={'cambios': body})
     return ok({'message': 'Template guardado', 'tipo': tipo})
 
 
-def restaurar(tipo):
+def restaurar(tipo, event=None):
     """Removes the text override without changing the notification switch."""
     if tipo not in DEFAULTS:
         return not_found('Template no encontrado')
@@ -241,4 +243,5 @@ def restaurar(tipo):
         Key={'pk': _pk(), 'sk': tipo},
         UpdateExpression='REMOVE titulo, mensaje, modificado_en',
     )
+    registrar_auditoria(event or {}, 'configuracion_notificacion_restaurada', 'configuracion', 'template', tipo)
     return ok({'message': 'Template restaurado al valor por defecto'})

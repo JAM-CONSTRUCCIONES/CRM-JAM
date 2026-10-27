@@ -13,6 +13,7 @@ export interface AuditoriaItem {
   usuario_rol?: string;
   entidad_tipo?: string;
   entidad_id?: string;
+  entidad_nombre?: string;
   detalles?: Record<string, unknown>;
 }
 

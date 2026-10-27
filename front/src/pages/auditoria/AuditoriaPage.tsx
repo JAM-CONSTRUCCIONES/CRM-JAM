@@ -91,7 +91,12 @@ const AuditoriaPage = () => {
     },
     {
       title: 'Entidad', key: 'entidad', width: 220,
-      render: (_, item) => <Text>{item.entidad_tipo || 'general'}{item.entidad_id && item.entidad_id !== 'general' ? ` · ${item.entidad_id}` : ''}</Text>,
+      render: (_, item) => (
+        <Space direction="vertical" size={1}>
+          <Text strong>{item.entidad_nombre || item.entidad_tipo || 'general'}</Text>
+          {item.entidad_nombre && item.entidad_id && item.entidad_id !== 'general' && <Text type="secondary" style={{ fontSize: 11 }}>{item.entidad_tipo} · {item.entidad_id}</Text>}
+        </Space>
+      ),
     },
     {
       title: 'Resultado', dataIndex: 'resultado', width: 130,
@@ -143,7 +148,7 @@ const AuditoriaPage = () => {
             <Descriptions.Item label="Usuario">{seleccionado.usuario_nombre || seleccionado.usuario_sub || 'Sistema'}</Descriptions.Item>
             <Descriptions.Item label="Rol">{seleccionado.usuario_rol || '—'}</Descriptions.Item>
             <Descriptions.Item label="Módulo">{seleccionado.modulo}</Descriptions.Item>
-            <Descriptions.Item label="Entidad">{seleccionado.entidad_tipo} · {seleccionado.entidad_id}</Descriptions.Item>
+            <Descriptions.Item label="Entidad">{seleccionado.entidad_nombre || seleccionado.entidad_tipo} {seleccionado.entidad_nombre && seleccionado.entidad_id ? `· ${seleccionado.entidad_id}` : ''}</Descriptions.Item>
             <Descriptions.Item label="Resultado">{seleccionado.resultado}</Descriptions.Item>
           </Descriptions>
           <div><Text strong>Datos registrados</Text><pre className="audit-json">{JSON.stringify(seleccionado.detalles || {}, null, 2)}</pre></div>

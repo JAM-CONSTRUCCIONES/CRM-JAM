@@ -735,6 +735,7 @@ def enviar_mensaje(event):
             'canal': canal,
             'message_id': mensaje.get('external_event_id', ''),
             'message_status': mensaje.get('message_status', ''),
+            'entidad_nombre': lead.get('nombre_manual') or lead.get('contact_profile_name') or lead.get('name') or lead.get('telefono') or lead.get('phone') or lead_pk,
         },
     )
 

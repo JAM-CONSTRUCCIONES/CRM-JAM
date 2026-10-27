@@ -41,6 +41,8 @@ def registrar_auditoria(event, accion, modulo, entidad_tipo=None, entidad_id=Non
     request_id = request_context.get('requestId') or request_context.get('extendedRequestId') or ''
     actor_tipo = 'usuario' if sub else 'sistema'
     event_id = str(uuid.uuid4())
+    detalles = detalles or {}
+    entidad_nombre = detalles.get('entidad_nombre') or detalles.get('nombre_manual') or detalles.get('nombre') or detalles.get('titulo') or detalles.get('nombre_creado') or detalles.get('unidad_nombre') or ''
     item = {
         'pk': f'AUDITORIA#{ahora.date().isoformat()}',
         'sk': f'{timestamp}#{event_id}',
@@ -59,7 +61,7 @@ def registrar_auditoria(event, accion, modulo, entidad_tipo=None, entidad_id=Non
         'metodo': (event or {}).get('httpMethod') or '',
         'ruta': (event or {}).get('path') or '',
         'entidad_tipo': entidad_tipo or '',
-        'entidad_id': entidad_id or '',
+        'entidad_id': entidad_id or '', 'entidad_nombre': entidad_nombre,
         'GSI1PK': f'USUARIO#{sub or "SISTEMA"}',
         'GSI1SK': f'{timestamp}#{event_id}',
         'GSI2PK': f'ENTIDAD#{entidad_tipo or "general"}#{entidad_id or "general"}',
@@ -67,7 +69,7 @@ def registrar_auditoria(event, accion, modulo, entidad_tipo=None, entidad_id=Non
         'GSI3PK': f'ACCION#{accion}',
         'GSI3SK': f'{timestamp}#{event_id}',
     }
-    for key, value in (detalles or {}).items():
+    for key, value in detalles.items():
         if value is not None:
             item[key] = value
     if datos_anteriores is not None:

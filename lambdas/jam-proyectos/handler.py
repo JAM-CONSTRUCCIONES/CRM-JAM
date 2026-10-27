@@ -87,7 +87,7 @@ def handler(event, context):
             return proyectos.actualizar(proyecto_id, event)
 
         if method == 'DELETE' and proyecto_id and path.endswith(f'/{proyecto_id}') and is_admin:
-            return proyectos.iniciar_eliminacion(proyecto_id)
+            return proyectos.iniciar_eliminacion(proyecto_id, event)
 
         if method == 'POST' and path.endswith('/imagen') and is_admin:
             return proyectos.presigned_imagen(proyecto_id, event)
@@ -101,7 +101,7 @@ def handler(event, context):
             return etapas.actualizar(proyecto_id, etapa_id, event)
 
         if method == 'DELETE' and etapa_id and is_admin:
-            return etapas.eliminar(proyecto_id, etapa_id)
+            return etapas.eliminar(proyecto_id, etapa_id, event)
 
         # ===== UNIDADES =====
 
@@ -112,7 +112,7 @@ def handler(event, context):
             return unidades.actualizar(proyecto_id, unidad_id, event)
 
         if method == 'DELETE' and unidad_id and is_admin:
-            return unidades.eliminar(proyecto_id, unidad_id)
+            return unidades.eliminar(proyecto_id, unidad_id, event)
 
         return not_found()
     

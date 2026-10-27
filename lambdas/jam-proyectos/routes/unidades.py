@@ -10,6 +10,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found, conflict, forbidden
 from utils.helpers import now
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 inventario = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
@@ -480,6 +481,7 @@ def crear(proyecto_id, event):
             )
 
     inventario.put_item(Item=item)
+    registrar_auditoria(event, 'unidad_creada', 'inventario', 'unidad', unidad_id, detalles={'proyecto_id': proyecto_id, 'nombre': id_unidad})
     return created(item)
 
 
@@ -572,6 +574,7 @@ def actualizar(proyecto_id, unidad_id, event):
             respuesta['sincronizacion_nombre'] = _sincronizar_nombre_unidad(
                 proyecto_id, unidad_id, nombre_unidad_actualizado
             )
+        registrar_auditoria(event, 'unidad_actualizada', 'inventario', 'unidad', unidad_id, detalles={'proyecto_id': proyecto_id, 'cambios': body})
         return ok(respuesta)
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
@@ -579,7 +582,7 @@ def actualizar(proyecto_id, unidad_id, event):
         raise
 
 
-def eliminar(proyecto_id, unidad_id):
+def eliminar(proyecto_id, unidad_id, event=None):
     # Fix #1: verificar que no haya procesos de venta activos antes de eliminar
     if _procesos_table_name:
         try:
@@ -605,6 +608,7 @@ def eliminar(proyecto_id, unidad_id):
             ConditionExpression='attribute_exists(pk) AND estado = :disponible',
             ExpressionAttributeValues={':disponible': 'disponible'}
         )
+        registrar_auditoria(event or {}, 'unidad_eliminada', 'inventario', 'unidad', unidad_id, detalles={'proyecto_id': proyecto_id})
         return ok({'message': 'Unidad eliminada'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':

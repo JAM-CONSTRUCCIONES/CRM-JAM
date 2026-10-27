@@ -6,6 +6,7 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found, _build
 from utils.helpers import now
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client('s3')
@@ -43,6 +44,7 @@ def crear(event):
         'creado_en': now(),
     }
     table.put_item(Item=item)
+    registrar_auditoria(event, 'inmobiliaria_creada', 'inmobiliarias', 'inmobiliaria', inmo_id, detalles={'nombre': nombre})
     return created(item)
 
 
@@ -79,6 +81,7 @@ def actualizar(inmo_id, event):
             ExpressionAttributeValues=values,
             **({"ExpressionAttributeNames": names} if names else {})
         )
+        registrar_auditoria(event, 'inmobiliaria_actualizada', 'inmobiliarias', 'inmobiliaria', inmo_id, detalles={'cambios': body})
         return ok({'message': 'Inmobiliaria actualizada'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
@@ -86,15 +89,15 @@ def actualizar(inmo_id, event):
         raise
 
 
-def deshabilitar(inmo_id):
-    return _set_activo(inmo_id, False)
+def deshabilitar(inmo_id, event):
+    return _set_activo(inmo_id, False, event)
 
 
-def habilitar(inmo_id):
-    return _set_activo(inmo_id, True)
+def habilitar(inmo_id, event):
+    return _set_activo(inmo_id, True, event)
 
 
-def eliminar(inmo_id):
+def eliminar(inmo_id, event):
     """Elimina la inmobiliaria y todos sus usuarios de Cognito y DynamoDB."""
     table = dynamodb.Table(USUARIOS_TABLE)
     cognito = boto3.client('cognito-idp')
@@ -146,6 +149,7 @@ def eliminar(inmo_id):
             Key={'pk': f'INMOBILIARIA#{inmo_id}', 'sk': 'METADATA'},
             ConditionExpression='attribute_exists(pk)'
         )
+        registrar_auditoria(event, 'inmobiliaria_eliminada', 'inmobiliarias', 'inmobiliaria', inmo_id, detalles={'nombre': inmo.get('nombre')})
         return ok({'message': 'Inmobiliaria eliminada'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
@@ -153,7 +157,7 @@ def eliminar(inmo_id):
         raise
 
 
-def _set_activo(inmo_id, activo):
+def _set_activo(inmo_id, activo, event=None):
     table = dynamodb.Table(USUARIOS_TABLE)
     cognito = boto3.client('cognito-idp')
     try:
@@ -174,6 +178,7 @@ def _set_activo(inmo_id, activo):
                     cognito.admin_enable_user(UserPoolId=USER_POOL_ID, Username=username)
                 else:
                     cognito.admin_disable_user(UserPoolId=USER_POOL_ID, Username=username)
+        registrar_auditoria(event or {}, 'inmobiliaria_habilitada' if activo else 'inmobiliaria_deshabilitada', 'inmobiliarias', 'inmobiliaria', inmo_id, detalles={'activo': activo})
         return ok({'message': 'OK'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':

@@ -8,6 +8,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found, conflict
 from utils.helpers import now
+from utils.auditoria import registrar_auditoria
 
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 s3_client = boto3.client('s3')
@@ -59,6 +60,7 @@ def crear(event):
     if 'config_precios' in body:
         item['config_precios'] = body['config_precios']
     inventario.put_item(Item=item)
+    registrar_auditoria(event, 'proyecto_creado', 'inventario', 'proyecto', proyecto_id, detalles={'nombre': nombre})
     return created(item)
 
 
@@ -95,6 +97,7 @@ def actualizar(proyecto_id, event):
             ExpressionAttributeValues=values,
             **({"ExpressionAttributeNames": names} if names else {})
         )
+        registrar_auditoria(event, 'proyecto_actualizado', 'inventario', 'proyecto', proyecto_id, detalles={'cambios': body})
         return ok({'message': 'Proyecto actualizado'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
@@ -587,7 +590,7 @@ def _delete_schedule(name):
 # ELIMINAR PROYECTO via Step Function
 # ─────────────────────────────────────────────────────────────────────────────
 
-def iniciar_eliminacion(proyecto_id):
+def iniciar_eliminacion(proyecto_id, event=None):
     """
     Punto de entrada HTTP para borrar un proyecto.
     Si SF_ELIMINAR_ARN está configurado inicia la Step Function (async).
@@ -605,7 +608,9 @@ def iniciar_eliminacion(proyecto_id):
 
     if not SF_ELIMINAR_ARN:
         logger.warning('[iniciar_eliminacion] SF_ELIMINAR_ARN no configurado, ejecutando síncronamente')
-        return eliminar(proyecto_id)
+        result = eliminar(proyecto_id)
+        registrar_auditoria(event or {}, 'proyecto_eliminado', 'inventario', 'proyecto', proyecto_id, detalles={'modo': 'sincrono'})
+        return result
 
     # Marcar como "en eliminación" para que el frontend pueda hacer polling
     inventario.update_item(
@@ -622,6 +627,10 @@ def iniciar_eliminacion(proyecto_id):
     )
 
     print(f'[iniciar_eliminacion] SF iniciada proyecto_id={proyecto_id} execution={execution_name}')
+    registrar_auditoria(
+        event or {}, 'proyecto_eliminacion_iniciada', 'inventario', 'proyecto', proyecto_id,
+        detalles={'execution_arn': execution['executionArn'], 'modo': 'step_function'},
+    )
     return ok({
         'message': 'Eliminación iniciada',
         'proyecto_id': proyecto_id,

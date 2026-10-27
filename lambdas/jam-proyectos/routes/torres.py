@@ -6,6 +6,7 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found
 from utils.helpers import now
+from utils.auditoria import registrar_auditoria
 
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 
@@ -37,6 +38,7 @@ def crear(proyecto_id, event):
         'creado_en': now(),
     }
     inventario.put_item(Item=item)
+    registrar_auditoria(event, 'torre_creada', 'inventario', 'torre', torre_id, detalles={'proyecto_id': proyecto_id, 'nombre': nombre})
     return created(item)
 
 
@@ -64,6 +66,7 @@ def actualizar(proyecto_id, torre_id, event):
             ExpressionAttributeValues=values,
             ExpressionAttributeNames=names
         )
+        registrar_auditoria(event, 'torre_actualizada', 'inventario', 'torre', torre_id, detalles={'proyecto_id': proyecto_id, 'cambios': body})
         return ok({'message': 'Torre actualizada'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
@@ -71,7 +74,7 @@ def actualizar(proyecto_id, torre_id, event):
         raise
 
 
-def eliminar(proyecto_id, torre_id):
+def eliminar(proyecto_id, torre_id, event=None):
     result = inventario.query(
         KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('UNIDAD#'),
         FilterExpression='torre_id = :tid',
@@ -85,6 +88,7 @@ def eliminar(proyecto_id, torre_id):
             Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'TORRE#{torre_id}'},
             ConditionExpression='attribute_exists(pk)'
         )
+        registrar_auditoria(event or {}, 'torre_eliminada', 'inventario', 'torre', torre_id, detalles={'proyecto_id': proyecto_id})
         return ok({'message': 'Torre eliminada'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':

@@ -1022,6 +1022,10 @@ def actualizar_admin(event, cedula, proyecto_id):
         'nacionalidad': actualizado.get('nacionalidad', ''),
         'pais_residencia': actualizado.get('pais_residencia', ''),
     }, ensure_ascii=False))
+    registrar_auditoria(
+        event, 'cliente_actualizado', 'clientes', 'cliente', cedula,
+        detalles={'proyecto_id': proyecto_id, 'inmobiliaria_id': inmobiliaria_id, 'cambios': body},
+    )
     return ok({'message': 'Cliente actualizado', 'cliente': actualizado})
 
 

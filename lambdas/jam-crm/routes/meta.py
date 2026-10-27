@@ -508,6 +508,15 @@ def gestionar_lead(event):
         Key={'pk': lead_pk, 'sk': 'METADATA'}
     ).get('Item')
 
+    registrar_auditoria(
+        event, 'lead_convertido_cliente', 'crm', 'lead', lead_pk,
+        detalles={
+            'cedula': cedula, 'proyecto_id': proyecto_id,
+            'inmobiliaria_id': inmobiliaria_id, 'unidad_id': unidad_id,
+            'con_unidad': bool(unidad_id), 'cliente_existente': bool(existing),
+        },
+    )
+
     return ok({
         'lead': lead_actualizado,
         'actividades_creadas': len(actividades),
@@ -1098,6 +1107,11 @@ def asociar_cliente_existente(event):
         'cliente_registros_count': len(registros_cliente),
         'cliente_nombre': cliente_nombre,
     })
+
+    registrar_auditoria(
+        event, 'lead_asociado_cliente', 'crm', 'lead', lead_pk,
+        detalles={'cedula': cedula, 'cliente_nombre': cliente_nombre, 'registros_cliente': len(registros_cliente)},
+    )
 
     lead_actualizado = meta_table.get_item(
         Key={'pk': lead_pk, 'sk': 'METADATA'}

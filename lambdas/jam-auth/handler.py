@@ -114,13 +114,13 @@ def handler(event, context):
         return inmobiliarias.presigned_imagen(inmo_id, event)
 
     if method == 'PUT' and inmo_id and path.endswith('/deshabilitar') and not usuario_id:
-        return inmobiliarias.deshabilitar(inmo_id)
+        return inmobiliarias.deshabilitar(inmo_id, event)
 
     if method == 'PUT' and inmo_id and path.endswith('/habilitar') and not usuario_id:
-        return inmobiliarias.habilitar(inmo_id)
+        return inmobiliarias.habilitar(inmo_id, event)
 
     if method == 'DELETE' and inmo_id and path.endswith(f'/{inmo_id}') and not usuario_id:
-        return inmobiliarias.eliminar(inmo_id)
+        return inmobiliarias.eliminar(inmo_id, event)
 
     # ── Usuarios ──────────────────────────────────────────────
     if method == 'GET' and inmo_id and path.endswith('/usuarios'):

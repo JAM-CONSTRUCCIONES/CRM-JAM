@@ -11,6 +11,7 @@ from boto3.dynamodb.conditions import Key, Attr
 
 from utils.auth import get_usuario, puede_enviar, puede_ver
 from utils.response import ok, created, bad_request, forbidden, not_found
+from utils.auditoria import registrar_auditoria
 
 
 dynamodb = boto3.resource('dynamodb')
@@ -329,6 +330,7 @@ def guardar_template(event, template_id):
         'actualizado_por': usuario.get('nombre', ''),
     }
     campanias_t.put_item(Item=item)
+    registrar_auditoria(event, 'campania_actualizada', 'campanias', 'campania', template_id, detalles={'cambios': body})
     return ok(item)
 
 
@@ -431,4 +433,5 @@ def enviar_campania(event):
         'errores_envio': errores_envio,
     }
     campanias_t.put_item(Item=item)
+    registrar_auditoria(event, 'campania_enviada', 'campanias', 'campania', item.get('campania_id'), detalles={'destinatarios': item.get('total_destinatarios'), 'asunto': item.get('asunto')})
     return created(item)

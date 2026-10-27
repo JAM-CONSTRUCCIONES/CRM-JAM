@@ -12,6 +12,7 @@ from boto3.dynamodb.conditions import Attr, Key
 
 from utils.auth import es_admin, get_usuario, puede_asignar, puede_ver
 from utils.response import bad_request, created, forbidden, not_found, ok
+from utils.auditoria import registrar_auditoria
 
 
 dynamodb = boto3.resource('dynamodb')
@@ -495,6 +496,7 @@ def crear_tarea(event):
         item['recordatorio_schedule_name'] = _schedule_name_tarea(tarea_id)
     item = {k: v for k, v in item.items() if v not in (None, '')}
     tareas_t.put_item(Item=item)
+    registrar_auditoria(event, 'tarea_creada', 'tareas', 'tarea', tarea_id, detalles={'titulo': item.get('titulo'), 'estado': item.get('estado')})
     return created(item)
 
 
@@ -585,6 +587,7 @@ def actualizar_tarea(event):
         next_item.pop('recordatorio_schedule_name', None)
     next_item = {k: v for k, v in next_item.items() if v not in (None, '')}
     tareas_t.put_item(Item=next_item)
+    registrar_auditoria(event, 'tarea_actualizada', 'tareas', 'tarea', tarea_id, detalles={'cambios': body, 'estado': next_item.get('estado')})
     return ok(next_item)
 
 
@@ -603,6 +606,7 @@ def cancelar_tarea(event):
     current.pop('recordatorio_en', None)
     current.pop('recordatorio_schedule_name', None)
     tareas_t.put_item(Item=current)
+    registrar_auditoria(event, 'tarea_cancelada', 'tareas', 'tarea', tarea_id, detalles={'titulo': current.get('titulo')})
     return ok(current)
 
 

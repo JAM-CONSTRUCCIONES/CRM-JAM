@@ -770,6 +770,7 @@ export class JamStack extends cdk.Stack {
         PROCESOS_TABLE: procesosTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,
         CAMPANIAS_TABLE: campaniasTable.tableName,
+        AUDIT_TABLE: auditoriaTable.tableName,
         FROM_EMAIL: notificationEmail,
       },
     });
@@ -778,6 +779,7 @@ export class JamStack extends cdk.Stack {
     procesosTable.grantReadData(campaniasLambda);
     inventarioTable.grantReadData(campaniasLambda);
     campaniasTable.grantReadWriteData(campaniasLambda);
+    auditoriaTable.grantWriteData(campaniasLambda);
     campaniasLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendEmail', 'ses:SendRawEmail'],
       resources: ['*'],
@@ -793,6 +795,7 @@ export class JamStack extends cdk.Stack {
         TAREAS_TABLE: tareasTable.tableName,
         USUARIOS_TABLE: usuariosTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,
+        AUDIT_TABLE: auditoriaTable.tableName,
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         TAREAS_LAMBDA_ARN: tareasLambdaArn,
         FROM_EMAIL: notificationEmail,
@@ -802,6 +805,7 @@ export class JamStack extends cdk.Stack {
     });
 
     tareasTable.grantReadWriteData(tareasLambda);
+    auditoriaTable.grantWriteData(tareasLambda);
     usuariosTable.grantReadData(tareasLambda);
     inventarioTable.grantReadData(tareasLambda);
     tareasLambda.addToRolePolicy(new iam.PolicyStatement({
@@ -940,10 +944,14 @@ export class JamStack extends cdk.Stack {
 import json
 import boto3
 import os
+import uuid
+from datetime import datetime, timezone
 
 sfn = boto3.client('stepfunctions')
+dynamodb = boto3.resource('dynamodb')
 STATE_MACHINE_ARN = os.environ['STATE_MACHINE_ARN']
 CEDULA_STATE_MACHINE_ARN = os.environ.get('CEDULA_STATE_MACHINE_ARN', '')
+AUDIT_TABLE = os.environ.get('AUDIT_TABLE', '')
 
 def handler(event, context):
     body = json.loads(event.get('body', '{}'))
@@ -962,6 +970,25 @@ def handler(event, context):
         input=json.dumps(body)
     )
 
+    if AUDIT_TABLE:
+        claims = ((event.get('requestContext') or {}).get('authorizer') or {}).get('claims') or {}
+        sub = claims.get('sub') or claims.get('username') or 'sistema'
+        ts = datetime.now(timezone.utc).isoformat()
+        event_id = str(uuid.uuid4())
+        accion = 'cambio_cedula_iniciado' if 'cambiar-cedula' in path else 'cliente_traspaso_iniciado'
+        dynamodb.Table(AUDIT_TABLE).put_item(Item={
+            'pk': 'AUDITORIA#' + ts[:10], 'sk': ts + '#' + event_id,
+            'tipo': 'AUDITORIA', 'evento_id': event_id, 'fecha': ts,
+            'accion': accion, 'modulo': 'clientes', 'resultado': 'completado',
+            'usuario_sub': sub, 'usuario_nombre': claims.get('name') or claims.get('cognito:username') or 'Sistema',
+            'usuario_rol': claims.get('custom:rol') or claims.get('cognito:groups') or '',
+            'entidad_tipo': 'cliente', 'entidad_id': body.get('cedula_actual') or body.get('cedula_antigua') or body.get('cedula') or 'general',
+            'GSI1PK': 'USUARIO#' + sub, 'GSI1SK': ts + '#' + event_id,
+            'GSI2PK': 'ENTIDAD#cliente#' + str(body.get('cedula_actual') or body.get('cedula_antigua') or body.get('cedula') or 'general'), 'GSI2SK': ts + '#' + event_id,
+            'GSI3PK': 'ACCION#' + accion, 'GSI3SK': ts + '#' + event_id,
+            'detalles': {'execution_arn': response['executionArn'], 'path': path},
+        })
+
     return {
         'statusCode': 200,
         'headers': {
@@ -977,10 +1004,12 @@ def handler(event, context):
       timeout: cdk.Duration.seconds(10),
       environment: {
         STATE_MACHINE_ARN: transferirClienteStateMachine.stateMachineArn,
+        AUDIT_TABLE: auditoriaTable.tableName,
       },
     });
 
     transferirClienteStateMachine.grantStartExecution(iniciarTransferenciaLambda);
+    auditoriaTable.grantWriteData(iniciarTransferenciaLambda);
 
     // ─── STEP FUNCTION: Cambiar Cédula ───────────────────────────────────────
 

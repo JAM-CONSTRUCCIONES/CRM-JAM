@@ -11,6 +11,7 @@ from botocore.exceptions import ClientError
 
 from utils.auth import get_nombre, get_sub
 from utils.response import bad_request, conflict, not_found, ok
+from utils.auditoria import registrar_auditoria
 from routes.estatus import (
     _cancelar_alerta_reserva,
     _cancelar_alerta_separacion_legacy,
@@ -340,4 +341,13 @@ def traspasar_cliente(event, cedula_actual, proyecto_id, unidad_id):
         respuesta['advertencia'] = (
             'El cliente fue traspasado, pero ' + ' y '.join(advertencias)
         )
+    registrar_auditoria(
+        event, 'cliente_traspasado', 'clientes', 'cliente', cedula_destino,
+        detalles={
+            'cedula_anterior': cedula_actual, 'cedula_nueva': cedula_destino,
+            'proyecto_id': proyecto_id, 'inmobiliaria_id': inmobiliaria_id,
+            'unidad_id': unidad_id, 'tipo_destino': tipo_destino,
+            'justificacion': justificacion,
+        },
+    )
     return ok(respuesta)

@@ -6,6 +6,7 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from utils.response import ok, created, bad_request, not_found
 from utils.helpers import now, decimal_to_number
+from utils.auditoria import registrar_auditoria
 
 inventario = boto3.resource('dynamodb').Table(os.environ['INVENTARIO_TABLE'])
 
@@ -45,6 +46,7 @@ def crear(proyecto_id, event):
         'creado_en': now(),
     }
     inventario.put_item(Item=item)
+    registrar_auditoria(event, 'etapa_creada', 'inventario', 'etapa', etapa_id, detalles={'proyecto_id': proyecto_id, 'nombre': nombre})
     # Convertir Decimals a tipos serializables
     item = decimal_to_number(item)
     return created(item)
@@ -70,6 +72,7 @@ def actualizar(proyecto_id, etapa_id, event):
             ExpressionAttributeValues=values,
             ExpressionAttributeNames=names
         )
+        registrar_auditoria(event, 'etapa_actualizada', 'inventario', 'etapa', etapa_id, detalles={'proyecto_id': proyecto_id, 'cambios': body})
         return ok({'message': 'Etapa actualizada'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
@@ -77,7 +80,7 @@ def actualizar(proyecto_id, etapa_id, event):
         raise
 
 
-def eliminar(proyecto_id, etapa_id):
+def eliminar(proyecto_id, etapa_id, event=None):
     # Validar que no tenga torres asociadas
     torres = inventario.query(
         KeyConditionExpression=Key('pk').eq(f'PROYECTO#{proyecto_id}') & Key('sk').begins_with('TORRE#'),
@@ -100,6 +103,7 @@ def eliminar(proyecto_id, etapa_id):
             Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': f'ETAPA#{etapa_id}'},
             ConditionExpression='attribute_exists(pk)'
         )
+        registrar_auditoria(event or {}, 'etapa_eliminada', 'inventario', 'etapa', etapa_id, detalles={'proyecto_id': proyecto_id})
         return ok({'message': 'Etapa eliminada'})
     except ClientError as e:
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':

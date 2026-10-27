@@ -8,6 +8,7 @@ from utils.response import ok, bad_request, not_found, conflict
 from utils.auth import get_claims
 from utils import scheduler as sched
 from utils.clientes import desvincular_unidad
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 inventario = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
@@ -122,6 +123,15 @@ def liberar(proyecto_id, unidad_id, event):
             }, ensure_ascii=False),
         )
 
+    registrar_auditoria(
+        event, 'bloqueo_liberado', 'bloqueos', 'unidad', unidad_id,
+        detalles={
+            'proyecto_id': proyecto_id, 'inmobiliaria_id': inmobiliaria_id,
+            'cliente_cedula': cliente_cedula, 'motivo': 'manual',
+            'forzar': forzar, 'notificar': notificar,
+        },
+    )
+
     return ok({'message': 'Bloqueo liberado', 'unidad_id': unidad_id})
 
 
@@ -210,6 +220,14 @@ def extender(proyecto_id, unidad_id, event):
         )
     except Exception:
         pass
+
+    registrar_auditoria(
+        event, 'bloqueo_extendido', 'bloqueos', 'unidad', unidad_id,
+        detalles={
+            'proyecto_id': proyecto_id, 'horas_restantes': round(horas_restantes, 2),
+            'justificacion': justificacion, 'nueva_fecha_liberacion': nueva_lib,
+        },
+    )
 
     return ok({
         'message': 'Tiempo de bloqueo actualizado',

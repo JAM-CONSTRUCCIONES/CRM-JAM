@@ -24,6 +24,7 @@ export class ExportStack extends cdk.Stack {
     const usuariosTable = dynamodb.Table.fromTableName(this, 'UsuariosTable', resourceName('jam-usuarios'));
     const clientesTable = dynamodb.Table.fromTableName(this, 'ClientesTable', resourceName('jam-clientes'));
     const procesosTable = dynamodb.Table.fromTableName(this, 'ProcesosTable', resourceName('jam-procesos'));
+    const historialTable = dynamodb.Table.fromTableName(this, 'HistorialTable', resourceName('jam-historial'));
     const archivosBucket = s3.Bucket.fromBucketName(this, 'ArchivosBucket', bucketName('jam-archivos'));
 
     const openpyxlLayer = new lambda.LayerVersion(this, 'OpenpyxlLayer', {
@@ -46,6 +47,7 @@ export class ExportStack extends cdk.Stack {
         USUARIOS_TABLE: usuariosTable.tableName,
         CLIENTES_TABLE: clientesTable.tableName,
         PROCESOS_TABLE: procesosTable.tableName,
+        HISTORIAL_TABLE: historialTable.tableName,
         ARCHIVOS_BUCKET: archivosBucket.bucketName,
       },
     });

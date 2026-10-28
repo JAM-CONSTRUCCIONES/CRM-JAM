@@ -220,6 +220,7 @@ export class JamStack extends cdk.Stack {
         INVENTARIO_TABLE: inventarioTable.tableName,
         USUARIOS_TABLE: usuariosTable.tableName,
         AUDIT_TABLE: auditoriaTable.tableName,
+        EXPORT_LAMBDA_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-exportar-proyectos')}`,
       },
     });
 
@@ -470,7 +471,6 @@ export class JamStack extends cdk.Stack {
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         SQS_URL: notificacionesQueue.queueUrl,
         AUDIT_TABLE: auditoriaTable.tableName,
-        EXPORT_LAMBDA_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-exportar-proyectos')}`,
       },
     });
 

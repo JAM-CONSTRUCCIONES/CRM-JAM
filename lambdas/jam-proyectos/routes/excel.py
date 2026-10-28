@@ -525,6 +525,7 @@ def exportar_inventario(event, rol='admin'):
         from decimal import Decimal
         from openpyxl import Workbook
         from openpyxl.cell import WriteOnlyCell
+        from openpyxl.utils import get_column_letter
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
         proyecto = inventario_t.get_item(
@@ -659,7 +660,7 @@ def exportar_inventario(event, rol='admin'):
         if not es_inmobiliaria:
             column_widths.extend([15, 25, 15, 25, 18, 18, 18, 20, 15, 30])
         for i, width in enumerate(column_widths, 1):
-            ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
+            ws.column_dimensions[get_column_letter(i)].width = width
 
         def fmt(val):
             if val is None or val == '':

@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
@@ -57,5 +58,14 @@ export class ExportStack extends cdk.Stack {
     clientesTable.grantReadData(exportLambda);
     procesosTable.grantReadData(exportLambda);
     archivosBucket.grantReadWrite(exportLambda);
+    // Las tablas importadas no incluyen automáticamente los ARN de sus GSI.
+    // La exportación consulta procesos e inmobiliarias mediante índices.
+    exportLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:Query'],
+      resources: [
+        `${procesosTable.tableArn}/index/*`,
+        `${usuariosTable.tableArn}/index/*`,
+      ],
+    }));
   }
 }

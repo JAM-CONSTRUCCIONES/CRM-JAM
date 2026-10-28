@@ -52,7 +52,10 @@ def handler(event, context):
             return unidades.detalle(proyecto_id, unidad_id, rol, event)
 
         if method == 'GET' and path.endswith('/inventario/exportar'):
-            return excel.exportar_inventario(event, rol)
+            qs = event.get('queryStringParameters') or {}
+            if qs.get('job_id'):
+                return excel.estado_exportacion_inventario(qs['job_id'])
+            return excel.iniciar_exportacion_inventario(event, rol)
 
         # ===== ADMIN: guard =====
         if is_admin and not require_admin(event):

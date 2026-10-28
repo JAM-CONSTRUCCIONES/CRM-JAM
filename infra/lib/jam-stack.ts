@@ -470,6 +470,7 @@ export class JamStack extends cdk.Stack {
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
         SQS_URL: notificacionesQueue.queueUrl,
         AUDIT_TABLE: auditoriaTable.tableName,
+        EXPORT_LAMBDA_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-exportar-proyectos')}`,
       },
     });
 
@@ -1426,7 +1427,6 @@ def handler(event, context):
       authorizer: cognitoAuthorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
-
     // /admin/proyectos/{id}/etapas
     const adminEtapasResource = adminProyectoResource.addResource('etapas');
     adminEtapasResource.addMethod('POST', proyectosLambdaIntegration, {
@@ -1717,6 +1717,13 @@ def handler(event, context):
       new s3notifications.LambdaDestination(excelParserLambda),
       { prefix: 'inventario/uploads/', suffix: '.xlsx' },
     );
+
+    // Lambda dedicada para exportaciones pesadas de proyectos/inventario.
+    // La petición HTTP solo crea el trabajo; la generación ocurre en segundo plano.
+    proyectosLambda.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['lambda:InvokeFunction'],
+      resources: [`arn:aws:lambda:${this.region}:${this.account}:function:${resourceName('jam-exportar-proyectos')}`],
+    }));
 
     // ─── AWS BACKUP ─────────────────────────────────────────────────────────
 

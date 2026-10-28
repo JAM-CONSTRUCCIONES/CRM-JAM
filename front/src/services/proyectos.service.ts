@@ -103,6 +103,21 @@ export const actualizarUnidad = (
 export const eliminarUnidad = (proyectoId: string, unidadId: string): Promise<void> =>
   apiDelete(`/admin/proyectos/${proyectoId}/unidades/${unidadId}`);
 
-// Exportación de inventario
-export const exportarInventario = (proyectoId: string): Promise<{ download_url: string; filename: string; total_unidades: number; proyecto_nombre: string }> =>
-  apiGet(`/admin/inventario/exportar?proyecto_id=${proyectoId}`);
+// Exportación asíncrona de inventario
+export type ExportacionInventario = {
+  job_id: string;
+  status: 'queued' | 'processing' | 'ready' | 'error';
+  stage: string;
+  progress: number;
+  download_url?: string;
+  filename?: string;
+  total_unidades?: number;
+  proyecto_nombre?: string;
+  error?: string;
+};
+
+export const exportarInventario = (proyectoId: string): Promise<ExportacionInventario> =>
+  apiGet(`/admin/inventario/exportar?proyecto_id=${encodeURIComponent(proyectoId)}`);
+
+export const consultarExportacionInventario = (jobId: string): Promise<ExportacionInventario> =>
+  apiGet(`/admin/inventario/exportar?job_id=${encodeURIComponent(jobId)}`);

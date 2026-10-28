@@ -3,6 +3,7 @@ import uuid
 import boto3
 import os
 import re
+import traceback
 from io import BytesIO
 from datetime import datetime
 from boto3.dynamodb.conditions import Key
@@ -14,6 +15,7 @@ from utils.auditoria import registrar_auditoria
 
 s3_client    = boto3.client('s3')
 dynamodb     = boto3.resource('dynamodb')
+lambda_client = boto3.client('lambda')
 inventario_t = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 clientes_t   = dynamodb.Table(os.environ.get('CLIENTES_TABLE', ''))
 procesos_t   = dynamodb.Table(os.environ.get('PROCESOS_TABLE', ''))
@@ -387,6 +389,128 @@ def get_reporte(job_id):
         return not_found('Reporte no encontrado')
 
 
+def _export_job_key(job_id):
+    return f'inventario/exportaciones/jobs/{job_id}.json'
+
+
+def _guardar_export_job(job_id, data):
+    s3_client.put_object(
+        Bucket=ARCHIVOS_BUCKET,
+        Key=_export_job_key(job_id),
+        Body=json.dumps(data, ensure_ascii=False, default=str).encode('utf-8'),
+        ContentType='application/json',
+        CacheControl='no-store',
+    )
+
+
+def _leer_export_job(job_id):
+    obj = s3_client.get_object(Bucket=ARCHIVOS_BUCKET, Key=_export_job_key(job_id))
+    return json.loads(obj['Body'].read())
+
+
+def iniciar_exportacion_inventario(event, rol='admin'):
+    """Crea una exportación en segundo plano y responde sin esperar al Excel."""
+    qs = event.get('queryStringParameters') or {}
+    proyecto_id = qs.get('proyecto_id', '').strip()
+    if not proyecto_id:
+        return bad_request('proyecto_id requerido')
+
+    proyecto = inventario_t.get_item(
+        Key={'pk': f'PROYECTO#{proyecto_id}', 'sk': 'METADATA'}
+    ).get('Item')
+    if not proyecto:
+        return not_found('Proyecto no encontrado')
+    if rol == 'inmobiliaria' and not _inmobiliaria_tiene_proyecto(event, proyecto_id):
+        return forbidden('No tienes permisos para exportar este proyecto')
+
+    job_id = str(uuid.uuid4())
+    base = {
+        'job_id': job_id,
+        'proyecto_id': proyecto_id,
+        'proyecto_nombre': proyecto.get('nombre', proyecto_id),
+        'status': 'queued',
+        'stage': 'Preparando exportación',
+        'progress': 5,
+    }
+    _guardar_export_job(job_id, base)
+
+    payload = dict(event)
+    payload.update({
+        'action': 'generar_exportacion_inventario',
+        'export_job_id': job_id,
+    })
+    lambda_arn = os.environ.get('EXPORT_LAMBDA_ARN')
+    if not lambda_arn:
+        return bad_request('Lambda de exportación no configurada')
+    try:
+        lambda_client.invoke(
+            FunctionName=lambda_arn,
+            InvocationType='Event',
+            Payload=json.dumps(payload, default=str).encode('utf-8'),
+        )
+    except Exception as exc:
+        _guardar_export_job(job_id, {
+            **base,
+            'status': 'error',
+            'stage': 'No se pudo iniciar la exportación',
+            'error': str(exc),
+        })
+        return bad_request('No se pudo iniciar la exportación')
+
+    return ok({
+        'job_id': job_id,
+        'status': 'queued',
+        'stage': 'Preparando exportación',
+        'progress': 5,
+        'proyecto_nombre': base['proyecto_nombre'],
+    }, 202)
+
+
+def estado_exportacion_inventario(job_id):
+    try:
+        return ok(_leer_export_job(job_id))
+    except Exception:
+        return not_found('Exportación no encontrada')
+
+
+def procesar_exportacion_inventario(event, rol='admin'):
+    """Worker asíncrono; genera el archivo fuera de la petición HTTP."""
+    job_id = event.get('export_job_id')
+    if not job_id:
+        return bad_request('export_job_id requerido')
+    try:
+        job = _leer_export_job(job_id)
+        _guardar_export_job(job_id, {**job, 'status': 'processing', 'stage': 'Generando Excel', 'progress': 20})
+        result = exportar_inventario(event, rol)
+        status_code = result.get('statusCode', 500)
+        body = json.loads(result.get('body') or '{}')
+        if status_code >= 400:
+            raise RuntimeError(body.get('message', 'Error al generar exportación'))
+        _guardar_export_job(job_id, {
+            **job,
+            'status': 'ready',
+            'stage': 'Exportación lista',
+            'progress': 100,
+            **body,
+        })
+        return result
+    except Exception as exc:
+        print(f'ERROR procesar_exportacion_inventario: {type(exc).__name__}: {exc}')
+        traceback.print_exc()
+        try:
+            job = _leer_export_job(job_id)
+            _guardar_export_job(job_id, {
+                **job,
+                'status': 'error',
+                'stage': 'Error al generar el archivo',
+                'progress': 0,
+                'error': str(exc),
+            })
+        except Exception:
+            pass
+        return bad_request(str(exc))
+
+
 
 def exportar_inventario(event, rol='admin'):
     """GET /admin/inventario/exportar?proyecto_id=xxx — exporta inventario a Excel."""
@@ -400,6 +524,7 @@ def exportar_inventario(event, rol='admin'):
     try:
         from decimal import Decimal
         from openpyxl import Workbook
+        from openpyxl.cell import WriteOnlyCell
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
         proyecto = inventario_t.get_item(
@@ -491,9 +616,10 @@ def exportar_inventario(event, rol='admin'):
             except Exception as e:
                 print(f'Error al cargar inmobiliarias: {e}')
 
-        wb = Workbook()
-        ws = wb.active
-        ws.title = 'Inventario'
+        # write_only reduce de forma importante la memoria y el tiempo de generación
+        # cuando el proyecto tiene cientos o miles de unidades.
+        wb = Workbook(write_only=True)
+        ws = wb.create_sheet('Inventario')
 
         header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
         header_font = Font(color='FFFFFF', bold=True, size=11)
@@ -519,12 +645,15 @@ def exportar_inventario(event, rol='admin'):
                 'Inmobiliaria', 'Estado Proceso', 'Comentario',
             ])
 
-        for col_num, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col_num, value=header)
+        header_cells = []
+        for header in headers:
+            cell = WriteOnlyCell(ws, value=header)
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = border
+            header_cells.append(cell)
+        ws.append(header_cells)
 
         column_widths = [15, 15, 12, 10, 8, 10, 12, 12, 8, 8, 10, 12, 12, 12, 12, 12, 10, 12, 14, 18, 18, 12]
         if not es_inmobiliaria:
@@ -547,7 +676,6 @@ def exportar_inventario(event, rol='admin'):
             }
             return estados.get(str(val or '').strip().lower(), val or '')
 
-        row_num = 2
         for unidad in sorted(unidades, key=lambda u: u.get('id_unidad', '')):
             unidad_id = unidad.get('unidad_id', '')
             proceso = procesos_map.get(unidad_id, {})
@@ -603,12 +731,9 @@ def exportar_inventario(event, rol='admin'):
                     unidad.get('comentario', ''),
                 ])
 
-            for col_num, value in enumerate(row_data, 1):
-                cell = ws.cell(row=row_num, column=col_num, value=value)
-                cell.border = border
-                cell.alignment = Alignment(vertical='center')
-
-            row_num += 1
+            # Los datos no necesitan estilo individual; conservar el formato solo
+            # en la cabecera evita crear miles de objetos openpyxl innecesarios.
+            ws.append(row_data)
 
         excel_buffer = BytesIO()
         wb.save(excel_buffer)

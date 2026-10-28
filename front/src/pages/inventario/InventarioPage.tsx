@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { Button, Modal, Form, Input, Space, Tooltip, Row, Col, Popconfirm, Upload, Select, Typography, Grid, Alert, Tag } from 'antd';
+import { Button, Modal, Form, Input, Space, Tooltip, Row, Col, Popconfirm, Upload, Select, Typography, Grid, Alert, Tag, Progress } from 'antd';
 import { PlusOutlined, AppstoreOutlined, EditOutlined, DeleteOutlined, SettingOutlined, ArrowLeftOutlined, ReloadOutlined, UploadOutlined, EyeOutlined, DownloadOutlined, CopyOutlined, SearchOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
 import { useInventario } from '../../hooks/useInventario';
@@ -10,7 +10,7 @@ import ModalBloqueo from '../../components/inventario/ModalBloqueo';
 import ModalCrearBloqueoAdmin from '../../components/inventario/ModalCrearBloqueoAdmin';
 import ImageCropModal from '../../components/common/ImageCropModal';
 import { ESTADO_UNIDAD_CONFIG, projectGradient } from '../../constants/estados';
-import { eliminarProyecto, getProyecto, exportarInventario } from '../../services/proyectos.service';
+import { eliminarProyecto, getProyecto, exportarInventario, consultarExportacionInventario, type ExportacionInventario } from '../../services/proyectos.service';
 import { bloquearUnidad } from '../../services/bloqueos.service';
 import type { Unidad } from '../../types';
 import { message } from 'antd';
@@ -66,6 +66,7 @@ const InventarioPage = () => {
 
   // Exportación
   const [exportando, setExportando] = useState(false);
+  const [exportEstado, setExportEstado] = useState<ExportacionInventario | null>(null);
 
   // Proyecto siendo eliminado (muestra spinner y bloquea otros botones de eliminar)
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
@@ -237,8 +238,21 @@ const InventarioPage = () => {
   const handleExportar = async () => {
     if (!inv.proyectoId) return;
     setExportando(true);
+    setExportEstado({ job_id: '', status: 'queued', stage: 'Preparando exportación', progress: 5 });
     try {
-      const result = await exportarInventario(inv.proyectoId);
+      const job = await exportarInventario(inv.proyectoId);
+      setExportEstado(job);
+
+      let result = job;
+      while (result.status !== 'ready' && result.status !== 'error') {
+        await new Promise(resolve => window.setTimeout(resolve, 2000));
+        result = await consultarExportacionInventario(job.job_id);
+        setExportEstado(result);
+      }
+
+      if (result.status === 'error' || !result.download_url || !result.filename) {
+        throw new Error(result.error || 'No se pudo generar el archivo');
+      }
       message.success(`Descargando ${result.total_unidades} unidades...`);
       
       // Crear un elemento <a> temporal para forzar la descarga
@@ -254,6 +268,7 @@ const InventarioPage = () => {
       message.error(msg);
     } finally {
       setExportando(false);
+      window.setTimeout(() => setExportEstado(null), 800);
     }
   };
 
@@ -310,6 +325,29 @@ const InventarioPage = () => {
 
   return (
     <div>
+      <Modal
+        open={exportando}
+        title="Exportando inventario"
+        footer={null}
+        closable={false}
+        maskClosable={false}
+        centered
+        width={420}
+      >
+        <div style={{ padding: '8px 0 4px' }}>
+          <Progress
+            percent={exportEstado?.progress ?? 5}
+            status="active"
+            strokeColor="#1677ff"
+          />
+          <Typography.Text strong>
+            {exportEstado?.stage || 'Preparando exportación'}
+          </Typography.Text>
+          <Typography.Paragraph type="secondary" style={{ margin: '8px 0 0' }}>
+            Estamos preparando el Excel en segundo plano. Puedes esperar aquí; la ventana no se cerrará hasta que el archivo esté listo.
+          </Typography.Paragraph>
+        </div>
+      </Modal>
       {/* Banner modo preview */}
       {isPreview && (
         <Alert

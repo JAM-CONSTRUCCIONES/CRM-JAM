@@ -535,6 +535,7 @@ export class JamStack extends cdk.Stack {
       comment: 'Valida el proyecto y cuenta unidades/procesos/clientes',
       payload: sfn.TaskInput.fromObject({
         action: 'sf_eliminar_preparar',
+        '_audit_context.$': '$._audit_context',
         'proyecto_id.$': '$.proyecto_id',
       }),
       outputPath: '$.Payload',
@@ -545,6 +546,7 @@ export class JamStack extends cdk.Stack {
       comment: 'Cancela todos los schedules de EventBridge del proyecto',
       payload: sfn.TaskInput.fromObject({
         action: 'sf_eliminar_schedules',
+        '_audit_context.$': '$._audit_context',
         'proyecto_id.$': '$.proyecto_id',
         'total_unidades.$': '$.total_unidades',
         'total_procesos.$': '$.total_procesos',
@@ -560,6 +562,7 @@ export class JamStack extends cdk.Stack {
       comment: 'Marca procesos y clientes como desvinculados',
       payload: sfn.TaskInput.fromObject({
         action: 'sf_eliminar_desvincular',
+        '_audit_context.$': '$._audit_context',
         'proyecto_id.$': '$.proyecto_id',
         'total_unidades.$': '$.total_unidades',
         'schedules_cancelados.$': '$.schedules_cancelados',
@@ -572,6 +575,7 @@ export class JamStack extends cdk.Stack {
       comment: 'Borra historial de bloqueos y todas las unidades del inventario',
       payload: sfn.TaskInput.fromObject({
         action: 'sf_eliminar_inventario',
+        '_audit_context.$': '$._audit_context',
         'proyecto_id.$': '$.proyecto_id',
         'total_unidades.$': '$.total_unidades',
         'schedules_cancelados.$': '$.schedules_cancelados',
@@ -586,6 +590,7 @@ export class JamStack extends cdk.Stack {
       comment: 'Soft-delete del proyecto y desvinculación de inmobiliarias',
       payload: sfn.TaskInput.fromObject({
         action: 'sf_eliminar_finalizar',
+        '_audit_context.$': '$._audit_context',
         'proyecto_id.$': '$.proyecto_id',
         'total_unidades.$': '$.total_unidades',
         'schedules_cancelados.$': '$.schedules_cancelados',
@@ -771,6 +776,7 @@ export class JamStack extends cdk.Stack {
         PROCESOS_TABLE: procesosTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,
         CAMPANIAS_TABLE: campaniasTable.tableName,
+        USUARIOS_TABLE: usuariosTable.tableName,
         AUDIT_TABLE: auditoriaTable.tableName,
         FROM_EMAIL: notificationEmail,
       },
@@ -780,6 +786,7 @@ export class JamStack extends cdk.Stack {
     procesosTable.grantReadData(campaniasLambda);
     inventarioTable.grantReadData(campaniasLambda);
     campaniasTable.grantReadWriteData(campaniasLambda);
+    usuariosTable.grantReadData(campaniasLambda);
     auditoriaTable.grantWriteData(campaniasLambda);
     campaniasLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendEmail', 'ses:SendRawEmail'],
@@ -840,12 +847,14 @@ export class JamStack extends cdk.Stack {
         INVENTARIO_TABLE: inventarioTable.tableName,
         BLOQUEOS_LAMBDA_ARN: bloqueosLambdaArn,
         SCHEDULER_ROLE_ARN: schedulerRole.roleArn,
+        AUDIT_TABLE: auditoriaTable.tableName,
       },
     });
 
     clientesTable.grantReadWriteData(transferirClienteLambda);
     procesosTable.grantReadWriteData(transferirClienteLambda);
     inventarioTable.grantReadWriteData(transferirClienteLambda);
+    auditoriaTable.grantWriteData(transferirClienteLambda);
     
     // Permisos para crear schedules
     transferirClienteLambda.addToRolePolicy(new iam.PolicyStatement({
@@ -865,6 +874,7 @@ export class JamStack extends cdk.Stack {
       lambdaFunction: transferirClienteLambda,
       payload: sfn.TaskInput.fromObject({
         action: 'validar',
+        '_audit_context.$': '$._audit_context',
         'cedula.$': '$.cedula',
         'proyecto_id.$': '$.proyecto_id',
         'inmobiliaria_origen.$': '$.inmobiliaria_origen',
@@ -880,6 +890,7 @@ export class JamStack extends cdk.Stack {
       lambdaFunction: transferirClienteLambda,
       payload: sfn.TaskInput.fromObject({
         action: 'eliminar',
+        '_audit_context.$': '$._audit_context',
         'cedula.$': '$.cedula',
         'proyecto_id.$': '$.proyecto_id',
         'inmobiliaria_origen.$': '$.inmobiliaria_origen',
@@ -899,6 +910,7 @@ export class JamStack extends cdk.Stack {
       lambdaFunction: transferirClienteLambda,
       payload: sfn.TaskInput.fromObject({
         action: 'crear',
+        '_audit_context.$': '$._audit_context',
         'cedula.$': '$.cedula',
         'proyecto_id.$': '$.proyecto_id',
         'inmobiliaria_origen.$': '$.inmobiliaria_origen',
@@ -968,7 +980,18 @@ def handler(event, context):
 
     response = sfn.start_execution(
         stateMachineArn=arn,
-        input=json.dumps(body)
+        input=json.dumps({
+            **body,
+            '_audit_context': {
+                'sub': claims.get('sub') if (claims := ((event.get('requestContext') or {}).get('authorizer') or {}).get('claims') or {}) else '',
+                'username': claims.get('cognito:username') or claims.get('username') or '',
+                'nombre': claims.get('name') or claims.get('cognito:username') or 'Sistema',
+                'rol': claims.get('cognito:groups') or 'sistema',
+                'request_id': (event.get('requestContext') or {}).get('requestId') or '',
+                'metodo': event.get('httpMethod') or '',
+                'ruta': path,
+            },
+        })
     )
 
     if AUDIT_TABLE:
@@ -1018,6 +1041,7 @@ def handler(event, context):
       lambdaFunction: transferirClienteLambda,
       payload: sfn.TaskInput.fromObject({
         action: 'validar_cedula',
+        '_audit_context.$': '$._audit_context',
         'cedula_antigua.$': '$.cedula_antigua',
         'cedula_nueva.$': '$.cedula_nueva',
       }),
@@ -1029,6 +1053,7 @@ def handler(event, context):
       lambdaFunction: transferirClienteLambda,
       payload: sfn.TaskInput.fromObject({
         action: 'eliminar_cedula',
+        '_audit_context.$': '$._audit_context',
         'cedula_antigua.$': '$.cedula_antigua',
         'cedula_nueva.$': '$.cedula_nueva',
         'clientes.$': '$.clientes',
@@ -1043,6 +1068,7 @@ def handler(event, context):
       lambdaFunction: transferirClienteLambda,
       payload: sfn.TaskInput.fromObject({
         action: 'crear_cedula',
+        '_audit_context.$': '$._audit_context',
         'cedula_antigua.$': '$.cedula_antigua',
         'cedula_nueva.$': '$.cedula_nueva',
         'clientes.$': '$.clientes',
@@ -1776,6 +1802,7 @@ def handler(event, context):
         USUARIOS_TABLE: usuariosTable.tableName,
         CLIENTES_TABLE: clientesTable.tableName,
         INVENTARIO_TABLE: inventarioTable.tableName,
+        AUDIT_TABLE: auditoriaTable.tableName,
       },
     });
 
@@ -1786,6 +1813,7 @@ def handler(event, context):
     usuariosTable.grantReadData(notificacionesLambda);
     clientesTable.grantReadData(notificacionesLambda);
     inventarioTable.grantReadData(notificacionesLambda);
+    auditoriaTable.grantWriteData(notificacionesLambda);
 
     notificacionesLambda.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendEmail', 'ses:SendRawEmail'],

@@ -95,6 +95,10 @@ def get_upload_url(event):
         },
         ExpiresIn=300,
     )
+    registrar_auditoria(
+        event, 'migracion_archivo_upload_url_generada', 'inventario', 'migracion', job_id,
+        detalles={'proyecto_id': proyecto_id, 'key': key, 'entidad_nombre': key},
+    )
     return ok({'upload_url': url, 'job_id': job_id, 'key': key})
 
 
@@ -758,15 +762,32 @@ def exportar_inventario(event, rol='admin'):
             ExpiresIn=300
         )
 
+        registrar_auditoria(
+            event, 'inventario_exportado', 'inventario', 'proyecto', proyecto_id,
+            detalles={
+                'proyecto_id': proyecto_id,
+                'proyecto_nombre': proyecto_nombre,
+                'total_unidades': len(unidades),
+                'incluye_datos_clientes': not es_inmobiliaria,
+                'rol': rol,
+                'filename': filename,
+                'entidad_nombre': proyecto_nombre,
+            },
+        )
         return ok({
             'download_url': download_url,
             'filename': filename,
             'total_unidades': len(unidades),
-            'proyecto_nombre': proyecto_nombre
+            'proyecto_nombre': proyecto_nombre,
         })
 
     except Exception as e:
         print(f'ERROR exportar_inventario: {type(e).__name__}: {e}')
         import traceback
         traceback.print_exc()
+        registrar_auditoria(
+            event, 'inventario_exportacion_fallida', 'inventario', 'proyecto', proyecto_id or 'general',
+            resultado='fallido',
+            detalles={'proyecto_id': proyecto_id, 'rol': rol, 'error': type(e).__name__},
+        )
         return bad_request(f'Error al generar exportación: {str(e)}')

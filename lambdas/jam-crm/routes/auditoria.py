@@ -1,4 +1,5 @@
 import base64
+import base64
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -11,6 +12,54 @@ from utils.response import ok, bad_request
 
 dynamodb = boto3.resource('dynamodb')
 AUDIT_TABLE = os.environ.get('AUDIT_TABLE', '')
+USUARIOS_TABLE = os.environ.get('USUARIOS_TABLE', '')
+
+
+def opciones(event):
+    """Devuelve actores para los filtros, conservando usuarios históricos."""
+    if not USUARIOS_TABLE:
+        return ok({'actores': [{'value': 'usuario', 'label': 'Usuarios'}, {'value': 'sistema', 'label': 'Sistema'}], 'usuarios': []})
+
+    table = dynamodb.Table(USUARIOS_TABLE)
+    usuarios = []
+    last_key = None
+    while True:
+        kwargs = {
+            'IndexName': 'gsi-tipo',
+            'KeyConditionExpression': Key('tipo').eq('USUARIO'),
+            'ProjectionExpression': 'pk, #n, cognito_username, rol, activo',
+            'ExpressionAttributeNames': {'#n': 'nombre'},
+        }
+        if last_key:
+            kwargs['ExclusiveStartKey'] = last_key
+        result = table.query(**kwargs)
+        usuarios.extend(result.get('Items', []))
+        last_key = result.get('LastEvaluatedKey')
+        if not last_key:
+            break
+
+    opciones_usuarios = []
+    for item in usuarios:
+        sub = str(item.get('pk') or '').replace('USUARIO#', '')
+        if not sub:
+            continue
+        nombre = item.get('nombre') or item.get('cognito_username') or sub
+        opciones_usuarios.append({
+            'value': sub,
+            'label': nombre,
+            'username': item.get('cognito_username') or '',
+            'rol': item.get('rol') or '',
+            'activo': item.get('activo', True),
+        })
+
+    opciones_usuarios.sort(key=lambda item: str(item['label']).lower())
+    return ok({
+        'actores': [
+            {'value': 'usuario', 'label': 'Usuarios'},
+            {'value': 'sistema', 'label': 'Sistema'},
+        ],
+        'usuarios': opciones_usuarios,
+    })
 
 
 def listar(event):
@@ -31,6 +80,9 @@ def listar(event):
     table = dynamodb.Table(AUDIT_TABLE)
     usuario_sub = str(params.get('usuario_sub') or '').strip()
     usuario_nombre = str(params.get('usuario_nombre') or '').strip()
+    actor_tipo = str(params.get('actor_tipo') or '').strip().lower()
+    if actor_tipo not in ('usuario', 'sistema'):
+        actor_tipo = ''
     filtros = {
         'accion': params.get('accion'),
         'modulo': params.get('modulo'),
@@ -42,6 +94,19 @@ def listar(event):
         if value:
             condicion = Attr(key).eq(str(value))
             filter_expression = condicion if filter_expression is None else filter_expression & condicion
+    if actor_tipo == 'usuario':
+        condicion = Attr('actor_tipo').eq('usuario') | (
+            Attr('actor_tipo').not_exists() & Attr('usuario_sub').exists() & Attr('usuario_sub').ne('')
+        )
+        filter_expression = condicion if filter_expression is None else filter_expression & condicion
+    elif actor_tipo == 'sistema':
+        condicion = (
+            Attr('actor_tipo').eq('sistema') |
+            Attr('actor_tipo').not_exists() & (
+                Attr('usuario_sub').not_exists() | Attr('usuario_sub').eq('') | Attr('usuario_sub').eq('sistema')
+            )
+        )
+        filter_expression = condicion if filter_expression is None else filter_expression & condicion
     if usuario_nombre:
         condicion = Attr('usuario_nombre').eq(usuario_nombre)
         filter_expression = condicion if filter_expression is None else filter_expression & condicion

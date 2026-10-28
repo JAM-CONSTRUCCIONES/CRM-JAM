@@ -235,6 +235,10 @@ def presigned_imagen(inmo_id, event=None):
 
     # URL pública sin query string (el timestamp está en el nombre del archivo)
     public_url = f'{CLOUDFRONT_URL}/{key}'
+    registrar_auditoria(
+        event or {}, 'imagen_inmobiliaria_upload_url_generada', 'inmobiliarias', 'inmobiliaria', inmo_id,
+        detalles={'inmobiliaria_id': inmo_id, 'key': key, 'content_type': content_type, 'entidad_nombre': inmo_id},
+    )
 
     return ok({
         'upload_url': presigned,

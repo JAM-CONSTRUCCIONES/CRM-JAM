@@ -968,6 +968,17 @@ def exportar_clientes(event):
             ExpiresIn=300,
         )
 
+        registrar_auditoria(
+            event, 'clientes_exportados', 'clientes', 'proyecto', proyecto_id,
+            detalles={
+                'proyecto_id': proyecto_id,
+                'proyecto_nombre': proyecto_nombre,
+                'inmobiliaria_id': inmobiliaria_id or '',
+                'total_clientes': len(filas),
+                'filename': filename,
+                'entidad_nombre': proyecto_nombre,
+            },
+        )
         return ok({
             'download_url': download_url,
             'filename': filename,
@@ -978,6 +989,11 @@ def exportar_clientes(event):
         print(f'ERROR exportar_clientes: {type(e).__name__}: {e}')
         import traceback
         traceback.print_exc()
+        registrar_auditoria(
+            event, 'clientes_exportacion_fallida', 'clientes', 'proyecto', proyecto_id or 'general',
+            resultado='fallido',
+            detalles={'proyecto_id': proyecto_id, 'inmobiliaria_id': inmobiliaria_id or '', 'error': type(e).__name__},
+        )
         return bad_request(f'Error al generar exportacion: {str(e)}')
 
 

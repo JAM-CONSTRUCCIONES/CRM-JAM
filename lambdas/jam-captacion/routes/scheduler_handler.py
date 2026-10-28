@@ -4,6 +4,7 @@ import json
 import os
 from datetime import datetime, timezone
 from boto3.dynamodb.conditions import Key
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 clientes = dynamodb.Table(os.environ['CLIENTES_TABLE'])
@@ -74,6 +75,17 @@ def _vencer(cedula, inmobiliaria_id, proyecto_id):
         )
 
     _publicar_evento('exclusividad_vencida', proyecto_id, inmobiliaria_id, {'cedula': cedula})
+    registrar_auditoria(
+        {'source': 'scheduler', 'accion': 'vencer_exclusividad'},
+        'exclusividad_vencida', 'clientes', 'cliente', cedula,
+        detalles={
+            'proyecto_id': proyecto_id,
+            'inmobiliaria_id': inmobiliaria_id,
+            'entidad_nombre': f'Cliente {cedula}',
+            'estado_resultante': 'disponible' if item.get('estado') == 'captacion' else item.get('estado', ''),
+            'exclusividad_activa': False,
+        },
+    )
 
 
 def _schedule_name(cedula, inmobiliaria_id, proyecto_id):

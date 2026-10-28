@@ -9,6 +9,7 @@ import os
 from datetime import datetime, timezone
 from boto3.dynamodb.conditions import Key
 from utils.clientes import desvincular_unidad
+from utils.auditoria import registrar_auditoria
 
 dynamodb = boto3.resource('dynamodb')
 inventario = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
@@ -90,6 +91,20 @@ def _liberar(unidad_id, proyecto_id):
                 },
             }),
         )
+
+    registrar_auditoria(
+        {'source': 'scheduler', 'accion': 'liberar_automatico'},
+        'bloqueo_liberado_automatico', 'bloqueos', 'unidad', unidad_id,
+        detalles={
+            'proyecto_id': proyecto_id,
+            'inmobiliaria_id': inmobiliaria_id or '',
+            'cliente_cedula': cliente_cedula or '',
+            'motivo': 'vencimiento_48h',
+            'entidad_nombre': unidad_nombre,
+            'fecha_bloqueo': fecha_bloqueo,
+            'fecha_liberacion': ts_ahora,
+        },
+    )
 
 
 def _alertar(unidad_id, proyecto_id):

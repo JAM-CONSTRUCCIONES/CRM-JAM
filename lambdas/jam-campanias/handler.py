@@ -286,6 +286,10 @@ def get_upload_url(event):
         },
         ExpiresIn=900,
     )
+    registrar_auditoria(
+        event, 'imagen_campania_upload_url_generada', 'campanias', 'archivo', image_id,
+        detalles={'key': key, 'content_type': content_type, 'entidad_nombre': key},
+    )
     return ok({
         'upload_url': upload_url,
         'public_url': f'{CLOUDFRONT_URL}/{quote(key)}',
@@ -330,7 +334,19 @@ def guardar_template(event, template_id):
         'actualizado_por': usuario.get('nombre', ''),
     }
     campanias_t.put_item(Item=item)
-    registrar_auditoria(event, 'campania_actualizada', 'campanias', 'campania', template_id, detalles={'entidad_nombre': body.get('titulo') or template_id, 'cambios': body})
+    registrar_auditoria(
+        event,
+        'campania_actualizada',
+        'campanias',
+        'campania',
+        template_id,
+        detalles={
+            'entidad_nombre': nombre,
+            'cambios': body,
+            'asunto': asunto,
+            'proyecto_id': 'global',
+        },
+    )
     return ok(item)
 
 
@@ -433,5 +449,20 @@ def enviar_campania(event):
         'errores_envio': errores_envio,
     }
     campanias_t.put_item(Item=item)
-    registrar_auditoria(event, 'campania_enviada', 'campanias', 'campania', item.get('campania_id'), detalles={'entidad_nombre': item.get('asunto') or item.get('campania_id'), 'destinatarios': item.get('total_destinatarios'), 'asunto': item.get('asunto')})
+    registrar_auditoria(
+        event,
+        'campania_enviada',
+        'campanias',
+        'campania',
+        item.get('campania_id'),
+        resultado='fallido' if errores_envio and not enviados else 'completado',
+        detalles={
+            'entidad_nombre': item.get('nombre') or item.get('campania_id'),
+            'proyecto_id': proyecto_id,
+            'destinatarios': item.get('cantidad_destinatarios', 0),
+            'correos_enviados': enviados,
+            'errores_envio': len(errores_envio),
+            'asunto': item.get('asunto', asunto),
+        },
+    )
     return created(item)

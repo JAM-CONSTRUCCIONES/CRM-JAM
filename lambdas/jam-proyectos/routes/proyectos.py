@@ -283,6 +283,10 @@ def presigned_imagen(proyecto_id, event=None):
 
     # URL pública sin query string (el timestamp está en el nombre del archivo)
     public_url = f'{CLOUDFRONT_URL}/{key}'
+    registrar_auditoria(
+        event or {}, 'imagen_proyecto_upload_url_generada', 'inventario', 'proyecto', proyecto_id,
+        detalles={'proyecto_id': proyecto_id, 'key': key, 'content_type': content_type, 'entidad_nombre': proyecto_id},
+    )
     print(f"[presigned_imagen] public_url={public_url}")
 
     return ok({
@@ -623,7 +627,18 @@ def iniciar_eliminacion(proyecto_id, event=None):
     execution = sfn_client.start_execution(
         stateMachineArn=SF_ELIMINAR_ARN,
         name=execution_name,
-        input=json.dumps({'proyecto_id': proyecto_id}),
+        input=json.dumps({
+            'proyecto_id': proyecto_id,
+            '_audit_context': {
+                'sub': ((event or {}).get('requestContext') or {}).get('authorizer', {}).get('claims', {}).get('sub', ''),
+                'username': ((event or {}).get('requestContext') or {}).get('authorizer', {}).get('claims', {}).get('cognito:username', ''),
+                'nombre': ((event or {}).get('requestContext') or {}).get('authorizer', {}).get('claims', {}).get('name', 'Sistema'),
+                'rol': ((event or {}).get('requestContext') or {}).get('authorizer', {}).get('claims', {}).get('cognito:groups', 'sistema'),
+                'request_id': ((event or {}).get('requestContext') or {}).get('requestId', ''),
+                'metodo': (event or {}).get('httpMethod', ''),
+                'ruta': (event or {}).get('path', ''),
+            },
+        }),
     )
 
     print(f'[iniciar_eliminacion] SF iniciada proyecto_id={proyecto_id} execution={execution_name}')
@@ -822,7 +837,30 @@ def sf_eliminar_finalizar(event):
     )
 
     resumen['inmobiliarias_actualizadas'] = _desvincular_proyecto_de_inmobiliarias(proyecto_id)
-    print(f'[sf_finalizar] FIN proyecto_id={proyecto_id} resumen_final={resumen}')
+    registrar_auditoria(
+        {
+            'requestContext': {
+                'authorizer': {
+                    'claims': {
+                        'sub': ((event.get('_audit_context') or {}).get('sub') or ''),
+                        'cognito:username': ((event.get('_audit_context') or {}).get('username') or ''),
+                        'name': ((event.get('_audit_context') or {}).get('nombre') or 'Sistema'),
+                        'cognito:groups': ((event.get('_audit_context') or {}).get('rol') or 'sistema'),
+                    }
+                },
+                'requestId': ((event.get('_audit_context') or {}).get('request_id') or ''),
+            },
+            'httpMethod': ((event.get('_audit_context') or {}).get('metodo') or ''),
+            'path': ((event.get('_audit_context') or {}).get('ruta') or ''),
+        },
+        'proyecto_eliminado', 'inventario', 'proyecto', proyecto_id,
+        detalles={
+            'entidad_nombre': proyecto_id,
+            'modo': 'step_function',
+            'resumen': resumen,
+        },
+    )
+    logger.info('[sf_finalizar] FIN proyecto_id=%s resumen_final=%s', proyecto_id, resumen)
 
     return {
         'proyecto_id': proyecto_id,

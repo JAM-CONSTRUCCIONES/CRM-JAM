@@ -5,6 +5,8 @@ Paso 1: Validar que la transferencia es posible
 import json
 import os
 import re
+import uuid
+from datetime import datetime, timezone
 import boto3
 from boto3.dynamodb.conditions import Key
 
@@ -17,6 +19,53 @@ inventario_table = dynamodb.Table(os.environ['INVENTARIO_TABLE'])
 
 BLOQUEOS_LAMBDA_ARN = os.environ.get('BLOQUEOS_LAMBDA_ARN', '')
 SCHEDULER_ROLE_ARN = os.environ.get('SCHEDULER_ROLE_ARN', '')
+AUDIT_TABLE = os.environ.get('AUDIT_TABLE', '')
+
+
+def _registrar_auditoria(event, accion, entidad_id, detalles, resultado='completado'):
+    if not AUDIT_TABLE:
+        return False
+    context = event.get('_audit_context') or {}
+    timestamp = datetime.now(timezone.utc).isoformat()
+    event_id = str(uuid.uuid4())
+    sub = context.get('sub') or ''
+    rol = context.get('rol') or 'sistema'
+    if isinstance(rol, list):
+        rol = ','.join(rol)
+    item = {
+        'pk': f'AUDITORIA#{timestamp[:10]}',
+        'sk': f'{timestamp}#{event_id}',
+        'tipo': 'AUDITORIA',
+        'evento_id': event_id,
+        'fecha': timestamp,
+        'accion': accion,
+        'modulo': 'clientes',
+        'resultado': resultado,
+        'actor_tipo': 'usuario' if sub else 'sistema',
+        'usuario_sub': sub,
+        'usuario_nombre': context.get('nombre') or context.get('username') or 'Sistema',
+        'usuario_username': context.get('username') or '',
+        'rol': rol,
+        'request_id': context.get('request_id') or '',
+        'metodo': context.get('metodo') or '',
+        'ruta': context.get('ruta') or '',
+        'entidad_tipo': 'cliente',
+        'entidad_id': str(entidad_id or 'general'),
+        'entidad_nombre': detalles.get('entidad_nombre') or str(entidad_id or 'general'),
+        'GSI1PK': f'USUARIO#{sub or "SISTEMA"}',
+        'GSI1SK': f'{timestamp}#{event_id}',
+        'GSI2PK': f'ENTIDAD#cliente#{entidad_id or "general"}',
+        'GSI2SK': f'{timestamp}#{event_id}',
+        'GSI3PK': f'ACCION#{accion}',
+        'GSI3SK': f'{timestamp}#{event_id}',
+        'detalles': detalles,
+    }
+    try:
+        dynamodb.Table(AUDIT_TABLE).put_item(Item=item)
+        return True
+    except Exception as exc:
+        print(f'[AUDITORIA] no se pudo registrar {accion}: {type(exc).__name__}: {exc}')
+        return False
 
 
 def _schedule_name(unidad_id, suffix):
@@ -168,6 +217,7 @@ def validar_transferencia(event, context):
     print(f"[VALIDAR] Validación exitosa")
     
     return {
+        '_audit_context': event.get('_audit_context'),
         'valido': True,
         'cedula': cedula,
         'proyecto_id': proyecto_id,
@@ -262,6 +312,7 @@ def eliminar_registros(event, context):
     print(f"[ELIMINAR] Eliminación completada. Items eliminados: {len(items_eliminados)}")
     
     return {
+        '_audit_context': event.get('_audit_context'),
         'eliminado': True,
         'items_eliminados': items_eliminados,
         'cedula': cedula,
@@ -508,6 +559,19 @@ def handler(event, context):
         return result
     elif action == 'crear':
         result = crear_registros(event, context)
+        _registrar_auditoria(
+            event, 'cliente_traspaso_completado', event.get('cedula'),
+            {
+                'cedula': event.get('cedula'),
+                'proyecto_id': event.get('proyecto_id'),
+                'inmobiliaria_origen': event.get('inmobiliaria_origen'),
+                'inmobiliaria_destino': event.get('inmobiliaria_destino'),
+                'transferencia_parcial': event.get('transferencia_parcial', False),
+                'items_creados': len(result.get('items_creados', [])),
+                'entidad_nombre': f"Cliente {event.get('cedula')}",
+            },
+            resultado='completado' if result.get('creado') else 'fallido',
+        )
         print(f"[HANDLER] Resultado crear: {json.dumps(result, default=str)}")
         return result
     elif action == 'validar_cedula':
@@ -520,6 +584,18 @@ def handler(event, context):
         return result
     elif action == 'crear_cedula':
         result = crear_registros_cedula(event, context)
+        _registrar_auditoria(
+            event, 'cambio_cedula_completado', event.get('cedula_nueva'),
+            {
+                'cedula_antigua': event.get('cedula_antigua'),
+                'cedula_nueva': event.get('cedula_nueva'),
+                'clientes_actualizados': result.get('clientes_actualizados', 0),
+                'procesos_actualizados': result.get('procesos_actualizados', 0),
+                'unidades_actualizadas': result.get('unidades_actualizadas', 0),
+                'entidad_nombre': f"Cliente {event.get('cedula_nueva')}",
+            },
+            resultado='completado' if result.get('cambiado') else 'fallido',
+        )
         print(f"[HANDLER] Resultado crear_cedula: {json.dumps(result, default=str)}")
         return result
     else:
@@ -582,6 +658,7 @@ def validar_cambio_cedula(event, context):
     print(f"[VALIDAR_CEDULA] Clientes: {len(clientes)}, Procesos: {len(procesos)}, Unidades: {len(unidades_vinculadas)}")
 
     return {
+        '_audit_context': event.get('_audit_context'),
         'valido': True,
         'cedula_antigua': cedula_antigua,
         'cedula_nueva': cedula_nueva,
@@ -609,6 +686,7 @@ def eliminar_registros_cedula(event, context):
     print(f"[ELIMINAR_CEDULA] {len(procesos)} procesos eliminados")
 
     return {
+        '_audit_context': event.get('_audit_context'),
         'cedula_antigua': cedula_antigua,
         'cedula_nueva': cedula_nueva,
         'clientes': clientes,

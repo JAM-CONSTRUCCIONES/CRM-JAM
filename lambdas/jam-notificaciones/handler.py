@@ -4,6 +4,8 @@ import boto3
 import os
 import logging
 import re
+import uuid
+from datetime import datetime, timezone
 from html import escape
 from boto3.dynamodb.conditions import Key
 
@@ -22,6 +24,57 @@ FROM_EMAIL = os.environ['FROM_EMAIL']
 usuarios = dynamodb.Table(USUARIOS_TABLE)
 clientes_table = dynamodb.Table(CLIENTES_TABLE)
 inventario_table = dynamodb.Table(INVENTARIO_TABLE) if INVENTARIO_TABLE else None
+AUDIT_TABLE = os.environ.get('AUDIT_TABLE', '')
+
+
+def _registrar_auditoria_notificacion(msg, resultado='omitida', motivo='', detalle_envio=None):
+    if not AUDIT_TABLE:
+        return
+    tipo = msg.get('tipo') or msg.get('evento') or 'desconocida'
+    timestamp = datetime.now(timezone.utc).isoformat()
+    event_id = str(uuid.uuid4())
+    entidad_id = msg.get('cliente_cedula') or msg.get('cedula') or msg.get('unidad_id') or msg.get('proyecto_id') or 'general'
+    item = {
+        'pk': f'AUDITORIA#{timestamp[:10]}',
+        'sk': f'{timestamp}#{event_id}',
+        'tipo': 'AUDITORIA',
+        'evento_id': event_id,
+        'fecha': timestamp,
+        'accion': f'notificacion_{tipo}',
+        'modulo': 'notificaciones',
+        'resultado': resultado,
+        'actor_tipo': 'sistema',
+        'usuario_sub': '',
+        'usuario_nombre': 'Sistema',
+        'usuario_username': '',
+        'rol': 'sistema',
+        'usuario_rol': 'sistema',
+        'request_id': msg.get('request_id', ''),
+        'metodo': '',
+        'ruta': '',
+        'entidad_tipo': 'notificacion',
+        'entidad_id': str(entidad_id),
+        'entidad_nombre': tipo,
+        'GSI1PK': 'USUARIO#SISTEMA',
+        'GSI1SK': f'{timestamp}#{event_id}',
+        'GSI2PK': f'ENTIDAD#notificacion#{entidad_id}',
+        'GSI2SK': f'{timestamp}#{event_id}',
+        'GSI3PK': f'ACCION#notificacion_{tipo}',
+        'GSI3SK': f'{timestamp}#{event_id}',
+        'detalles': {
+            'tipo_evento': tipo,
+            'proyecto_id': msg.get('proyecto_id', ''),
+            'unidad_id': msg.get('unidad_id', ''),
+            'cedula': msg.get('cedula') or msg.get('cliente_cedula', ''),
+            'resultado': resultado,
+            'motivo': motivo,
+            'notificar': msg.get('notificar'),
+            **(detalle_envio or {}),        },
+    }
+    try:
+        dynamodb.Table(AUDIT_TABLE).put_item(Item=item)
+    except Exception as exc:
+        logger.warning(f'No se pudo auditar notificacion {tipo}: {type(exc).__name__}: {exc}')
 
 def _get_template(tipo):
     """Returns (titulo, mensaje) from DynamoDB, falling back to defaults.
@@ -55,10 +108,18 @@ def _notificacion_activa(tipo):
 
 def handler(event, context):
     for record in event.get('Records', []):
+        body = {}
         try:
             body = json.loads(record['body'])
-            _procesar(body)
+            resultado = _procesar(body)
+            _registrar_auditoria_notificacion(
+                body,
+                resultado=resultado.get('resultado', 'omitida'),
+                motivo=resultado.get('motivo', ''),
+                detalle_envio=resultado,
+            )
         except Exception as e:
+            _registrar_auditoria_notificacion(body, 'fallida', str(e)[:180])
             logger.error(f'Error procesando mensaje: {e}', exc_info=True)
             raise
 
@@ -67,7 +128,7 @@ def _procesar(msg):
     tipo = msg.get('tipo') or msg.get('evento')
     if not tipo:
         logger.warning(f'Mensaje sin tipo/evento: {msg}')
-        return
+        return {'resultado': 'omitida', 'motivo': 'mensaje_sin_tipo'}
 
     logger.info(f'Procesando evento: {tipo}')
 
@@ -87,9 +148,12 @@ def _procesar(msg):
 
     fn = handlers.get(tipo)
     if fn:
-        fn(msg)
-    else:
-        logger.warning(f'Tipo de evento no manejado: {tipo}')
+        resultado = fn(msg)
+        if isinstance(resultado, dict):
+            return resultado
+        return {'resultado': 'omitida', 'motivo': 'notificacion_no_ejecutada'}
+    logger.warning(f'Tipo de evento no manejado: {tipo}')
+    return {'resultado': 'omitida', 'motivo': 'tipo_evento_no_manejado'}
 
 
 # ─── Resolvers ───────────────────────────────────────────────────────────────
@@ -289,7 +353,7 @@ def _enviar(destinatarios, asunto, cuerpo_html):
     destinatarios = dedup
     if not destinatarios:
         logger.warning('Sin destinatarios, email no enviado')
-        return
+        return {'resultado': 'omitida', 'motivo': 'sin_destinatarios', 'destinatarios': 0}
 
     ses.send_email(
         Source=FROM_EMAIL,
@@ -300,6 +364,7 @@ def _enviar(destinatarios, asunto, cuerpo_html):
         },
     )
     logger.info(f'Email enviado a {destinatarios}: {asunto}')
+    return {'resultado': 'enviada', 'destinatarios': len(destinatarios), 'asunto': asunto}
 
 
 # ─── Handlers por evento ─────────────────────────────────────────────────────
@@ -308,7 +373,7 @@ def _bloqueo_registrado(msg):
     notificar = msg.get('notificar', 'todos')
     if not notificar:
         logger.info('bloqueo_registrado sin notificar, omitiendo email')
-        return
+        return {'resultado': 'omitida', 'motivo': 'notificar_desactivado'}
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
     correos = [ADMIN_EMAIL] if notificar == 'admin' else _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
@@ -333,14 +398,15 @@ def _bloqueo_registrado(msg):
     titulo, cuerpo = _render_template('bloqueo_registrado', vars_dict, filas,
         'Nuevo bloqueo registrado',
         'Le informamos que se ha registrado un nuevo bloqueo en el sistema.')
-    _enviar(correos, titulo, cuerpo)
+    return _enviar(correos, titulo, cuerpo)
 
 
 def _cliente_asignado_bloqueo(msg):
     notificar = msg.get('notificar', 'todos')
     if not notificar:
         logger.info('cliente_asignado_bloqueo sin notificar, omitiendo email')
-        return
+        return {'resultado': 'omitida', 'motivo': 'notificar_desactivado'}
+
     meta = msg.get('metadata', {})
     inmo_id = msg.get('inmobiliaria_id', '')
     correos = [ADMIN_EMAIL] if notificar == 'admin' else _correos_inmobiliaria(inmo_id) + [ADMIN_EMAIL]
@@ -362,7 +428,7 @@ def _cliente_asignado_bloqueo(msg):
     titulo, cuerpo = _render_template('cliente_asignado_bloqueo', vars_dict, filas,
         'Cliente asignado a bloqueo',
         'Se ha asignado el cliente {cliente} al bloqueo existente de la unidad {unidad}.')
-    _enviar(correos, titulo, cuerpo)
+    return _enviar(correos, titulo, cuerpo)
 
 
 def _alerta_vencimiento(msg):
@@ -381,7 +447,7 @@ def _alerta_vencimiento(msg):
     titulo, cuerpo = _render_template('alerta_vencimiento', vars_dict, filas,
         '⚠️ Bloqueo próximo a vencer',
         'El siguiente bloqueo está próximo a vencer. Si necesita más tiempo, comuníquese con el administrador.')
-    _enviar(correos, titulo, cuerpo)
+    return _enviar(correos, titulo, cuerpo)
 
 
 def _liberacion_automatica(msg):
@@ -406,7 +472,7 @@ def _liberacion_automatica(msg):
     titulo, cuerpo = _render_template('liberacion_automatica', vars_dict, filas,
         'Bloqueo liberado por vencimiento',
         'El tiempo de bloqueo expiró y la unidad quedó disponible automáticamente.')
-    _enviar(correos, titulo, cuerpo)
+    return _enviar(correos, titulo, cuerpo)
 
 
 def _liberacion_manual(msg):
@@ -423,7 +489,7 @@ def _liberacion_manual(msg):
     notificar = msg.get('notificar')
     if notificar in (False, 'false', None):
         logger.info('liberacion_manual sin notificar, omitiendo email')
-        return
+        return {'resultado': 'omitida', 'motivo': 'notificar_desactivado'}
 
     correos_inmo = _correos_inmobiliaria(inmo_id)
     correo_cliente = _correo_cliente(cedula, inmo_id, proyecto_id) if cedula else ''
@@ -442,7 +508,7 @@ def _liberacion_manual(msg):
     titulo, cuerpo = _render_template('liberacion_manual', vars_dict, filas,
         'Bloqueo liberado manualmente',
         'El bloqueo de la unidad ha sido liberado manualmente por un administrador.')
-    _enviar(correos, titulo, cuerpo)
+    return _enviar(correos, titulo, cuerpo)
 
 
 def _cambio_estatus(msg):
@@ -450,7 +516,7 @@ def _cambio_estatus(msg):
     notificar = msg.get('notificar')
     if not notificar:
         logger.info('cambio_estatus sin notificar, omitiendo email')
-        return
+        return {'resultado': 'omitida', 'motivo': 'notificar_desactivado'}
 
     inmo_id = msg.get('inmobiliaria_id', '')
     cedula = msg.get('cedula', '') or meta.get('cedula', '')
@@ -516,7 +582,7 @@ def _cambio_estatus(msg):
             ('Actualizacion de estatus', 'Se ha realizado una actualizacion en el proceso de la unidad {unidad} a nombre de {cliente}.')
         )
     titulo, cuerpo = _render_template(template_tipo, vars_dict, filas, default_titulo, default_mensaje)
-    _enviar(destinatarios, titulo, cuerpo)
+    return _enviar(destinatarios, titulo, cuerpo)
 
 
 def _alerta_separacion_vencida(msg):
@@ -534,7 +600,7 @@ def _alerta_separacion_vencida(msg):
     titulo, cuerpo = _render_template('alerta_separacion_vencida', vars_dict, filas,
         '⚠️ Separación vencida sin pago',
         f'Han transcurrido {dias} días desde la separación sin registrar pago.')
-    _enviar([ADMIN_EMAIL], titulo, cuerpo)
+    return _enviar([ADMIN_EMAIL], titulo, cuerpo)
 
 
 def _alerta_reserva_vencida(msg):
@@ -552,7 +618,7 @@ def _alerta_reserva_vencida(msg):
     titulo, cuerpo = _render_template('alerta_reserva_vencida', vars_dict, filas,
         'Reserva vencida sin separacion',
         f'Han transcurrido {dias} dias desde la reserva sin registrar separacion.')
-    _enviar([ADMIN_EMAIL], titulo, cuerpo)
+    return _enviar([ADMIN_EMAIL], titulo, cuerpo)
 
 
 def _cliente_captado(msg):
@@ -575,14 +641,13 @@ def _cliente_captado(msg):
     titulo, cuerpo = _render_template('cliente_captado', vars_dict, filas,
         'Nuevo cliente captado',
         'Se ha registrado un nuevo cliente en el sistema.')
-    _enviar([ADMIN_EMAIL], titulo, cuerpo)
+    return _enviar([ADMIN_EMAIL], titulo, cuerpo)
 
 
 def _exclusividad_vencida(msg):
     if not _notificacion_activa('exclusividad_vencida'):
         logger.info('Notificacion exclusividad_vencida desactivada; correo omitido')
-        return
-
+        return {'resultado': 'omitida', 'motivo': 'template_desactivado'}
     meta = msg.get('metadata', {})
     cedula = meta.get('cedula', '')
     proyecto = _nombre_proyecto(msg.get('proyecto_id', ''))
@@ -596,7 +661,7 @@ def _exclusividad_vencida(msg):
     titulo, cuerpo = _render_template('exclusividad_vencida', vars_dict, filas,
         'Exclusividad de cliente vencida',
         'El período de exclusividad de 3 meses ha expirado. La unidad quedó disponible para otras inmobiliarias.')
-    _enviar([ADMIN_EMAIL] + correos_inmo, titulo, cuerpo)
+    return _enviar([ADMIN_EMAIL] + correos_inmo, titulo, cuerpo)
 
 
 def _intento_duplicado(msg):
@@ -620,4 +685,4 @@ def _intento_duplicado(msg):
     titulo, cuerpo = _render_template('intento_duplicado', vars_dict, filas,
         '⚠️ Intento de captación duplicada bloqueado',
         'Una inmobiliaria intentó captar un cliente que ya tiene exclusividad activa con otra inmobiliaria.')
-    _enviar([ADMIN_EMAIL], titulo, cuerpo)
+    return _enviar([ADMIN_EMAIL], titulo, cuerpo)

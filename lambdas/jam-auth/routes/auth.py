@@ -4,6 +4,7 @@ import time
 import boto3
 from botocore.exceptions import ClientError
 from utils.response import ok, bad_request, forbidden, not_found, _build
+from utils.auditoria import registrar_auditoria
 
 cognito = boto3.client('cognito-idp')
 dynamodb = boto3.resource('dynamodb')
@@ -17,6 +18,7 @@ CLOUDFRONT_URL = os.environ.get('CLOUDFRONT_URL', '')
 
 
 def login(event):
+    username = ''
     try:
         body = json.loads(event.get('body') or '{}')
         username = body.get('username')
@@ -32,6 +34,10 @@ def login(event):
 
         # Challenge MFA — admin con TOTP configurado
         if result.get('ChallengeName') == 'SOFTWARE_TOKEN_MFA':
+            registrar_auditoria(
+                event, 'login_mfa_requerido', 'autenticacion', 'usuario', username,
+                detalles={'username': username},
+            )
             return ok({
                 'challenge': 'SOFTWARE_TOKEN_MFA',
                 'session': result['Session'],
@@ -39,12 +45,20 @@ def login(event):
 
         # Challenge primer login admin — MFA no configurado aún
         if result.get('ChallengeName') == 'MFA_SETUP':
+            registrar_auditoria(
+                event, 'login_mfa_setup_requerido', 'autenticacion', 'usuario', username,
+                detalles={'username': username},
+            )
             return ok({
                 'challenge': 'MFA_SETUP',
                 'session': result['Session'],
             })
 
         tokens = result['AuthenticationResult']
+        registrar_auditoria(
+            event, 'login_exitoso', 'autenticacion', 'usuario', username,
+            detalles={'username': username, 'mfa_requerido': False},
+        )
         return ok({
             'access_token': tokens['AccessToken'],
             'id_token': tokens['IdToken'],
@@ -53,6 +67,10 @@ def login(event):
         })
     except ClientError as e:
         code = e.response['Error']['Code']
+        registrar_auditoria(
+            event, 'login_fallido', 'autenticacion', 'usuario', username or 'desconocido',
+            resultado='fallido', detalles={'username': username, 'codigo': code},
+        )
         if code in ('NotAuthorizedException', 'UserNotFoundException'):
             return _build(401, {'message': 'Usuario o contraseña incorrectos'})
         if code == 'UserNotConfirmedException':
@@ -66,6 +84,7 @@ def login(event):
 
 def confirm_mfa(event):
     """Responde al challenge SOFTWARE_TOKEN_MFA con el código TOTP."""
+    username = ''
     try:
         body = json.loads(event.get('body') or '{}')
         session = body.get('session')
@@ -84,6 +103,10 @@ def confirm_mfa(event):
             },
         )
         tokens = result['AuthenticationResult']
+        registrar_auditoria(
+            event, 'login_mfa_exitoso', 'autenticacion', 'usuario', username,
+            detalles={'username': username},
+        )
         return ok({
             'access_token': tokens['AccessToken'],
             'id_token': tokens['IdToken'],
@@ -93,6 +116,10 @@ def confirm_mfa(event):
     except ClientError as e:
         code = e.response['Error']['Code']
         msg = e.response['Error'].get('Message', '')
+        registrar_auditoria(
+            event, 'login_mfa_fallido', 'autenticacion', 'usuario', username or 'desconocido',
+            resultado='fallido', detalles={'username': username, 'codigo': code},
+        )
         if code == 'CodeMismatchException':
             return _build(401, {'message': 'Código incorrecto'})
         if code == 'ExpiredCodeException':
@@ -290,6 +317,10 @@ def foto_upload_url(event):
         ExpiresIn=300,
     )
 
+    registrar_auditoria(
+        event, 'foto_perfil_upload_url_generada', 'usuarios', 'usuario', cognito_sub,
+        detalles={'key': key, 'content_type': content_type},
+    )
     return ok({
         'upload_url': presigned,
         'public_url': f'{CLOUDFRONT_URL}/{key}',
@@ -314,6 +345,10 @@ def guardar_foto(event):
         UpdateExpression='SET foto_url = :foto_url',
         ConditionExpression='attribute_exists(pk)',
         ExpressionAttributeValues={':foto_url': foto_url},
+    )
+    registrar_auditoria(
+        event, 'foto_perfil_actualizada', 'usuarios', 'usuario', cognito_sub,
+        detalles={'foto_url': foto_url},
     )
     return ok({'message': 'Foto actualizada', 'foto_url': foto_url})
 
@@ -340,6 +375,10 @@ def eliminar_foto(event):
         Key={'pk': f'USUARIO#{cognito_sub}', 'sk': 'METADATA'},
         UpdateExpression='REMOVE foto_url',
         ConditionExpression='attribute_exists(pk)',
+    )
+    registrar_auditoria(
+        event, 'foto_perfil_eliminada', 'usuarios', 'usuario', cognito_sub,
+        detalles={'entidad_nombre': cognito_sub},
     )
     return ok({'message': 'Foto eliminada'})
 

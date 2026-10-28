@@ -1,4 +1,5 @@
 import os
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -41,7 +42,7 @@ def registrar_auditoria(event, accion, modulo, entidad_tipo=None, entidad_id=Non
         'tipo': 'AUDITORIA', 'evento_id': event_id, 'fecha': timestamp,
         'accion': accion, 'modulo': modulo, 'resultado': resultado,
         'actor_tipo': 'usuario' if sub else 'sistema', 'usuario_sub': sub,
-        'usuario_nombre': nombre, 'usuario_username': username, 'rol': rol,
+        'usuario_nombre': nombre, 'usuario_username': username, 'rol': rol, 'usuario_rol': rol,
         'request_id': request_id, 'metodo': (event or {}).get('httpMethod') or '',
         'ruta': (event or {}).get('path') or '', 'entidad_tipo': entidad_tipo or '',
         'entidad_id': entidad_id or '', 'entidad_nombre': entidad_nombre,
@@ -52,6 +53,7 @@ def registrar_auditoria(event, accion, modulo, entidad_tipo=None, entidad_id=Non
     for key, value in (detalles or {}).items():
         if value is not None:
             item[key] = value
+    item['detalles'] = detalles or {}
     if datos_anteriores is not None:
         item['datos_anteriores'] = datos_anteriores
     if datos_nuevos is not None:

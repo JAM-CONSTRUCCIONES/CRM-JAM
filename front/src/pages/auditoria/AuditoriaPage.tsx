@@ -9,28 +9,60 @@ import {
   UserRound, XCircle,
 } from 'lucide-react';
 import dayjs, { type Dayjs } from 'dayjs';
-import { listarAuditoria, type AuditoriaItem } from '../../services/auditoria.service';
+import { listarAuditoria, obtenerOpcionesAuditoria, type AuditoriaItem, type AuditoriaUsuarioOption } from '../../services/auditoria.service';
 
 const { Title, Text } = Typography;
 
 const ACCIONES: Record<string, string> = {
   cliente_creado: 'Cliente creado',
+  cliente_actualizado: 'Cliente actualizado',
   cliente_eliminado: 'Cliente eliminado',
+  clientes_exportados: 'Clientes exportados',
+  clientes_exportacion_fallida: 'Exportación de clientes fallida',
   usuario_creado: 'Usuario creado',
   usuario_actualizado: 'Usuario actualizado',
   usuario_eliminado: 'Usuario eliminado',
   usuario_habilitado: 'Usuario habilitado',
   usuario_deshabilitado: 'Usuario deshabilitado',
+  foto_perfil_actualizada: 'Foto de perfil actualizada',
+  foto_perfil_eliminada: 'Foto de perfil eliminada',
+  login_exitoso: 'Inicio de sesión exitoso',
+  login_mfa_requerido: 'MFA requerido',
+  login_mfa_setup_requerido: 'Configuración MFA requerida',
+  login_mfa_exitoso: 'MFA verificado',
   bloqueo_creado: 'Bloqueo creado',
   cliente_asignado_bloqueo: 'Cliente asignado a bloqueo',
+  bloqueo_liberado: 'Bloqueo liberado',
+  bloqueo_liberado_automatico: 'Bloqueo liberado automáticamente',
+  bloqueo_extendido: 'Bloqueo extendido',
+  exclusividad_vencida: 'Exclusividad vencida',
+  proceso_creado: 'Proceso creado',
   proceso_estado_cambiado: 'Estado de proceso cambiado',
+  proceso_estado_cambiado_automatico: 'Estado cambiado automáticamente',
+  proyecto_eliminado: 'Proyecto eliminado',
+  proyecto_eliminacion_iniciada: 'Eliminación de proyecto iniciada',
+  inventario_exportado: 'Inventario exportado',
+  inventario_exportacion_fallida: 'Exportación de inventario fallida',
   migracion_completada: 'Migración completada',
   migracion_fallida: 'Migración fallida',
+  trabajador_creado: 'Trabajador creado',
+  trabajador_actualizado: 'Trabajador actualizado',
+  trabajador_habilitado: 'Trabajador habilitado',
+  trabajador_deshabilitado: 'Trabajador deshabilitado',
   mensaje_crm_enviado: 'Mensaje CRM enviado',
   mensaje_crm_fallido: 'Mensaje CRM fallido',
+  cliente_traspaso_iniciado: 'Traspaso iniciado',
+  cliente_traspaso_completado: 'Traspaso completado',
+  cambio_cedula_iniciado: 'Cambio de cédula iniciado',
+  cambio_cedula_completado: 'Cambio de cédula completado',
 };
 
-const formatAction = (action: string) => ACCIONES[action] || action.replaceAll('_', ' ');
+const formatAction = (action: string) => {
+  if (action.startsWith('notificacion_')) {
+    return `Notificación: ${action.slice('notificacion_'.length).replaceAll('_', ' ')}`;
+  }
+  return ACCIONES[action] || action.replaceAll('_', ' ');
+};
 const formatDate = (value?: string) => value ? dayjs(value).format('DD/MM/YYYY HH:mm:ss') : '—';
 
 const AuditoriaPage = () => {
@@ -39,8 +71,9 @@ const AuditoriaPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [actorTipo, setActorTipo] = useState<'usuario' | 'sistema' | undefined>();
+  const [usuarios, setUsuarios] = useState<AuditoriaUsuarioOption[]>([]);
   const [usuarioSub, setUsuarioSub] = useState('');
-  const [usuarioNombre, setUsuarioNombre] = useState('');
   const [accion, setAccion] = useState<string>();
   const [modulo, setModulo] = useState<string>();
   const [resultado, setResultado] = useState<string>();
@@ -54,8 +87,8 @@ const AuditoriaPage = () => {
     setError('');
     try {
       const response = await listarAuditoria({
-        fecha: fecha.format('YYYY-MM-DD'), usuario_sub: usuarioSub.trim(),
-        usuario_nombre: usuarioNombre.trim(), accion, modulo, resultado,
+        fecha: fecha.format('YYYY-MM-DD'), actor_tipo: actorTipo,
+        usuario_sub: usuarioSub.trim(), accion, modulo, resultado,
         limit: 50, next_token: token,
       });
       setItems(response.items || []);
@@ -72,7 +105,13 @@ const AuditoriaPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [fecha, usuarioSub, usuarioNombre, accion, modulo, resultado]);
+  }, [fecha, actorTipo, usuarioSub, accion, modulo, resultado]);
+
+  useEffect(() => {
+    void obtenerOpcionesAuditoria()
+      .then(response => setUsuarios(response.usuarios || []))
+      .catch(() => setUsuarios([]));
+  }, []);
 
   useEffect(() => {
     setPagina(1);
@@ -119,9 +158,11 @@ const AuditoriaPage = () => {
     },
     {
       title: 'Resultado', dataIndex: 'resultado', width: 130,
-      render: (value: string) => value === 'completado'
-        ? <Tag color="success" icon={<CheckCircle2 size={12} />}>Completado</Tag>
-        : <Tag color="error" icon={<XCircle size={12} />}>Fallido</Tag>,
+      render: (value: string) => value === 'completado' || value === 'enviada'
+        ? <Tag color="success" icon={<CheckCircle2 size={12} />}>{value === 'enviada' ? 'Enviada' : 'Completado'}</Tag>
+        : value === 'omitida'
+          ? <Tag color="warning" icon={<Clock3 size={12} />}>Omitida</Tag>
+          : <Tag color="error" icon={<XCircle size={12} />}>Fallida</Tag>,
     },
     {
       title: '', key: 'detail', width: 76, align: 'right',
@@ -143,11 +184,37 @@ const AuditoriaPage = () => {
         <Flex gap={12} wrap align="center">
           <DatePicker value={fecha} onChange={value => value && setFecha(value)} allowClear={false} format="DD/MM/YYYY" />
           <Input allowClear prefix={<Search size={16} />} placeholder="Buscar en movimientos" value={busqueda} onChange={event => setBusqueda(event.target.value)} style={{ width: 250 }} />
-          <Input allowClear placeholder="Nombre exacto del usuario" value={usuarioNombre} onChange={event => setUsuarioNombre(event.target.value)} style={{ width: 210 }} />
-          <Input allowClear placeholder="Sub del usuario" value={usuarioSub} onChange={event => setUsuarioSub(event.target.value)} style={{ width: 190 }} />
+          <Select
+            allowClear
+            placeholder="Actor"
+            value={actorTipo}
+            onChange={(value: 'usuario' | 'sistema' | undefined) => {
+              setActorTipo(value);
+              if (value === 'sistema') setUsuarioSub('');
+            }}
+            style={{ width: 145 }}
+            options={[{ value: 'usuario', label: 'Usuarios' }, { value: 'sistema', label: 'Sistema' }]}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder="Usuario"
+            value={usuarioSub || undefined}
+            onChange={(value?: string) => {
+              setUsuarioSub(value || '');
+              if (value) setActorTipo('usuario');
+            }}
+            disabled={actorTipo === 'sistema'}
+            style={{ width: 220 }}
+            options={usuarios.map(usuario => ({
+              value: usuario.value,
+              label: `${usuario.label}${usuario.activo ? '' : ' (inactivo)'}`,
+            }))}
+          />
           <Select allowClear placeholder="Movimiento" value={accion} onChange={setAccion} style={{ width: 210 }} options={acciones.map(value => ({ value, label: formatAction(value) }))} />
           <Select allowClear placeholder="Módulo" value={modulo} onChange={setModulo} style={{ width: 150 }} options={modulos.map(value => ({ value, label: value }))} />
-          <Select allowClear placeholder="Resultado" value={resultado} onChange={setResultado} style={{ width: 145 }} options={[{ value: 'completado', label: 'Completado' }, { value: 'fallido', label: 'Fallido' }]} />
+          <Select allowClear placeholder="Resultado" value={resultado} onChange={setResultado} style={{ width: 145 }} options={[{ value: 'completado', label: 'Completado' }, { value: 'enviada', label: 'Enviada' }, { value: 'omitida', label: 'Omitida' }, { value: 'fallido', label: 'Fallido' }, { value: 'fallida', label: 'Fallida' }]} />
         </Flex>
       </Card>
 
@@ -179,12 +246,14 @@ const AuditoriaPage = () => {
           <div><Text type="secondary">Movimiento</Text><Title level={4} style={{ marginTop: 4 }}>{formatAction(seleccionado.accion)}</Title><Text type="secondary"><Clock3 size={14} style={{ verticalAlign: -2 }} /> {formatDate(seleccionado.fecha)}</Text></div>
           <Descriptions column={1} size="small" bordered>
             <Descriptions.Item label="Usuario">{seleccionado.usuario_nombre || seleccionado.usuario_sub || 'Sistema'}</Descriptions.Item>
-            <Descriptions.Item label="Rol">{seleccionado.usuario_rol || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Rol">{seleccionado.usuario_rol || seleccionado.rol || '—'}</Descriptions.Item>
             <Descriptions.Item label="Módulo">{seleccionado.modulo}</Descriptions.Item>
             <Descriptions.Item label="Entidad">{seleccionado.entidad_nombre || seleccionado.entidad_tipo} {seleccionado.entidad_nombre && seleccionado.entidad_id ? `· ${seleccionado.entidad_id}` : ''}</Descriptions.Item>
             <Descriptions.Item label="Resultado">{seleccionado.resultado}</Descriptions.Item>
           </Descriptions>
           <div><Text strong>Datos registrados</Text><pre className="audit-json">{JSON.stringify(seleccionado.detalles || {}, null, 2)}</pre></div>
+          {seleccionado.datos_anteriores && <div><Text strong>Datos anteriores</Text><pre className="audit-json">{JSON.stringify(seleccionado.datos_anteriores, null, 2)}</pre></div>}
+          {seleccionado.datos_nuevos && <div><Text strong>Datos nuevos</Text><pre className="audit-json">{JSON.stringify(seleccionado.datos_nuevos, null, 2)}</pre></div>}
         </Space>}
       </Drawer>
     </div>

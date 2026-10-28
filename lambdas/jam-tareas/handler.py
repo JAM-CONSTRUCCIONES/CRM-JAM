@@ -644,6 +644,7 @@ def crear_trabajador(event):
     }
     item = {k: v for k, v in item.items() if v not in (None, '')}
     tareas_t.put_item(Item=item)
+    registrar_auditoria(event, 'trabajador_creado', 'tareas', 'trabajador', trabajador_id, detalles={'entidad_nombre': nombre, 'correo': item.get('correo'), 'cargo': item.get('cargo'), 'activo': item.get('activo', True)})
     return created(item)
 
 
@@ -669,4 +670,10 @@ def actualizar_trabajador(event):
     current['actualizado_en'] = _now()
     current = {k: v for k, v in current.items() if v not in (None, '')}
     tareas_t.put_item(Item=current)
+    registrar_auditoria(
+        event,
+        'trabajador_actualizado' if 'activo' not in body else ('trabajador_habilitado' if current.get('activo') else 'trabajador_deshabilitado'),
+        'tareas', 'trabajador', trabajador_id,
+        detalles={'entidad_nombre': current.get('nombre'), 'cambios': body, 'activo': current.get('activo', True)},
+    )
     return ok(current)

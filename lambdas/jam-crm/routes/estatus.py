@@ -229,6 +229,19 @@ def crear_proceso_admin(event, cedula):
         'fecha_inicio': ahora,
         'actualizado_en': ahora,
     })
+    registrar_auditoria(
+        event, 'proceso_creado', 'procesos', 'proceso', f'{cedula}#{unidad_id}',
+        detalles={
+            'cedula': cedula,
+            'proyecto_id': proyecto_id,
+            'inmobiliaria_id': inmobiliaria_id,
+            'unidad_id': unidad_id,
+            'unidad_nombre': unidad_nombre,
+            'entidad_nombre': f'{cedula} · {unidad_nombre}',
+            'estado': 'captacion',
+            'origen': 'admin',
+        },
+    )
     return created({'message': 'Proceso creado', 'unidad_id': unidad_id, 'estado': 'captacion'})
 
 
@@ -1090,6 +1103,24 @@ def manejar_alerta_reserva(event):
             'unidad_nombre': unidad_nombre,
             'timestamp': ahora,
         }, ensure_ascii=False),
+    )
+
+    registrar_auditoria(
+        {'source': 'scheduler', 'tipo': 'alerta_reserva_vencida'},
+        'proceso_estado_cambiado_automatico', 'procesos', 'proceso',
+        f'{cedula}#{unidad_id}',
+        detalles={
+            'cedula': cedula,
+            'proyecto_id': proyecto_id,
+            'inmobiliaria_id': inmobiliaria_id,
+            'unidad_id': unidad_id,
+            'unidad_nombre': unidad_nombre,
+            'entidad_nombre': f"{cliente.get('nombres', '')} {cliente.get('apellidos', '')} · {unidad_nombre}".strip(' ·'),
+            'estatus_anterior': 'reserva',
+            'estatus_nuevo': 'pagos_atrasados',
+            'origen': 'vencimiento_reserva_30_dias',
+            'notificar': 'admin',
+        },
     )
 
 

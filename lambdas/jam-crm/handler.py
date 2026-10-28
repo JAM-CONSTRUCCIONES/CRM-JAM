@@ -47,6 +47,8 @@ def handler(event, context):
         if query.get('tipo') == 'auditoria':
             if not es_admin:
                 return forbidden()
+            if query.get('opciones') == 'true':
+                return auditoria_routes.opciones(event)
             return auditoria_routes.listar(event)
         if query.get('tipo') == 'meta-facebook-oauth-url':
             return meta_routes.facebook_oauth_url(event)

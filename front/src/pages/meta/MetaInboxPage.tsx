@@ -42,6 +42,8 @@ import { getUsuariosSistema, type UsuarioSistema } from '../../services/sistema.
 import { actualizarTarea, crearTarea, getTareas, type TareaJam } from '../../services/tareas.service';
 import type { Cliente, Proyecto, Unidad } from '../../types';
 import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
+import { seleccionarNotificacionBloqueo } from '../../components/common/ConfirmarCrearBloqueo';
+import { confirmarExclusividadCliente } from '../../components/common/ConfirmarExclusividadCliente';
 import { clienteFieldNormalizers, clienteFormRules, validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
 
 const { Paragraph, Text } = Typography;
@@ -168,6 +170,7 @@ const JAM_WHATSAPP_WEBHOOK_URL = `${CRM_API_URL}/webhooks/whatsapp`;
 const JAM_META_INBOX_URL =
   typeof window !== 'undefined' ? `${window.location.origin}/meta-inbox` : '/meta-inbox';
 const LEADS_PAGE_SIZE = 50;
+const FILTERED_LEADS_PAGE_SIZE = 150;
 const MAX_REENVIO_MENSAJES = 10;
 const MAX_REENVIO_DESTINOS = 5;
 
@@ -564,6 +567,8 @@ export default function MetaInboxPage() {
   // pausar el refresco automatico mientras el usuario esta trabajando.
   const selectedLeadRef = useRef<MetaLead | null>(null);
   const mensajesRef = useRef<MetaMensaje[]>([]);
+  const loadingMoreLeadsRef = useRef(false);
+  const loadingMoreRequestRef = useRef(0);
   const busquedaRef = useRef('');
   const canalRef = useRef<string | undefined>(undefined);
   const convCycleRef = useRef(0);
@@ -575,6 +580,7 @@ export default function MetaInboxPage() {
   const MAX_BACKOFF_STEPS = 6;
   const leadsFailRef = useRef(0);
   const leadsSkipRef = useRef(0);
+  const leadsRequestRef = useRef(0);
   const convFailRef = useRef(0);
   const convSkipRef = useRef(0);
 
@@ -658,6 +664,17 @@ export default function MetaInboxPage() {
   useEffect(() => {
     busquedaRef.current = busqueda;
     canalRef.current = canal;
+    // Evita mantener visible el spinner de una solicitud anterior mientras
+    // se espera el debounce del nuevo filtro.
+    setLoadingLeads(false);
+    // Invalida y libera visualmente una carga de pagina anterior. Su respuesta
+    // puede llegar tarde, pero no debe alterar el estado de la nueva busqueda.
+    loadingMoreRequestRef.current += 1;
+    loadingMoreLeadsRef.current = false;
+    setLoadingMoreLeads(false);
+    // Invalida inmediatamente cualquier solicitud anterior mientras se aplica
+    // el debounce de la nueva búsqueda.
+    leadsRequestRef.current += 1;
     const timer = window.setTimeout(() => {
       cargarLeads();
     }, busqueda.trim() ? 350 : 0);
@@ -745,36 +762,48 @@ export default function MetaInboxPage() {
 
   const leadsParams = (cursor?: string) => {
     const text = busqueda.trim();
-    const filtrosActivos = Boolean(text || canal);
+    const tieneFiltro = Boolean(text || canal);
     return {
       ...(canal ? { canal } : {}),
       ...(text ? { q: text } : {}),
-      ...(filtrosActivos ? {} : { limit: LEADS_PAGE_SIZE, ...(cursor ? { cursor } : {}) }),
+      limit: tieneFiltro ? FILTERED_LEADS_PAGE_SIZE : LEADS_PAGE_SIZE,
+      ...(cursor ? { cursor } : {}),
     };
   };
 
   const leadsParamsRef = (cursor?: string) => {
     const text = busquedaRef.current.trim();
     const activeCanal = canalRef.current;
-    const filtrosActivos = Boolean(text || activeCanal);
+    const tieneFiltro = Boolean(text || activeCanal);
     return {
       ...(activeCanal ? { canal: activeCanal } : {}),
       ...(text ? { q: text } : {}),
-      ...(filtrosActivos ? {} : { limit: LEADS_PAGE_SIZE, ...(cursor ? { cursor } : {}) }),
+      limit: tieneFiltro ? FILTERED_LEADS_PAGE_SIZE : LEADS_PAGE_SIZE,
+      ...(cursor ? { cursor } : {}),
     };
   };
 
   // Actualiza la lista de leads sin spinner ni abrir conversacion.
   const refrescarLeadsSilencioso = async () => {
+    // No competir con "Cargar mas": ambas solicitudes usan el cursor de la
+    // lista y el polling no debe invalidar ni reemplazar esa pagina.
+    if (loadingMoreLeadsRef.current) return;
+    // Con una busqueda o filtro activo, el polling de la primera pagina
+    // borraria los bloques que el usuario ya cargo. La lista filtrada se
+    // actualiza al cambiar el filtro, cargar mas o pulsar actualizar.
+    if (busquedaRef.current.trim() || canalRef.current) return;
+    const requestId = ++leadsRequestRef.current;
     try {
       const data = await listarMetaLeads(leadsParamsRef());
+      if (requestId !== leadsRequestRef.current) return;
       setLeads((prev) => mergeRecentLeadsByPk(prev, data.items || []));
       setSelectedLead((prev) => {
         if (!prev) return prev;
         return data.items?.find((lead) => lead.pk === prev.pk) || prev;
       });
-      setLeadsCursor(data.next_cursor || '');
-      setHasMoreLeads(Boolean(data.has_more));
+      // El refresco silencioso siempre consulta la primera pagina. No debemos
+      // reemplazar el cursor actual, porque despues de "Cargar mas" apuntaria
+      // otra vez al inicio y repetiria la segunda pagina indefinidamente.
       leadsFailRef.current = 0; // exito: se resetea el backoff
     } catch {
       // Silencioso: no interrumpimos al usuario. Aplicamos backoff.
@@ -843,9 +872,11 @@ export default function MetaInboxPage() {
   };
 
   const cargarLeads = async () => {
+    const requestId = ++leadsRequestRef.current;
     setLoadingLeads(true);
     try {
       const data = await listarMetaLeads(leadsParams());
+      if (requestId !== leadsRequestRef.current) return;
       setLeads(data.items || []);
       setLeadsCursor(data.next_cursor || '');
       setHasMoreLeads(Boolean(data.has_more));
@@ -865,24 +896,36 @@ export default function MetaInboxPage() {
         }
       }
     } catch (error: any) {
-      message.error(error?.message || 'No se pudieron cargar las conversaciones Meta');
+      if (requestId === leadsRequestRef.current) {
+        message.error(error?.message || 'No se pudieron cargar las conversaciones Meta');
+      }
     } finally {
-      setLoadingLeads(false);
+      if (requestId === leadsRequestRef.current) setLoadingLeads(false);
     }
   };
 
   const cargarMasLeads = async () => {
-    if (!leadsCursor || loadingMoreLeads) return;
+    if (!leadsCursor || loadingMoreLeads || loadingMoreLeadsRef.current) return;
+    const requestId = leadsRequestRef.current;
+    const loadingRequestId = ++loadingMoreRequestRef.current;
+    loadingMoreLeadsRef.current = true;
     setLoadingMoreLeads(true);
     try {
       const data = await listarMetaLeads(leadsParams(leadsCursor));
+      if (requestId !== leadsRequestRef.current) return;
       setLeads((prev) => appendLeadsByPk(prev, data.items || []));
       setLeadsCursor(data.next_cursor || '');
       setHasMoreLeads(Boolean(data.has_more));
+      if ((busquedaRef.current.trim() || canalRef.current) && !data.items?.length && data.has_more) {
+        message.info('Este bloque de 150 no tuvo coincidencias. Cargar más revisará el siguiente bloque.');
+      }
     } catch (error: any) {
       message.error(error?.message || 'No se pudieron cargar mas conversaciones');
     } finally {
-      setLoadingMoreLeads(false);
+      if (loadingRequestId === loadingMoreRequestRef.current) {
+        loadingMoreLeadsRef.current = false;
+        setLoadingMoreLeads(false);
+      }
     }
   };
 
@@ -1712,11 +1755,35 @@ export default function MetaInboxPage() {
         message.error(`Este lead ya esta asociado a la cedula ${selectedLead.cliente_cedula}`);
         return;
       }
+      const notificar = payload.unidad_id
+        ? await seleccionarNotificacionBloqueo(payload.unidad_id)
+        : false;
+      if (payload.unidad_id && notificar === undefined) return;
       setSavingConversion(true);
-      const result = await convertirMetaLead(selectedLead.pk, {
+      const conversionPayload: any = {
         ...payload,
         inmobiliaria_id: String(payload.inmobiliaria_id || '').replace('INMOBILIARIA#', ''),
-      });
+        notificar,
+      };
+      let result;
+      try {
+        result = await convertirMetaLead(selectedLead.pk, conversionPayload);
+      } catch (error: any) {
+        const status = error?.response?.statusCode ?? error?.response?.status;
+        const msg = error?.response?.data?.message || error?.message || '';
+        const puedeForzar = usuario?.rol === 'admin' || usuario?.rol === 'coordinador';
+        if (status === 409 && puedeForzar && !conversionPayload.forzar_admin && msg.toLowerCase().includes('exclusividad')) {
+          if (await confirmarExclusividadCliente(msg)) {
+            conversionPayload.forzar_admin = true;
+            result = await convertirMetaLead(selectedLead.pk, conversionPayload);
+          } else {
+            message.info('Operación cancelada');
+            return;
+          }
+        } else {
+          throw error;
+        }
+      }
       setSelectedLead(result.lead);
       setConvertOpen(false);
       convertForm.resetFields();
@@ -1765,6 +1832,11 @@ export default function MetaInboxPage() {
                 ]}
               />
             </Space>
+            {(busqueda.trim() || canal) && (
+              <Text type="secondary" className="mt-1 block text-xs">
+                La búsqueda revisa bloques de 150 conversaciones. “Cargar más” revisa el siguiente bloque.
+              </Text>
+            )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {loadingLeads && !conversaciones.length ? (
@@ -1821,6 +1893,11 @@ export default function MetaInboxPage() {
             ) : (
               <div className="grid h-full place-items-center p-4">
                 <Empty description="Sin conversaciones" />
+                {hasMoreLeads && (
+                  <Button size="small" onClick={cargarMasLeads} loading={loadingMoreLeads}>
+                    Buscar en más conversaciones
+                  </Button>
+                )}
               </div>
             )}
           </div>

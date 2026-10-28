@@ -21,19 +21,22 @@ export interface AuditoriaResponse {
   items: AuditoriaItem[];
   fecha: string;
   count: number;
-  last_key?: string | null;
+  next_token?: string | null;
 }
 
 export const listarAuditoria = (params: {
   fecha?: string;
   usuario_sub?: string;
+  usuario_nombre?: string;
   accion?: string;
   modulo?: string;
   resultado?: string;
+  next_token?: string;
+  limit?: number;
 } = {}) => {
   const query = new URLSearchParams({ tipo: 'auditoria' });
   Object.entries(params).forEach(([key, value]) => {
-    if (value) query.set(key, value);
+    if (value) query.set(key, String(value));
   });
   return apiGet<AuditoriaResponse>(`/admin/procesos?${query.toString()}`);
 };

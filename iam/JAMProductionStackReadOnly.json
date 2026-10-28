@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadProductionCloudFormationStack",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:DescribeStackResource",
+        "cloudformation:DescribeStackResourceDrifts",
+        "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ListStackResources",
+        "cloudformation:ListChangeSets",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:GetStackPolicy"
+      ],
+      "Resource": "arn:aws:cloudformation:us-east-1:479324457361:stack/JamConstruccionesProd/*"
+    },
+    {
+      "Sid": "ChangeOwnPassword",
+      "Effect": "Allow",
+      "Action": "iam:ChangePassword",
+      "Resource": "arn:aws:iam::479324457361:user/jam/jam-construcciones-prod"
+    }
+  ]
+}

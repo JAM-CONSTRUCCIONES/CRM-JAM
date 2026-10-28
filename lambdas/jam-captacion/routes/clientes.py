@@ -399,6 +399,54 @@ def _normalizar_datos_cliente(body):
     return data, None
 
 
+def _buscar_coincidencias_contacto(proyecto_id, telefono='', correo=''):
+    """Busca clientes del proyecto que ya usen el mismo teléfono o correo."""
+    if not proyecto_id or not telefono and not correo:
+        return []
+
+    filtro = None
+    if telefono:
+        filtro = Attr('telefono').eq(telefono)
+    if correo:
+        filtro_correo = Attr('correo').eq(correo)
+        filtro = filtro_correo if filtro is None else filtro | filtro_correo
+
+    kwargs = {
+        'IndexName': 'gsi-proyecto-clientes',
+        'KeyConditionExpression': Key('proyecto_id').eq(proyecto_id),
+        'FilterExpression': filtro,
+        'Limit': 10,
+    }
+    items = []
+    while len(items) < 10:
+        resultado = clientes.query(**kwargs)
+        items.extend(resultado.get('Items', []))
+        last_key = resultado.get('LastEvaluatedKey')
+        if not last_key:
+            break
+        kwargs['ExclusiveStartKey'] = last_key
+    for item in items[:10]:
+        if telefono and item.get('telefono') == telefono:
+            item['coincidencia_por'] = 'telefono'
+        elif correo and item.get('correo') == correo:
+            item['coincidencia_por'] = 'correo'
+    return items[:10]
+
+
+def _error_duplicado_contacto(proyecto_id, telefono='', correo=''):
+    coincidencias = _buscar_coincidencias_contacto(proyecto_id, telefono, correo)
+    if not coincidencias:
+        return None
+    primera = coincidencias[0]
+    campo = primera.get('coincidencia_por') or 'telefono/correo'
+    nombre = ' '.join([
+        str(primera.get('nombres') or '').strip(),
+        str(primera.get('apellidos') or '').strip(),
+    ]).strip()
+    detalle = f' ({nombre})' if nombre else ''
+    return f'Posible duplicado por {campo}{detalle} en este proyecto'
+
+
 def registrar(event):
     body = json.loads(event.get('body') or '{}')
     body, error = _normalizar_datos_cliente(body)

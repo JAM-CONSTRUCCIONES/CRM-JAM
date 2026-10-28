@@ -160,6 +160,10 @@ def bloquear(event):
         return bad_request('proyecto_id y unidad_id son requeridos')
 
     es_admin = require_admin(event)
+    # Las inmobiliarias no pueden desactivar las notificaciones del bloqueo.
+    # Administración conserva la selección explícita (admin/todos/sin aviso).
+    if get_rol(event) == 'inmobiliaria':
+        notificar = 'todos'
     forzar_admin = es_admin and solicita_forzar_admin
     # Los usuarios internos pueden gestionar una unidad inmediatamente después
     # de una liberación. La confirmación explícita (`forzar_admin`) se conserva

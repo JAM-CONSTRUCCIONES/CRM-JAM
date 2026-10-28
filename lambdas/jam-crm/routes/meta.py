@@ -3,17 +3,18 @@ import os
 import re
 import json
 import uuid
+import unicodedata
 import urllib.error
 import urllib.request
 from urllib.parse import quote, urlencode
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 from utils.response import _build, bad_request, conflict, ok
-from utils.auth import get_nombre, get_sub
+from utils.auth import get_nombre, get_rol, get_sub
 from routes.estatus import _activar_bloqueo_desde_proceso
 from utils.auditoria import registrar_auditoria
 
@@ -21,6 +22,7 @@ from utils.auditoria import registrar_auditoria
 dynamodb = boto3.resource('dynamodb')
 ssm = boto3.client('ssm')
 s3 = boto3.client('s3')
+sqs = boto3.client('sqs')
 ASSETS_BUCKET = os.environ.get('ASSETS_BUCKET', '')
 CLOUDFRONT_URL = os.environ.get('CLOUDFRONT_URL', '').rstrip('/')
 META_CONVERSACIONES_TABLE = os.environ.get('META_CONVERSACIONES_TABLE', '')
@@ -28,6 +30,7 @@ meta_table = dynamodb.Table(META_CONVERSACIONES_TABLE) if META_CONVERSACIONES_TA
 CLIENTES_TABLE = os.environ.get('CLIENTES_TABLE', '')
 PROCESOS_TABLE = os.environ.get('PROCESOS_TABLE', '')
 INVENTARIO_TABLE = os.environ.get('INVENTARIO_TABLE', '')
+SQS_URL = os.environ.get('SQS_URL', '')
 clientes_table = dynamodb.Table(CLIENTES_TABLE) if CLIENTES_TABLE else None
 procesos_table = dynamodb.Table(PROCESOS_TABLE) if PROCESOS_TABLE else None
 inventario_table = dynamodb.Table(INVENTARIO_TABLE) if INVENTARIO_TABLE else None
@@ -175,15 +178,16 @@ def listar_leads(event):
     inmobiliaria_id = str(params.get('inmobiliaria_id') or '').strip()
     search_text = str(params.get('q') or params.get('busqueda') or '').strip().lower()
     cursor = str(params.get('cursor') or '').strip()
+    # La lista normal se pagina de 50 en 50. Con busqueda o canal activo se
+    # entregan 150 coincidencias por pagina, sin limite total: el frontend
+    # continua con next_cursor hasta agotar todos los resultados compatibles.
+    pagina_filtrada = bool(search_text or canal)
     raw_limit = params.get('limit')
-    if raw_limit is None and not cursor:
-        limit = None
-    else:
-        try:
-            limit = int(raw_limit or 50)
-        except (TypeError, ValueError):
-            limit = 50
-        limit = max(1, min(limit, 100))
+    try:
+        limit = int(raw_limit or (150 if pagina_filtrada else 50))
+    except (TypeError, ValueError):
+        limit = 150 if pagina_filtrada else 50
+    limit = max(1, min(limit, 150 if pagina_filtrada else 50))
 
     def matches_filters(item):
         if canal and item.get('channel') != canal:
@@ -208,7 +212,13 @@ def listar_leads(event):
             return False
         return True
 
-    result = _listar_leads_feed(limit, cursor, matches_filters)
+    result = _listar_leads_feed(
+        limit,
+        cursor,
+        matches_filters,
+        canal=canal,
+        filtrar_sobre_pagina=True,
+    )
 
     return ok({
         'items': result['items'],
@@ -765,6 +775,10 @@ def convertir_lead(event):
         return bad_request('Lead Meta no encontrado')
 
     body = _json_body(event)
+    notificar = body.get('notificar', False)
+    if notificar not in (False, 'admin', 'todos'):
+        notificar = False
+    forzar_admin = bool(body.get('forzar_admin')) and get_rol(event) in ('admin', 'coordinador')
     try:
         cedula = _normalizar_documento(body.get('cedula'))
         proyecto_id = _clean(body.get('proyecto_id'))
@@ -787,29 +801,13 @@ def convertir_lead(event):
     pk_cliente = f'CLIENTE#{cedula}#{inmobiliaria_id}'
     sk_cliente = f'PROYECTO#{proyecto_id}'
     existing = clientes_table.get_item(Key={'pk': pk_cliente, 'sk': sk_cliente}).get('Item')
-    if not existing:
-        coincidencias_contacto = _buscar_clientes_por_contacto(
-            proyecto_sk=sk_cliente,
-            telefono=telefono,
-            correo=correo,
-        )
-        if coincidencias_contacto:
-            primera = coincidencias_contacto[0]
-            campo = primera.get('coincidencia_por') or 'telefono/correo'
-            nombre = ' '.join([
-                str(primera.get('nombres') or '').strip(),
-                str(primera.get('apellidos') or '').strip(),
-            ]).strip()
-            detalle = f' ({nombre})' if nombre else ''
-            return conflict(f'Posible duplicado por {campo}{detalle} en este proyecto')
-
     exclusividad = clientes_table.query(
         IndexName='gsi-cedula-proyecto',
         KeyConditionExpression=Key('cedula').eq(cedula) & Key('sk').eq(sk_cliente),
         FilterExpression=Attr('exclusividad_activa').eq(True),
     )
     for item in exclusividad.get('Items', []):
-        if _normalizar_inmo_id(item.get('inmobiliaria_id')) != inmobiliaria_id:
+        if _normalizar_inmo_id(item.get('inmobiliaria_id')) != inmobiliaria_id and not forzar_admin:
             return conflict('Este cliente tiene exclusividad activa con otra inmobiliaria en este proyecto')
 
     if unidad_id:
@@ -841,6 +839,7 @@ def convertir_lead(event):
     ahora_dt = datetime.now(timezone.utc)
     ahora = ahora_dt.isoformat()
     fecha_vencimiento = _add_months(ahora_dt, 3).isoformat()
+    fecha_liberacion_bloqueo = (ahora_dt + timedelta(hours=48)).isoformat()
     usuario = {
         'sub': get_sub(event) or '',
         'nombre': get_nombre(event),
@@ -966,6 +965,25 @@ def convertir_lead(event):
             unidad_id,
             unidad_nombre,
         )
+        if SQS_URL and notificar:
+            sqs.send_message(
+                QueueUrl=SQS_URL,
+                MessageBody=json.dumps({
+                    'evento': 'bloqueo_registrado',
+                    'proyecto_id': proyecto_id,
+                    'inmobiliaria_id': inmobiliaria_id,
+                    'metadata': {
+                        'unidad_id': unidad_id,
+                        'unidad_nombre': unidad_nombre,
+                        'fecha_bloqueo': ahora,
+                        'fecha_liberacion': fecha_liberacion_bloqueo,
+                        'fecha_asignacion': ahora,
+                        'cliente_cedula': cedula,
+                        'horas': 48,
+                    },
+                    'notificar': notificar,
+                }),
+            )
 
     conversion_meta = {
         'convertido_en': ahora,
@@ -978,6 +996,8 @@ def convertir_lead(event):
         'unidad_id': unidad_id,
         'unidad_nombre': unidad_nombre if unidad_id else '',
         'con_unidad': bool(unidad_id),
+        'notificar': notificar,
+        'forzar_admin': forzar_admin,
     }
 
     meta_table.update_item(
@@ -1321,6 +1341,7 @@ def _lead_matches_search(item, search_text):
         item.get('nombre_manual'),
         item.get('contact_profile_name'),
         item.get('contact_username'),
+        item.get('cliente_nombre'),
         item.get('ultimo_mensaje_texto'),
         item.get('responsable_nombre'),
         item.get('inmobiliaria_nombre'),
@@ -1331,7 +1352,15 @@ def _lead_matches_search(item, search_text):
         item.get('ad_name'),
         item.get('ad_id'),
     )
-    return any(search_text in str(value or '').lower() for value in fields)
+    haystack = _normalizar_texto_busqueda(' '.join(str(value or '') for value in fields))
+    tokens = [token for token in _normalizar_texto_busqueda(search_text).split() if token]
+    return bool(tokens) and all(token in haystack for token in tokens)
+
+
+def _normalizar_texto_busqueda(value):
+    texto = unicodedata.normalize('NFKD', str(value or ''))
+    sin_acentos = ''.join(char for char in texto if not unicodedata.combining(char))
+    return ' '.join(sin_acentos.lower().split())
 
 
 def _form_submission_matches_search(item, search_text):
@@ -1442,18 +1471,29 @@ def _listar_oportunidades_cliente_asociado(lead):
     return oportunidades
 
 
-def _listar_leads_feed(limit=None, cursor='', matches_filters=None):
+def _listar_leads_feed(limit=None, cursor='', matches_filters=None, canal='', filtrar_sobre_pagina=False):
     return _listar_feed(
         feed_pk='META_LEAD',
         tipo='META_LEAD',
         limit=limit,
         cursor=cursor,
         matches_filters=matches_filters,
+        canal=canal,
+        filtrar_sobre_pagina=filtrar_sobre_pagina,
         fallback_sort_key='ultimo_mensaje_en',
     )
 
 
-def _listar_feed(feed_pk, tipo, limit=None, cursor='', matches_filters=None, fallback_sort_key='actualizado_en'):
+def _listar_feed(
+    feed_pk,
+    tipo,
+    limit=None,
+    cursor='',
+    matches_filters=None,
+    canal='',
+    filtrar_sobre_pagina=False,
+    fallback_sort_key='actualizado_en',
+):
     matches_filters = matches_filters or (lambda item: True)
     start_key = _decode_cursor(cursor)
     try:
@@ -1463,17 +1503,22 @@ def _listar_feed(feed_pk, tipo, limit=None, cursor='', matches_filters=None, fal
             'KeyConditionExpression': Key('feed_pk').eq(feed_pk),
             'ScanIndexForward': False,
         }
+        if canal:
+            # El canal no forma parte de la clave del GSI de feed, pero sí
+            # puede filtrarse dentro de DynamoDB para no transportar a Lambda
+            # paginas completas de otros canales.
+            kwargs['FilterExpression'] = Attr('channel').eq(canal)
         if limit:
             kwargs['Limit'] = limit
         if start_key:
             kwargs['ExclusiveStartKey'] = start_key
 
         last_key = None
-        while limit is None or len(items) < limit:
+        while True:
             result = meta_table.query(**kwargs)
             items.extend([item for item in result.get('Items', []) if matches_filters(item)])
             last_key = result.get('LastEvaluatedKey')
-            if not last_key:
+            if not last_key or filtrar_sobre_pagina or not limit or len(items) >= limit:
                 break
             kwargs['ExclusiveStartKey'] = last_key
 
@@ -1491,7 +1536,7 @@ def _listar_feed(feed_pk, tipo, limit=None, cursor='', matches_filters=None, fal
         scan_kwargs['ExclusiveStartKey'] = start_key
     items = []
     last_key = None
-    while limit is None or len(items) < limit:
+    while True:
         result = meta_table.scan(**scan_kwargs)
         page = [
             item for item in result.get('Items', [])
@@ -1499,7 +1544,7 @@ def _listar_feed(feed_pk, tipo, limit=None, cursor='', matches_filters=None, fal
         ]
         items.extend(page)
         last_key = result.get('LastEvaluatedKey')
-        if not last_key:
+        if not last_key or filtrar_sobre_pagina or not limit or len(items) >= limit:
             break
         scan_kwargs['ExclusiveStartKey'] = last_key
 

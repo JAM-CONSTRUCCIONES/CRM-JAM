@@ -39,27 +39,46 @@ const AuditoriaPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [usuarioSub, setUsuarioSub] = useState('');
+  const [usuarioNombre, setUsuarioNombre] = useState('');
   const [accion, setAccion] = useState<string>();
   const [modulo, setModulo] = useState<string>();
   const [resultado, setResultado] = useState<string>();
+  const [pagina, setPagina] = useState(1);
+  const [tokens, setTokens] = useState<(string | undefined)[]>([undefined]);
+  const [siguienteToken, setSiguienteToken] = useState<string>();
   const [seleccionado, setSeleccionado] = useState<AuditoriaItem | null>(null);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (token?: string, numeroPagina = 1) => {
     setLoading(true);
     setError('');
     try {
       const response = await listarAuditoria({
-        fecha: fecha.format('YYYY-MM-DD'), accion, modulo, resultado,
+        fecha: fecha.format('YYYY-MM-DD'), usuario_sub: usuarioSub.trim(),
+        usuario_nombre: usuarioNombre.trim(), accion, modulo, resultado,
+        limit: 50, next_token: token,
       });
       setItems(response.items || []);
+      setSiguienteToken(response.next_token || undefined);
+      if (response.next_token) {
+        setTokens(prev => {
+          const next = [...prev];
+          next[numeroPagina] = response.next_token || undefined;
+          return next;
+        });
+      }
     } catch (err: any) {
       setError(err?.message || 'No se pudo cargar la auditoría');
     } finally {
       setLoading(false);
     }
-  }, [fecha, accion, modulo, resultado]);
+  }, [fecha, usuarioSub, usuarioNombre, accion, modulo, resultado]);
 
-  useEffect(() => { void cargar(); }, [cargar]);
+  useEffect(() => {
+    setPagina(1);
+    setTokens([undefined]);
+    void cargar(undefined, 1);
+  }, [cargar]);
 
   const acciones = useMemo(() => [...new Set(items.map(item => item.accion))], [items]);
   const modulos = useMemo(() => [...new Set(items.map(item => item.modulo).filter(Boolean))], [items]);
@@ -117,13 +136,15 @@ const AuditoriaPage = () => {
           <Title level={2} style={{ margin: 0 }}>Auditoría</Title>
           <Text type="secondary">Movimientos administrativos y operativos del sistema</Text>
         </div>
-        <Button icon={<RefreshCw size={16} />} onClick={() => void cargar()} loading={loading}>Actualizar</Button>
+        <Button icon={<RefreshCw size={16} />} onClick={() => void cargar(tokens[pagina - 1], pagina)} loading={loading}>Actualizar</Button>
       </Flex>
 
       <Card className="audit-toolbar" style={{ marginTop: 24 }}>
         <Flex gap={12} wrap align="center">
           <DatePicker value={fecha} onChange={value => value && setFecha(value)} allowClear={false} format="DD/MM/YYYY" />
           <Input allowClear prefix={<Search size={16} />} placeholder="Buscar en movimientos" value={busqueda} onChange={event => setBusqueda(event.target.value)} style={{ width: 250 }} />
+          <Input allowClear placeholder="Nombre exacto del usuario" value={usuarioNombre} onChange={event => setUsuarioNombre(event.target.value)} style={{ width: 210 }} />
+          <Input allowClear placeholder="Sub del usuario" value={usuarioSub} onChange={event => setUsuarioSub(event.target.value)} style={{ width: 190 }} />
           <Select allowClear placeholder="Movimiento" value={accion} onChange={setAccion} style={{ width: 210 }} options={acciones.map(value => ({ value, label: formatAction(value) }))} />
           <Select allowClear placeholder="Módulo" value={modulo} onChange={setModulo} style={{ width: 150 }} options={modulos.map(value => ({ value, label: value }))} />
           <Select allowClear placeholder="Resultado" value={resultado} onChange={setResultado} style={{ width: 145 }} options={[{ value: 'completado', label: 'Completado' }, { value: 'fallido', label: 'Fallido' }]} />
@@ -135,7 +156,19 @@ const AuditoriaPage = () => {
       <Card style={{ marginTop: 16 }} styles={{ body: { padding: 0 } }}>
         {loading ? <div style={{ padding: 60, textAlign: 'center' }}><Spin /></div> : visibles.length === 0 ? <Empty description={`Sin movimientos el ${fecha.format('DD/MM/YYYY')}`} style={{ padding: 64 }} /> : (
           <Table<AuditoriaItem>
-            rowKey="evento_id" columns={columns} dataSource={visibles} pagination={{ pageSize: 20, showSizeChanger: false, showTotal: total => `${total} movimientos` }}
+            rowKey="evento_id" columns={columns} dataSource={visibles}
+            pagination={{
+              current: pagina,
+              pageSize: 50,
+              showSizeChanger: false,
+              total: siguienteToken ? pagina * 50 + 1 : (pagina - 1) * 50 + items.length,
+              showTotal: () => `Página ${pagina}`,
+              onChange: (nextPage) => {
+                const token = tokens[nextPage - 1];
+                setPagina(nextPage);
+                void cargar(token, nextPage);
+              },
+            }}
             scroll={{ x: 900 }} onRow={item => ({ onClick: () => setSeleccionado(item), style: { cursor: 'pointer' } })}
           />
         )}

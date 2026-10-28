@@ -47,7 +47,10 @@ import { getProyectos, getUnidades } from '../../services/proyectos.service';
 import { actualizarTarea, crearTarea, getTareas, type TareaJam } from '../../services/tareas.service';
 import type { Proyecto, Unidad } from '../../types';
 import { EstadoCivilSelect, NacionalidadSelect, PaisResidenciaSelect } from '../../components/common/CatalogoClienteFields';
+import { seleccionarNotificacionBloqueo } from '../../components/common/ConfirmarCrearBloqueo';
+import { confirmarExclusividadCliente } from '../../components/common/ConfirmarExclusividadCliente';
 import { clienteFieldNormalizers, clienteFormRules, validateAndNormalizeClientePayload } from '../../utils/clientesValidation';
+import { useAuthContext } from '../../context/AuthContext';
 
 const { Paragraph, Text, Title } = Typography;
 const { Search, TextArea } = Input;
@@ -200,6 +203,7 @@ type MetaReportRow = {
 
 export default function MetaLeadsPage() {
   const navigate = useNavigate();
+  const { usuario } = useAuthContext();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const [leads, setLeads] = useState<MetaLead[]>([]);
@@ -560,11 +564,35 @@ export default function MetaLeadsPage() {
         message.error(`Este lead ya esta asociado a la cedula ${selectedLead.cliente_cedula}`);
         return;
       }
+      const notificar = payload.unidad_id
+        ? await seleccionarNotificacionBloqueo(payload.unidad_id)
+        : false;
+      if (payload.unidad_id && notificar === undefined) return;
       setSavingConversion(true);
-      const result = await convertirMetaLead(selectedLead.pk, {
+      const conversionPayload: any = {
         ...payload,
         inmobiliaria_id: String(payload.inmobiliaria_id || '').replace('INMOBILIARIA#', ''),
-      });
+        notificar,
+      };
+      let result;
+      try {
+        result = await convertirMetaLead(selectedLead.pk, conversionPayload);
+      } catch (error: any) {
+        const status = error?.response?.statusCode ?? error?.response?.status;
+        const msg = error?.response?.data?.message || error?.message || '';
+        const puedeForzar = usuario?.rol === 'admin' || usuario?.rol === 'coordinador';
+        if (status === 409 && puedeForzar && !conversionPayload.forzar_admin && msg.toLowerCase().includes('exclusividad')) {
+          if (await confirmarExclusividadCliente(msg)) {
+            conversionPayload.forzar_admin = true;
+            result = await convertirMetaLead(selectedLead.pk, conversionPayload);
+          } else {
+            message.info('Operación cancelada');
+            return;
+          }
+        } else {
+          throw error;
+        }
+      }
       setSelectedLead(result.lead);
       setConvertOpen(false);
       convertForm.resetFields();

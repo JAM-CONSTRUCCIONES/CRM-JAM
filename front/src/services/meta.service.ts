@@ -435,6 +435,8 @@ export const convertirMetaLead = (
     nacionalidad?: string;
     pais_residencia?: string;
     fecha_nacimiento?: string;
+    notificar?: 'admin' | 'todos' | false;
+    forzar_admin?: boolean;
   },
 ): Promise<{
   message: string;

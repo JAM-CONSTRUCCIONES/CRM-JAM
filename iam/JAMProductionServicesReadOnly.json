@@ -1,0 +1,155 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadProductionDynamoTables",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Describe*",
+        "dynamodb:GetResourcePolicy",
+        "dynamodb:ListTagsOfResource"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-campanias-prod",
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-clientes-prod",
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-historial-bloqueos-prod",
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-historial-estatus-prod",
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-inventario-prod",
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-meta-conversaciones-prod",
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-procesos-prod",
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-tareas-prod",
+        "arn:aws:dynamodb:us-east-1:479324457361:table/jam-usuarios-prod"
+      ]
+    },
+    {
+      "Sid": "ReadProductionLambdas",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetAlias",
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetPolicy",
+        "lambda:ListAliases",
+        "lambda:ListEventSourceMappings",
+        "lambda:ListTags",
+        "lambda:ListVersionsByFunction"
+      ],
+      "Resource": [
+        "arn:aws:lambda:us-east-1:479324457361:function:JamConstruccionesProd-BucketNotificationsHandler05-WeTMA0VsJUqB",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-auth-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-bloqueos-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-campanias-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-captacion-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-crm-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-excel-parser-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-iniciar-transferencia-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-meta-webhooks-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-notificaciones-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-proyectos-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-tareas-prod",
+        "arn:aws:lambda:us-east-1:479324457361:function:jam-transferir-cliente-prod"
+      ]
+    },
+    {
+      "Sid": "ReadProductionApiGateway",
+      "Effect": "Allow",
+      "Action": "apigateway:GET",
+      "Resource": "arn:aws:apigateway:us-east-1::/restapis/7lltvhwiu7/*"
+    },
+    {
+      "Sid": "ReadProductionCognito",
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:Describe*",
+        "cognito-idp:Get*",
+        "cognito-idp:List*"
+      ],
+      "Resource": "arn:aws:cognito-idp:us-east-1:479324457361:userpool/us-east-1_LanuU6JeX"
+    },
+    {
+      "Sid": "ReadProductionSqs",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:ListDeadLetterSourceQueues"
+      ],
+      "Resource": [
+        "arn:aws:sqs:us-east-1:479324457361:jam-notificaciones-dlq-prod",
+        "arn:aws:sqs:us-east-1:479324457361:jam-notificaciones-queue-prod"
+      ]
+    },
+    {
+      "Sid": "ReadProductionStepFunctions",
+      "Effect": "Allow",
+      "Action": [
+        "states:Describe*",
+        "states:Get*",
+        "states:List*"
+      ],
+      "Resource": [
+        "arn:aws:states:us-east-1:479324457361:stateMachine:jam-cambiar-cedula-workflow-prod",
+        "arn:aws:states:us-east-1:479324457361:stateMachine:jam-eliminar-proyecto-prod",
+        "arn:aws:states:us-east-1:479324457361:stateMachine:jam-transferir-cliente-workflow-prod"
+      ]
+    },
+    {
+      "Sid": "ReadProductionLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogStreams",
+        "logs:FilterLogEvents",
+        "logs:GetLogEvents"
+      ],
+      "Resource": "arn:aws:logs:us-east-1:479324457361:log-group:/aws/lambda/*:log-stream:*"
+    },
+    {
+      "Sid": "ReadProductionS3",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketAcl",
+        "s3:GetBucketLocation",
+        "s3:GetBucketPolicy",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::jam-archivos-prod-479324457361",
+        "arn:aws:s3:::jam-assets-prod-479324457361",
+        "arn:aws:s3:::jam-frontend-prod-479324457361"
+      ]
+    },
+    {
+      "Sid": "ReadProductionCloudFront",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:Get*",
+        "cloudfront:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:cloudfront::479324457361:distribution/EQD4J2QTY0PV8"
+    },
+    {
+      "Sid": "ReadProductionBackup",
+      "Effect": "Allow",
+      "Action": [
+        "backup:Describe*",
+        "backup:Get*",
+        "backup:List*"
+      ],
+      "Resource": [
+        "arn:aws:backup:us-east-1:479324457361:backup-plan:afd2e6f4-1000-4f69-8a27-f37306b93f79",
+        "arn:aws:backup:us-east-1:479324457361:backup-vault:jam-backup-vault-prod"
+      ]
+    },
+    {
+      "Sid": "ReadProductionIamRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "arn:aws:iam::479324457361:role/JamConstruccionesProd-*"
+    }
+  ]
+}

@@ -114,6 +114,35 @@ def _normalizar_datos_cliente(datos_cliente):
     return data, None
 
 
+def _buscar_coincidencia_contacto(clientes, proyecto_id, telefono='', correo=''):
+    """Busca un cliente existente del proyecto por teléfono o correo."""
+    if not proyecto_id or not telefono and not correo:
+        return None
+
+    filtro = None
+    if telefono:
+        filtro = Attr('telefono').eq(telefono)
+    if correo:
+        filtro_correo = Attr('correo').eq(correo)
+        filtro = filtro_correo if filtro is None else filtro | filtro_correo
+
+    kwargs = {
+        'IndexName': 'gsi-proyecto-clientes',
+        'KeyConditionExpression': Key('proyecto_id').eq(proyecto_id),
+        'FilterExpression': filtro,
+        'Limit': 10,
+    }
+    while True:
+        resultado = clientes.query(**kwargs)
+        items = resultado.get('Items', [])
+        if items:
+            return items[0]
+        last_key = resultado.get('LastEvaluatedKey')
+        if not last_key:
+            return None
+        kwargs['ExclusiveStartKey'] = last_key
+
+
 def _add_months(dt: datetime, months: int) -> datetime:
     month = dt.month - 1 + months
     year = dt.year + month // 12

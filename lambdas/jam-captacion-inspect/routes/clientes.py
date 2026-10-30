@@ -402,6 +402,7 @@ def listar_mis_procesos(event):
     inmobiliaria_id = _get_inmobiliaria_id(sub)
     qs = event.get('queryStringParameters') or {}
     proyecto_id = qs.get('proyecto_id')
+    estado = (qs.get('estado') or '').strip().lower()
 
     kwargs = {
         'IndexName': 'gsi-inmobiliaria-procesos',
@@ -411,4 +412,7 @@ def listar_mis_procesos(event):
         kwargs['FilterExpression'] = Attr('proyecto_id').eq(proyecto_id)
 
     result = procesos.query(**kwargs)
-    return ok(result.get('Items', []))
+    items = result.get('Items', [])
+    if estado:
+        items = [p for p in items if str(p.get('estado', '')).strip().lower() == estado]
+    return ok(items)

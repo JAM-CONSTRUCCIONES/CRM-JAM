@@ -385,7 +385,7 @@ const ClientesPage = () => {
     setDrawerCliente(cliente);
     setDrawerProcesos([]);
     try {
-      const p = await getMisProcesos(cliente.proyecto_id);
+      const p = await getMisProcesos({ proyectoId: cliente.proyecto_id });
       setDrawerProcesos(p.filter(x => x.cedula === cliente.cedula));
     } catch { setDrawerProcesos([]); }
   };

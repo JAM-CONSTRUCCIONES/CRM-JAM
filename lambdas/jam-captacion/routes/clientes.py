@@ -1104,6 +1104,8 @@ def listar_mis_procesos(event):
     inmobiliaria_id = _get_inmobiliaria_id(sub)
     qs = event.get('queryStringParameters') or {}
     proyecto_id = qs.get('proyecto_id')
+    query = (qs.get('q') or '').strip().lower()
+    estado = (qs.get('estado') or '').strip().lower()
 
     kwargs = {
         'IndexName': 'gsi-inmobiliaria-procesos',
@@ -1131,6 +1133,15 @@ def listar_mis_procesos(event):
                 p['apellidos'] = cliente.get('apellidos', '')
         except Exception:
             pass
+
+    # Aplicar los filtros después de enriquecer, porque el nombre del cliente
+    # vive en la tabla de clientes y no en el índice de procesos.
+    if estado:
+        items = [p for p in items if str(p.get('estado', '')).strip().lower() == estado]
+    if query:
+        items = [p for p in items if query in ' '.join(str(p.get(c, '') or '') for c in (
+            'nombres', 'apellidos', 'cedula', 'unidad_id', 'unidad_nombre'
+        )).lower()]
 
     return ok(items)
 

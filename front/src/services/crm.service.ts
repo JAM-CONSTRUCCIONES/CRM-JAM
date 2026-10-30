@@ -61,8 +61,16 @@ export const getProcesosCliente = (cedula: string, inmobiliariaId?: string): Pro
   return apiGet<Proceso[]>(`/admin/clientes/${encodeURIComponent(cedula)}/procesos${qs}`);
 };
 
-export const getMisProcesos = (proyectoId?: string): Promise<Proceso[]> => {
-  const qs = proyectoId ? `?proyecto_id=${proyectoId}` : '';
+export const getMisProcesos = (params?: {
+  proyectoId?: string;
+  q?: string;
+  estado?: string;
+}): Promise<Proceso[]> => {
+  const query = new URLSearchParams();
+  if (params?.proyectoId) query.set('proyecto_id', params.proyectoId);
+  if (params?.q?.trim()) query.set('q', params.q.trim());
+  if (params?.estado) query.set('estado', params.estado);
+  const qs = query.toString() ? `?${query.toString()}` : '';
   return apiGet<Proceso[]>(`/mis-procesos${qs}`);
 };
 

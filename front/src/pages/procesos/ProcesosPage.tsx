@@ -11,7 +11,7 @@ import {
   ArrowLeftOutlined, AppstoreOutlined, InfoCircleOutlined, UserSwitchOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { listarTodosProcesos, enriquecerProcesos, cambiarEstatus, getMisProcesos, traspasarClienteProceso, type ProcesoEnriquecido } from '../../services/crm.service';
+import { listarTodosProcesos, enriquecerProcesos, cambiarEstatus, traspasarClienteProceso, type ProcesoEnriquecido } from '../../services/crm.service';
 import { getProyectos, getUnidad, getEtapas } from '../../services/proyectos.service';
 import { getInmobiliarias } from '../../services/inmobiliarias.service';
 import { extenderBloqueo, getBloquesActivos, bloquearUnidad, liberarBloqueo, getHistorialBloqueos } from '../../services/bloqueos.service';
@@ -224,33 +224,23 @@ const ProcesosPage = () => {
 
     setLoading(true);
     try {
-      if (esInmobiliaria) {
-        // Inmobiliaria: endpoint propio, ya viene con nombre embebido.
-        const items = await getMisProcesos(proyectoId);
-        const enriched: ProcesoEnriquecido[] = items.map((p: any) => ({
-          ...p,
-          cliente: p.nombres ? { nombres: p.nombres, apellidos: p.apellidos ?? '' } : undefined,
-        }));
-        const ordenados = enriched.sort(compararPorUnidad);
-        setProcesosCrudos(ordenados);
-        setPaginaActual(0);
-      } else {
-        const data = await listarTodosProcesos({
-          proyecto_id: proyectoId,
-          incluir_cerrados: opts.incluirCerrados ?? procesosCompletosRef.current,
-          q: termino || undefined,
-          estado: estadoServidor || undefined,
-          // enrich=false (default): el backend devuelve crudo; enriquecemos la página visible aparte.
-          // En búsqueda el backend ya devuelve enriquecido (necesita el nombre para filtrar).
-        });
-        const ordenados = data.items.sort(compararPorUnidad);
-        // Si viene de búsqueda, ya está enriquecido: sembrar la cache.
-        if (termino) {
-          ordenados.forEach(p => { if (p.cliente) enriquecidosRef.current.set(claveProceso(p), p); });
-        }
-        setProcesosCrudos(ordenados);
-        setPaginaActual(0);
+      // Ambos roles usan la misma consulta. Para inmobiliarias el backend
+      // fuerza el filtro a su propia inmobiliaria antes de devolver datos.
+      const data = await listarTodosProcesos({
+        proyecto_id: proyectoId,
+        incluir_cerrados: opts.incluirCerrados ?? procesosCompletosRef.current,
+        q: termino || undefined,
+        estado: estadoServidor || undefined,
+        // enrich=false (default): el backend devuelve crudo; enriquecemos la página visible aparte.
+        // En búsqueda el backend ya devuelve enriquecido (necesita el nombre para filtrar).
+      });
+      const ordenados = data.items.sort(compararPorUnidad);
+      // Si viene de búsqueda, ya está enriquecido: sembrar la cache.
+      if (termino) {
+        ordenados.forEach(p => { if (p.cliente) enriquecidosRef.current.set(claveProceso(p), p); });
       }
+      setProcesosCrudos(ordenados);
+      setPaginaActual(0);
     } catch {
       message.error('Error al cargar procesos');
     } finally {
@@ -330,7 +320,7 @@ const ProcesosPage = () => {
 
   // Búsqueda con debounce: el backend recorre todo el proyecto y enriquece coincidencias.
   useEffect(() => {
-    if (!proyectoSeleccionado || esInmobiliaria) return;
+    if (!proyectoSeleccionado) return;
     const termino = busqueda.trim();
     if (termino === busquedaServidorRef.current) return;
     const t = setTimeout(() => {
@@ -342,9 +332,10 @@ const ProcesosPage = () => {
 
   // Cuando cambia el filtro de estatus, recargar el conjunto crudo filtrado por estado.
   useEffect(() => {
-    if (!proyectoSeleccionado || esInmobiliaria) return;
-    if (busqueda.trim()) return; // en búsqueda el estado se filtra sobre el resultado
-    cargar({ estado: estadoFiltro || '' });
+    if (!proyectoSeleccionado) return;
+    // El backend combina ambos filtros, así que el orden en que se cambien
+    // búsqueda y estatus no debe afectar el resultado.
+    cargar({ q: busqueda, estado: estadoFiltro || '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estadoFiltro]);
 
